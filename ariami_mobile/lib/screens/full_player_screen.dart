@@ -139,8 +139,13 @@ class _FullPlayerScreenState extends State<FullPlayerScreen> {
 
   void _performSkipToIndex(int targetIndex) {
     _pendingSkipIndex = targetIndex;
-    unawaited(_artworkController.animateToIndex(targetIndex));
-    unawaited(_playbackManager.skipToQueueItem(targetIndex));
+    // Like a swipe: the artwork animates first and the carousel's scroll-end
+    // triggers the skip, so playback work doesn't land mid-animation.
+    unawaited(_artworkController.animateToIndex(targetIndex).then((animated) {
+      if (!animated && mounted) {
+        unawaited(_playbackManager.skipToQueueItem(targetIndex));
+      }
+    }));
   }
 
   void _onPlaylistsChanged() {
