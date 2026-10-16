@@ -72,6 +72,7 @@ class _SearchScreenState extends State<SearchScreen> {
   Map<String, AlbumModel> _albumsById = {};
   SearchResults? _searchResults;
   List<SongModel> _recentSongs = [];
+  Set<String> _recentSongIds = {};
   Set<String> _downloadedSongIds = {};
 
   bool _isLoading = false;
@@ -296,6 +297,7 @@ class _SearchScreenState extends State<SearchScreen> {
     if (!mounted) return;
     setState(() {
       _recentSongs = recent;
+      _recentSongIds = {for (final s in recent) s.id};
     });
   }
 
@@ -686,6 +688,7 @@ class _SearchScreenState extends State<SearchScreen> {
       isDownloaded: _downloadedSongIds.contains(song.id),
       isCached: false,
       isAvailable: !_isOffline || _downloadedSongIds.contains(song.id),
+      isInRecentSearch: _recentSongIds.contains(song.id),
     );
   }
 

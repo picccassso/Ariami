@@ -7,6 +7,7 @@ import '../../utils/artwork_url.dart';
 import '../../services/playback_manager.dart';
 import '../common/cached_artwork.dart';
 import '../common/mini_player_aware_bottom_sheet.dart';
+import '../common/playing_bars.dart';
 import '../common/song_artwork.dart';
 import '../common/song_overflow_menu.dart';
 import '../common/swipe_to_queue.dart';
@@ -22,6 +23,7 @@ class SearchResultSongItem extends StatefulWidget {
   final bool isAvailable;
   final VoidCallback? onRemove;
   final bool showRemoveFromRecent;
+  final bool isInRecentSearch;
 
   const SearchResultSongItem({
     super.key,
@@ -35,6 +37,7 @@ class SearchResultSongItem extends StatefulWidget {
     this.isAvailable = true,
     this.onRemove,
     this.showRemoveFromRecent = false,
+    this.isInRecentSearch = false,
   });
 
   @override
@@ -70,118 +73,142 @@ class _SearchResultSongItemState extends State<SearchResultSongItem> {
   Widget build(BuildContext context) {
     // Apply opacity when song is not available (offline and not downloaded)
     final opacity = widget.isAvailable ? 1.0 : 0.5;
+    final playbackManager = PlaybackManager();
 
-    final content = Opacity(
-      opacity: opacity,
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: widget.isAvailable ? widget.onTap : null,
-          child: Padding(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-            child: Row(
-              children: [
-                _buildLeading(context),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        widget.song.title,
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w500,
-                          color: widget.isAvailable
-                              ? Theme.of(context).textTheme.bodyLarge?.color
-                              : Colors.grey,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
+    return ListenableBuilder(
+      listenable: playbackManager,
+      builder: (context, _) {
+        final isCurrent = widget.isAvailable &&
+            playbackManager.currentSong?.id == widget.song.id;
+        final isAnimating =
+            isCurrent && (playbackManager.isPlaying || playbackManager.isLoading);
+
+        final titleColor = !widget.isAvailable
+            ? Colors.grey
+            : (isCurrent
+                ? Theme.of(context).colorScheme.primary
+                : Theme.of(context).textTheme.bodyLarge?.color);
+
+        final content = Opacity(
+          opacity: opacity,
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: widget.isAvailable ? widget.onTap : null,
+              child: Padding(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+                child: Row(
+                  children: [
+                    _buildLeading(context),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            widget.song.title,
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight:
+                                  isCurrent ? FontWeight.w600 : FontWeight.w500,
+                              color: titleColor,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            widget.song.artist,
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: Theme.of(context)
+                                      .textTheme
+                                      .bodyMedium
+                                      ?.color
+                                      ?.withValues(alpha: 0.7) ??
+                                  Colors.grey[600],
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
                       ),
-                      const SizedBox(height: 4),
-                      Text(
-                        widget.song.artist,
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: Theme.of(context)
-                                  .textTheme
-                                  .bodyMedium
-                                  ?.color
-                                  ?.withValues(alpha: 0.7) ??
-                              Colors.grey[600],
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(width: 16),
+                    Text(
+                      formatMinSec(widget.song.duration),
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: Theme.of(context)
+                            .textTheme
+                            .bodySmall
+                            ?.color
+                            ?.withValues(alpha: 0.5),
+                      ),
+                    ),
+                    if (isCurrent) ...[
+                      const SizedBox(width: 8),
+                      PlayingBars(
+                        playing: isAnimating,
+                        color: Theme.of(context).colorScheme.primary,
+                        size: 16,
                       ),
                     ],
-                  ),
+                    if (widget.isAvailable) ...[
+                      const SizedBox(width: 8),
+                      IconButton(
+                        icon: Icon(
+                          Icons.more_vert_rounded,
+                          size: 20,
+                          color: Theme.of(context)
+                              .colorScheme
+                              .onSurface
+                              .withValues(alpha: 0.5),
+                        ),
+                        onPressed: () => _showSongMenu(context),
+                        padding: EdgeInsets.zero,
+                        constraints:
+                            const BoxConstraints(minWidth: 40, minHeight: 40),
+                      ),
+                    ] else
+                      const SizedBox(width: 48),
+                  ],
                 ),
-                const SizedBox(width: 16),
-                Text(
-                  formatMinSec(widget.song.duration),
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: Theme.of(context)
-                        .textTheme
-                        .bodySmall
-                        ?.color
-                        ?.withValues(alpha: 0.5),
-                  ),
-                ),
-                if (widget.isAvailable) ...[
-                  const SizedBox(width: 8),
-                  IconButton(
-                    icon: Icon(
-                      Icons.more_vert_rounded,
-                      size: 20,
-                      color: Theme.of(context)
-                          .colorScheme
-                          .onSurface
-                          .withValues(alpha: 0.5),
-                    ),
-                    onPressed: () => _showSongMenu(context),
-                    padding: EdgeInsets.zero,
-                    constraints:
-                        const BoxConstraints(minWidth: 40, minHeight: 40),
-                  ),
-                ] else
-                  const SizedBox(width: 48),
-              ],
+              ),
             ),
           ),
-        ),
-      ),
-    );
+        );
 
-    if (widget.onRemove != null) {
-      return LayoutBuilder(
-        builder: (context, constraints) {
-          final itemWidth = constraints.maxWidth;
+        if (widget.onRemove != null) {
+          return LayoutBuilder(
+            builder: (context, constraints) {
+              final itemWidth = constraints.maxWidth;
 
-          return Listener(
-            onPointerDown: (event) => _armDismissSwipe(event, itemWidth),
-            onPointerUp: (_) => _resetDismissSwipe(),
-            onPointerCancel: (_) => _resetDismissSwipe(),
-            child: SwipeToQueue(
-              itemKey: ValueKey('search_queue_${widget.song.id}'),
-              addToQueueEnabled: widget.isAvailable,
-              onAddToQueue: _handleAddToQueue,
-              onRemove: _dismissSwipeArmed ? widget.onRemove : null,
-              child: content,
-            ),
+              return Listener(
+                onPointerDown: (event) => _armDismissSwipe(event, itemWidth),
+                onPointerUp: (_) => _resetDismissSwipe(),
+                onPointerCancel: (_) => _resetDismissSwipe(),
+                child: SwipeToQueue(
+                  itemKey: ValueKey('search_queue_${widget.song.id}'),
+                  addToQueueEnabled: widget.isAvailable,
+                  onAddToQueue: _handleAddToQueue,
+                  onRemove: _dismissSwipeArmed ? widget.onRemove : null,
+                  child: content,
+                ),
+              );
+            },
           );
-        },
-      );
-    }
+        }
 
-    return SwipeToQueue(
-      itemKey: ValueKey('search_queue_${widget.song.id}'),
-      addToQueueEnabled: widget.isAvailable,
-      onAddToQueue: _handleAddToQueue,
-      child: content,
+        return SwipeToQueue(
+          itemKey: ValueKey('search_queue_${widget.song.id}'),
+          addToQueueEnabled: widget.isAvailable,
+          onAddToQueue: _handleAddToQueue,
+          child: content,
+        );
+      },
     );
   }
 
@@ -298,6 +325,23 @@ class _SearchResultSongItemState extends State<SearchResultSongItem> {
       child: Stack(
         children: [
           _buildAlbumArt(context),
+          if (widget.isInRecentSearch)
+            Positioned(
+              top: 0,
+              right: 0,
+              child: Container(
+                padding: const EdgeInsets.all(2),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.primaryContainer,
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  Icons.history_rounded,
+                  size: 10,
+                  color: Theme.of(context).colorScheme.onPrimaryContainer,
+                ),
+              ),
+            ),
           if (widget.isDownloaded)
             Positioned(
               bottom: 0,
