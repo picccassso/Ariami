@@ -73,6 +73,7 @@ extension _LibraryManagerApiPart on LibraryManager {
       'albumId': albumId,
       'duration': duration,
       'trackNumber': song.trackNumber,
+      'hasLyrics': song.hasLyrics,
     };
   }
 
@@ -153,6 +154,7 @@ extension _LibraryManagerApiPart on LibraryManager {
       'albumId': albumId,
       'duration': duration,
       'trackNumber': song.trackNumber,
+      'hasLyrics': song.hasLyrics,
     };
   }
 }

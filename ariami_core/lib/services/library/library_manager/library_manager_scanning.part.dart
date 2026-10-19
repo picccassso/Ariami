@@ -307,6 +307,7 @@ extension _LibraryManagerScanningPart on LibraryManager {
     _artworkCache.clear();
     _durationCache.clear();
     _songArtworkCache.clear();
+    _lyricsCache.clear();
     _durationsReady = false;
     print('[LibraryManager] Library cleared');
   }

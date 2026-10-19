@@ -20,8 +20,8 @@ extension _MetadataExtractorProbesPart on MetadataExtractor {
         '-v',
         'quiet',
         '-show_entries',
-        'format_tags=title,artist,artists,album,album_artist,albumartist,genre,date,year,originaldate,track,tracknumber,disc,discnumber:'
-            'stream_tags=title,artist,artists,album,album_artist,albumartist,genre,date,year,originaldate,track,tracknumber,disc,discnumber:'
+        'format_tags=title,artist,artists,album,album_artist,albumartist,genre,date,year,originaldate,track,tracknumber,disc,discnumber,lyrics,unsyncedlyrics:'
+            'stream_tags=title,artist,artists,album,album_artist,albumartist,genre,date,year,originaldate,track,tracknumber,disc,discnumber,lyrics,unsyncedlyrics:'
             'format=duration,bit_rate:stream=bit_rate,codec_type,codec_name:'
             'stream_disposition=attached_pic',
         '-of',

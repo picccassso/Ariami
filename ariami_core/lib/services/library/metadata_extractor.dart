@@ -5,6 +5,7 @@ import 'dart:typed_data';
 import 'package:path/path.dart' as p;
 import 'package:dart_tags/dart_tags.dart';
 import 'package:ariami_core/models/song_metadata.dart';
+import 'package:ariami_core/services/library/lyrics_extractor.dart';
 import 'package:ariami_core/services/library/mp3_duration_parser.dart';
 import 'package:ariami_core/services/library/track_number_inference.dart';
 import 'package:ariami_core/utils/mojibake_repair.dart';

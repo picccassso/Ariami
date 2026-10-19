@@ -10,6 +10,7 @@ import 'package:ariami_core/models/song_metadata.dart';
 import 'package:ariami_core/services/library/file_scanner.dart';
 import 'package:ariami_core/services/library/library_playlist_builder.dart'
     show suspiciousPlaylistAlbumTagPaths;
+import 'package:ariami_core/services/library/lyrics_extractor.dart';
 import 'package:ariami_core/services/library/m3u_playlist_parser.dart';
 import 'package:ariami_core/services/library/metadata_extractor.dart';
 import 'package:ariami_core/services/library/album_identity.dart';
@@ -362,6 +363,8 @@ class LibraryScannerIsolate {
               'mtime': result.mtime,
               'size': result.size,
               'metadata': result.metadata.toJson(),
+              if (result.lyricsSidecarMtime != null)
+                'lyricsSidecarMtime': result.lyricsSidecarMtime,
             };
             if (result.fromCache) {
               cacheHits++;
@@ -624,8 +627,14 @@ class LibraryScannerIsolate {
     }
   }
 
-  static Future<({SongMetadata metadata, int mtime, int size, bool fromCache})?>
-      _extractOrUseCached(
+  static Future<
+      ({
+        SongMetadata metadata,
+        int mtime,
+        int size,
+        int? lyricsSidecarMtime,
+        bool fromCache
+      })?> _extractOrUseCached(
     MetadataExtractor extractor,
     String filePath,
     Map<String, Map<String, dynamic>> cache,
@@ -635,15 +644,19 @@ class LibraryScannerIsolate {
       final stat = await file.stat();
       final currentMtime = stat.modified.millisecondsSinceEpoch;
       final currentSize = stat.size;
+      final currentSidecarMtime = LyricsExtractor.getSidecarMtime(filePath);
 
       final cached = cache[filePath];
       if (cached != null) {
         final cachedMtime = cached['mtime'] as int?;
         final cachedSize = cached['size'] as int?;
+        final cachedLyricsSidecarMtime = cached['lyricsSidecarMtime'] as int?;
 
         // Validate cache entry and only trust it when duration data is already
-        // present. Older cache entries without duration should be refreshed.
-        if (cachedMtime == currentMtime && cachedSize == currentSize) {
+        // present and sidecar lyrics mtime matches.
+        if (cachedMtime == currentMtime &&
+            cachedSize == currentSize &&
+            cachedLyricsSidecarMtime == currentSidecarMtime) {
           final metadataJson = cached['metadata'] as Map<String, dynamic>?;
           final cachedDuration = metadataJson?['duration'] as int?;
           if (metadataJson != null &&
@@ -661,6 +674,7 @@ class LibraryScannerIsolate {
               metadata: metadata,
               mtime: currentMtime,
               size: currentSize,
+              lyricsSidecarMtime: currentSidecarMtime,
               fromCache: true,
             );
           }
@@ -675,6 +689,7 @@ class LibraryScannerIsolate {
         metadata: metadata,
         mtime: currentMtime,
         size: currentSize,
+        lyricsSidecarMtime: currentSidecarMtime,
         fromCache: false,
       );
     } catch (e) {

@@ -12,6 +12,7 @@ import 'package:ariami_core/models/scan_diagnostics.dart';
 import 'package:ariami_core/models/music_availability.dart';
 import 'package:ariami_core/models/playlist_suggestion.dart';
 import 'package:ariami_core/models/song_metadata.dart';
+import 'package:ariami_core/models/lyrics_models.dart';
 import 'package:ariami_core/services/artwork/artwork_service.dart';
 import 'package:ariami_core/services/catalog/catalog_change_log.dart';
 import 'package:ariami_core/services/catalog/catalog_database.dart';
@@ -20,6 +21,7 @@ import 'package:ariami_core/services/catalog/catalog_writer.dart';
 import 'package:ariami_core/services/library/album_identity.dart';
 import 'package:ariami_core/services/library/change_processor.dart';
 import 'package:ariami_core/services/library/folder_watcher.dart';
+import 'package:ariami_core/services/library/lyrics_extractor.dart';
 import 'package:ariami_core/services/library/metadata_extractor.dart';
 import 'package:ariami_core/services/library/library_scanner_isolate.dart';
 import 'package:ariami_core/services/library/metadata_cache.dart';
@@ -132,7 +134,11 @@ class LibraryManager {
   /// Cache for lazily extracted song artwork for standalone songs (LRU, max 100 ~50MB)
   final LruCache<String, List<int>?> _songArtworkCache = LruCache(100);
 
+  /// Cache for lazily extracted lyrics (LRU, max 200 songs ~100KB)
+  final LruCache<String, SongLyrics?> _lyricsCache = LruCache(200);
+
   final MetadataExtractor _metadataExtractor = MetadataExtractor();
+  final LyricsExtractor _lyricsExtractor = LyricsExtractor();
 
   ArtworkService? _artworkPrecomputeService;
 
@@ -357,6 +363,16 @@ class LibraryManager {
   /// Used for standalone songs that don't belong to an album
   Future<List<int>?> getSongArtwork(String songId) =>
       _getSongArtworkImpl(songId);
+
+  /// Get lyrics for a song by song ID (lazy extraction with caching).
+  ///
+  /// Enforces precedence:
+  /// 1. Sidecar .lrc
+  /// 2. Embedded synced lyrics
+  /// 3. Sidecar .txt
+  /// 4. Embedded plain lyrics
+  Future<SongLyrics?> getSongLyrics(String songId) =>
+      _getSongLyricsImpl(songId);
 
   void clear() => _clearImpl();
 }

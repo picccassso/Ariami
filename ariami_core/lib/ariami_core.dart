@@ -17,6 +17,7 @@ export 'models/host_controls.dart';
 export 'models/library_structure.dart';
 export 'models/listening_stats_models.dart';
 export 'models/hidden_item.dart';
+export 'models/lyrics_models.dart';
 export 'models/pinned_item.dart';
 export 'models/quality_preset.dart';
 export 'models/server_origin.dart';
@@ -34,6 +35,7 @@ export 'services/library/file_scanner.dart';
 export 'services/library/folder_watcher.dart';
 export 'services/library/library_manager.dart';
 export 'services/library/library_scanner_isolate.dart';
+export 'services/library/lyrics_extractor.dart';
 export 'services/library/metadata_cache.dart';
 export 'services/library/metadata_extractor.dart';
 

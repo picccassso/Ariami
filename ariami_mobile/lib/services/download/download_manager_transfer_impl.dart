@@ -89,7 +89,6 @@ extension _DownloadManagerTransferImpl on DownloadManager {
     final totalStopwatch = Stopwatch()..start();
     var backend = 'dart_dio';
     try {
-
       final cancelToken = CancelToken();
       _activeDownloads[task.id] = cancelToken;
 
@@ -320,9 +319,10 @@ extension _DownloadManagerTransferImpl on DownloadManager {
       await Future.delayed(_slotRefillRest);
       _fillDownloadSlots();
 
-      // Cache artwork after completion so network/disk prefetch doesn't block
-      // download throughput or queue status updates.
+      // Cache artwork and download lyrics after completion so network/disk
+      // prefetch doesn't block download throughput or queue status updates.
       _queueArtworkCaching(task);
+      _queueLyricsDownloading(task);
     } on DioException catch (e) {
       _releaseSlot(task.id);
       _handleDownloadError(task, e);
@@ -459,6 +459,7 @@ extension _DownloadManagerTransferImpl on DownloadManager {
 
     if (task.status == DownloadStatus.completed) {
       _queueArtworkCaching(task);
+      _queueLyricsDownloading(task);
     }
   }
 

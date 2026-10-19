@@ -13,6 +13,7 @@ Song songFromModel(
     id: model.id,
     title: model.title,
     artist: model.artist,
+    genre: model.genre,
     album: album,
     albumId: albumId ?? model.albumId,
     albumArtist: albumArtist,
@@ -21,5 +22,6 @@ Song songFromModel(
     filePath: model.id, // Use song ID as placeholder
     fileSize: 0,
     modifiedTime: DateTime.now(),
+    hasLyrics: model.hasLyrics,
   );
 }

@@ -690,6 +690,9 @@ extension AriamiHttpServerMiddlewareAndMetricsMethods on AriamiHttpServer {
     if (path.startsWith('/api/download/')) {
       return '/api/download/:songId';
     }
+    if (path.startsWith('/api/lyrics/')) {
+      return '/api/lyrics/:songId';
+    }
     if (path.startsWith('/api/v2/download-jobs/')) {
       if (path.endsWith('/items')) {
         return '/api/v2/download-jobs/:jobId/items';

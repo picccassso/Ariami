@@ -3,6 +3,7 @@ import 'package:ariami_core/utils/format.dart';
 import '../../../models/api_models.dart';
 import '../../../services/api/connection_service.dart';
 import '../../../services/playback_manager.dart';
+import '../../../widgets/common/lyrics_badge.dart';
 import '../../../widgets/common/queue_action_confirmation.dart';
 import '../../../widgets/common/song_overflow_menu.dart';
 import '../../../widgets/common/swipe_to_queue.dart';
@@ -96,13 +97,24 @@ class _SongListItemState extends State<SongListItem> {
                   isDownloaded: widget.isDownloaded,
                   connectionService: widget.connectionService,
                 ),
-                title: Text(
-                  widget.song.title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: widget.isAvailable ? null : Colors.grey,
-                  ),
+                title: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Flexible(
+                      child: Text(
+                        widget.song.title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: widget.isAvailable ? null : Colors.grey,
+                        ),
+                      ),
+                    ),
+                    if (widget.song.hasLyrics) ...[
+                      const SizedBox(width: 6),
+                      const LyricsBadge(),
+                    ],
+                  ],
                 ),
                 subtitle: Text(
                   widget.song.artist,

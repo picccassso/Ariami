@@ -263,4 +263,16 @@ extension AriamiHttpServerLibraryAndArtworkHandlersMethods on AriamiHttpServer {
 
     return false;
   }
+
+  Future<Response> _handleGetLyrics(Request request, String songId) async {
+    final lyrics = await _libraryManager.getSongLyrics(songId);
+    if (lyrics == null) {
+      return _jsonError(
+        HttpStatus.notFound,
+        'LYRICS_NOT_FOUND',
+        'Lyrics not found for song: $songId',
+      );
+    }
+    return _jsonOk(lyrics.toJson());
+  }
 }

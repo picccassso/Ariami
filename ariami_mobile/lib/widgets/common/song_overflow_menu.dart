@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../../models/api_models.dart';
 import '../../models/song.dart';
+import '../../utils/song_from_model.dart';
 import '../../screens/playlist/add_to_playlist_screen.dart';
 import '../../services/api/connection_service.dart';
 import '../../services/download/download_manager.dart';
@@ -142,21 +143,7 @@ class SongOverflowMenu extends StatelessWidget {
     PlaybackManager().addToQueue(_toSong());
   }
 
-  Song _toSong() {
-    return Song(
-      id: song.id,
-      title: song.title,
-      artist: song.artist,
-      genre: song.genre,
-      album: null,
-      albumId: song.albumId,
-      duration: Duration(seconds: song.duration),
-      filePath: song.id,
-      fileSize: 0,
-      modifiedTime: DateTime.now(),
-      trackNumber: song.trackNumber,
-    );
-  }
+  Song _toSong() => songFromModel(song);
 
   void _handleDownload(BuildContext context) {
     final connectionService = ConnectionService();

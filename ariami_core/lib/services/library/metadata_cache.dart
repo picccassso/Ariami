@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:ariami_core/models/song_metadata.dart';
 import '../../utils/atomic_file_write.dart';
+import 'lyrics_extractor.dart';
 
 class CachedMetadataEntry {
   /// File modification time (milliseconds since epoch)
@@ -14,11 +15,15 @@ class CachedMetadataEntry {
   /// Cached partial hash for duplicate detection (optional, computed lazily)
   final String? partialHash;
 
+  /// Cached sidecar lyrics modification time (optional, null if no sidecar)
+  final int? lyricsSidecarMtime;
+
   const CachedMetadataEntry({
     required this.mtime,
     required this.size,
     required this.metadata,
     this.partialHash,
+    this.lyricsSidecarMtime,
   });
 
   factory CachedMetadataEntry.fromJson(Map<String, dynamic> json) {
@@ -27,6 +32,7 @@ class CachedMetadataEntry {
       size: json['size'] as int,
       metadata: SongMetadata.fromJson(json['metadata'] as Map<String, dynamic>),
       partialHash: json['partialHash'] as String?,
+      lyricsSidecarMtime: json['lyricsSidecarMtime'] as int?,
     );
   }
 
@@ -36,6 +42,7 @@ class CachedMetadataEntry {
       'size': size,
       'metadata': metadata.toJson(),
       if (partialHash != null) 'partialHash': partialHash,
+      if (lyricsSidecarMtime != null) 'lyricsSidecarMtime': lyricsSidecarMtime,
     };
   }
 }
@@ -61,7 +68,8 @@ class MetadataCache {
   ///     recover missing ID3v2 artwork; re-extract unchanged affected files.
   /// v7: Deterministic source precedence, stricter field validation, bounded
   ///     tag parsing, and cross-format artwork fallback require re-extraction.
-  static const int schemaVersion = 7;
+  /// v8: Added hasLyrics field and lyrics sidecar mtime tracking for invalidation.
+  static const int schemaVersion = 8;
 
   /// Maximum number of entries (sanity limit ~50MB)
   static const int maxEntries = 100000;
@@ -161,6 +169,7 @@ class MetadataCache {
   /// 1. Entry exists in cache
   /// 2. File mtime matches cached mtime
   /// 3. File size matches cached size
+  /// 4. Sidecar lyrics mtime matches cached sidecar mtime
   ///
   /// Returns null if cache miss or validation fails.
   Future<SongMetadata?> get(String filePath) async {
@@ -173,8 +182,11 @@ class MetadataCache {
 
       final currentMtime = stat.modified.millisecondsSinceEpoch;
       final currentSize = stat.size;
+      final currentSidecarMtime = LyricsExtractor.getSidecarMtime(filePath);
 
-      if (currentMtime == entry.mtime && currentSize == entry.size) {
+      if (currentMtime == entry.mtime &&
+          currentSize == entry.size &&
+          currentSidecarMtime == entry.lyricsSidecarMtime) {
         return entry.metadata;
       }
 
@@ -200,7 +212,8 @@ class MetadataCache {
       final stat = await file.stat();
 
       return stat.modified.millisecondsSinceEpoch == entry.mtime &&
-          stat.size == entry.size;
+          stat.size == entry.size &&
+          LyricsExtractor.getSidecarMtime(filePath) == entry.lyricsSidecarMtime;
     } catch (e) {
       return false;
     }
@@ -208,7 +221,7 @@ class MetadataCache {
 
   /// Store metadata in cache
   ///
-  /// Automatically captures current file mtime and size.
+  /// Automatically captures current file mtime, size, and sidecar mtime.
   Future<void> put(String filePath, SongMetadata metadata) async {
     try {
       final file = File(filePath);
@@ -218,6 +231,7 @@ class MetadataCache {
         mtime: stat.modified.millisecondsSinceEpoch,
         size: stat.size,
         metadata: metadata,
+        lyricsSidecarMtime: LyricsExtractor.getSidecarMtime(filePath),
       );
       _isDirty = true;
 
@@ -228,11 +242,17 @@ class MetadataCache {
   }
 
   void putWithStats(
-      String filePath, SongMetadata metadata, int mtime, int size) {
+      String filePath,
+      SongMetadata metadata,
+      int mtime,
+      int size, {
+      int? lyricsSidecarMtime,
+  }) {
     _entries[filePath] = CachedMetadataEntry(
       mtime: mtime,
       size: size,
       metadata: metadata,
+      lyricsSidecarMtime: lyricsSidecarMtime ?? LyricsExtractor.getSidecarMtime(filePath),
     );
     _isDirty = true;
     _enforceLimit();
@@ -247,6 +267,7 @@ class MetadataCache {
     SongMetadata metadata, {
     int? mtime,
     int? size,
+    int? lyricsSidecarMtime,
   }) async {
     try {
       final existing = _entries[filePath];
@@ -270,6 +291,9 @@ class MetadataCache {
         size: resolvedSize,
         metadata: metadata,
         partialHash: existing?.partialHash,
+        lyricsSidecarMtime: lyricsSidecarMtime ??
+            existing?.lyricsSidecarMtime ??
+            LyricsExtractor.getSidecarMtime(filePath),
       );
       _isDirty = true;
       _enforceLimit();
@@ -308,6 +332,8 @@ class MetadataCache {
         'metadata': entry.value.metadata.toJson(),
         if (entry.value.partialHash != null)
           'partialHash': entry.value.partialHash,
+        if (entry.value.lyricsSidecarMtime != null)
+          'lyricsSidecarMtime': entry.value.lyricsSidecarMtime,
       };
     }
     return data;
@@ -322,6 +348,7 @@ class MetadataCache {
         metadata: SongMetadata.fromJson(
             entry.value['metadata'] as Map<String, dynamic>),
         partialHash: entry.value['partialHash'] as String?,
+        lyricsSidecarMtime: entry.value['lyricsSidecarMtime'] as int?,
       );
     }
     _isDirty = true;

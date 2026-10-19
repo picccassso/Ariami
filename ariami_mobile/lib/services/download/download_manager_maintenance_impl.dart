@@ -17,6 +17,62 @@ extension _DownloadManagerMaintenanceImpl on DownloadManager {
     );
   }
 
+  void _queueLyricsDownloading(DownloadTask task) {
+    unawaited(_downloadLyricsForSong(task.songId));
+  }
+
+  Future<void> _downloadLyricsForSong(String songId) async {
+    try {
+      final client = ConnectionService().apiClient;
+      if (client == null) return;
+      final song = await LibraryRepository().getSongById(songId);
+      if (song != null && !song.hasLyrics) return;
+      final lyrics = await client.getLyrics(songId);
+      if (lyrics != null) {
+        final file = File(_getLyricsFilePath(songId));
+        await file.parent.create(recursive: true);
+        await file.writeAsString(jsonEncode(lyrics.toJson()));
+        _downloadedLyricsIds.add(songId);
+      }
+    } catch (e) {
+      print('[DownloadManager] Failed to download lyrics for $songId: $e');
+    }
+  }
+
+  String _getLyricsFilePath(String songId) {
+    final downloadPath = _downloadPath;
+    if (downloadPath == null || downloadPath.isEmpty) {
+      return 'downloads/songs/$songId.lyrics.json';
+    }
+    return '$downloadPath/songs/$songId.lyrics.json';
+  }
+
+  /// Seeds [_downloadedLyricsIds] from the lyrics files already on disk.
+  Future<void> _loadDownloadedLyricsIds() async {
+    final songsDir = Directory('$_downloadPath/songs');
+    if (!await songsDir.exists()) return;
+    const suffix = '.lyrics.json';
+    await for (final entity in songsDir.list(followLinks: false)) {
+      final name = entity.path.split(Platform.pathSeparator).last;
+      if (entity is File && name.endsWith(suffix)) {
+        _downloadedLyricsIds
+            .add(name.substring(0, name.length - suffix.length));
+      }
+    }
+  }
+
+  Future<SongLyrics?> _getDownloadedLyricsImpl(String songId) async {
+    if (!_downloadedLyricsIds.contains(songId)) return null;
+    try {
+      final file = File(_getLyricsFilePath(songId));
+      if (!await file.exists()) return null;
+      final content = await file.readAsString();
+      return SongLyrics.fromJson(jsonDecode(content) as Map<String, dynamic>);
+    } catch (e) {
+      return null;
+    }
+  }
+
   void _queueArtworkBackfill() {
     _artworkWorkTail = _artworkWorkTail.then(
       (_) => _backfillArtworkForExistingDownloads(),
@@ -267,6 +323,12 @@ extension _DownloadManagerMaintenanceImpl on DownloadManager {
       }
     }
 
+    final lyricsFile = File(_getLyricsFilePath(normalizedSongId));
+    if (await lyricsFile.exists()) {
+      await _deleteFileWithRetry(lyricsFile, '$normalizedSongId-lyrics');
+    }
+    _downloadedLyricsIds.remove(normalizedSongId);
+
     return deleted;
   }
 
@@ -356,6 +418,7 @@ extension _DownloadManagerMaintenanceImpl on DownloadManager {
       }
     }
 
+    _downloadedLyricsIds.clear();
     await Directory(downloadPath).create(recursive: true);
     await Directory('$downloadPath/songs').create(recursive: true);
     return fileCount;

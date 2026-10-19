@@ -1,4 +1,5 @@
 import 'package:ariami_core/models/music_availability.dart';
+import 'package:ariami_core/models/lyrics_models.dart';
 import 'dart:convert';
 import 'dart:typed_data';
 import 'package:ariami_core/services/recommendations/music_discovery_api_key_config.dart';
@@ -97,6 +98,16 @@ class ApiClient {
   Future<Map<String, dynamic>> getCurrentUser(String sessionToken) async {
     final response = await _getWithAuth('/me', sessionToken);
     return response;
+  }
+
+  /// Fetches lyrics for the given [songId], or null if unavailable.
+  Future<SongLyrics?> getLyrics(String songId) async {
+    try {
+      final response = await _get('/lyrics/${Uri.encodeComponent(songId)}');
+      return SongLyrics.fromJson(response);
+    } catch (_) {
+      return null;
+    }
   }
 
   /// Fetch the current user's avatar bytes, or null if no avatar is set.

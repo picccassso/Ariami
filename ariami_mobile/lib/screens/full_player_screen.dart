@@ -14,6 +14,8 @@ import '../utils/constants.dart';
 import '../models/repeat_mode.dart' as playback_repeat;
 import '../widgets/player/player_top_bar.dart';
 import '../widgets/player/player_artwork.dart';
+import '../services/download/download_manager.dart';
+import '../widgets/player/player_lyrics_view.dart';
 import '../widgets/player/player_info.dart';
 import '../widgets/player/player_seek_bar.dart';
 import '../widgets/player/player_secondary_controls.dart';
@@ -46,6 +48,21 @@ class _FullPlayerScreenState extends State<FullPlayerScreen> {
   /// Optimistic queue index while rapid skip taps are in flight.
   int? _pendingSkipIndex;
   int? _lastKnownQueueLength;
+  bool _lyricsActive = false;
+
+  bool get _currentHasLyrics {
+    final song = _playbackManager.currentSong;
+    return song != null &&
+        (song.hasLyrics || DownloadManager().hasDownloadedLyrics(song.id));
+  }
+
+  bool get _isLyricsVisible => _lyricsActive && _currentHasLyrics;
+
+  void _toggleLyrics() {
+    setState(() {
+      _lyricsActive = !_lyricsActive;
+    });
+  }
 
   @override
   void initState() {
@@ -330,6 +347,26 @@ class _FullPlayerScreenState extends State<FullPlayerScreen> {
     );
   }
 
+  /// Artwork, crossfading to the lyrics view while lyrics are shown. The
+  /// lyrics view is only mounted while visible, so it never fetches lyrics or
+  /// follows playback position behind the artwork.
+  Widget _buildArtworkOrLyrics() {
+    final song = _playbackManager.currentSong;
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 300),
+      layoutBuilder: (current, previous) => Stack(
+        fit: StackFit.expand,
+        children: [...previous, if (current != null) current],
+      ),
+      child: _isLyricsVisible && song != null
+          ? PlayerLyricsView(key: const ValueKey('lyrics'), song: song)
+          : KeyedSubtree(
+              key: const ValueKey('artwork'),
+              child: _buildArtwork(),
+            ),
+    );
+  }
+
   Widget _buildPortraitPlayer(BuildContext themedContext) {
     return Column(
       children: [
@@ -340,7 +377,7 @@ class _FullPlayerScreenState extends State<FullPlayerScreen> {
         const SizedBox(height: 16),
         Expanded(
           flex: 4,
-          child: _buildArtwork(),
+          child: _buildArtworkOrLyrics(),
         ),
         const SizedBox(height: 24),
         // Cap the controls block so it doesn't stretch edge-to-edge on
@@ -397,7 +434,7 @@ class _FullPlayerScreenState extends State<FullPlayerScreen> {
                 SizedBox(
                   width: artExtent,
                   height: artExtent,
-                  child: _buildArtwork(),
+                  child: _buildArtworkOrLyrics(),
                 ),
                 const SizedBox(width: gap),
                 SizedBox(
@@ -583,6 +620,9 @@ class _FullPlayerScreenState extends State<FullPlayerScreen> {
       onPlayNext: _playCurrentSongNext,
       onAddToQueue: _addCurrentSongToQueue,
       onOpenQueue: _openQueue,
+      isLyricsVisible: _isLyricsVisible,
+      hasLyrics: _currentHasLyrics,
+      onToggleLyrics: _toggleLyrics,
       onAddToPlaylist: () {
         final song = _playbackManager.currentSong;
         if (song != null) {
@@ -619,7 +659,6 @@ class _FullPlayerScreenState extends State<FullPlayerScreen> {
                     .onSurface
                     .withValues(alpha: 0.9),
           ),
-
           IconButton(
             icon: const Icon(LucideIcons.skipBack),
             iconSize: 48,
@@ -628,7 +667,6 @@ class _FullPlayerScreenState extends State<FullPlayerScreen> {
                 : null,
             tooltip: 'Previous',
           ),
-
           Container(
             width: 72,
             height: 72,
@@ -637,10 +675,7 @@ class _FullPlayerScreenState extends State<FullPlayerScreen> {
               color: Theme.of(themedContext).colorScheme.primary,
               boxShadow: [
                 BoxShadow(
-                  color: Theme.of(themedContext)
-                      .colorScheme
-                      .primary
-                      .withValues(
+                  color: Theme.of(themedContext).colorScheme.primary.withValues(
                         alpha: _playbackManager.isPlaying ? 0.55 : 0.2,
                       ),
                   blurRadius: _playbackManager.isPlaying ? 36 : 14,
@@ -674,7 +709,6 @@ class _FullPlayerScreenState extends State<FullPlayerScreen> {
                     tooltip: _playbackManager.isPlaying ? 'Pause' : 'Play',
                   ),
           ),
-
           IconButton(
             icon: const Icon(LucideIcons.skipForward),
             iconSize: 48,
@@ -682,7 +716,6 @@ class _FullPlayerScreenState extends State<FullPlayerScreen> {
                 _playbackManager.hasNext ? _skipNextWithArtworkAnimation : null,
             tooltip: 'Next',
           ),
-
           IconButton(
             icon: Icon(_getRepeatIcon(_playbackManager.repeatMode)),
             onPressed: _playbackManager.toggleRepeat,

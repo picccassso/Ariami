@@ -166,6 +166,7 @@ extension _LibraryControllerLocalState on LibraryController {
           filePath: task.songId,
           fileSize: task.bytesDownloaded,
           modifiedTime: DateTime.now(),
+          hasLyrics: _downloadManager.hasDownloadedLyrics(task.songId),
         ));
       }
     }

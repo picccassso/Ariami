@@ -2,10 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:ariami_core/utils/format.dart';
 import '../../models/api_models.dart';
 import '../../models/song.dart';
+import '../../utils/song_from_model.dart';
 import '../../screens/playlist/add_to_playlist_screen.dart';
 import '../../utils/artwork_url.dart';
 import '../../services/playback_manager.dart';
 import '../common/cached_artwork.dart';
+import '../common/lyrics_badge.dart';
 import '../common/mini_player_aware_bottom_sheet.dart';
 import '../common/playing_bars.dart';
 import '../common/song_artwork.dart';
@@ -107,16 +109,28 @@ class _SearchResultSongItemState extends State<SearchResultSongItem> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Text(
-                            widget.song.title,
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight:
-                                  isCurrent ? FontWeight.w600 : FontWeight.w500,
-                              color: titleColor,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Flexible(
+                                child: Text(
+                                  widget.song.title,
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: isCurrent
+                                        ? FontWeight.w600
+                                        : FontWeight.w500,
+                                    color: titleColor,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              if (widget.song.hasLyrics) ...[
+                                const SizedBox(width: 6),
+                                const LyricsBadge(),
+                              ],
+                            ],
                           ),
                           const SizedBox(height: 4),
                           Text(
@@ -293,20 +307,7 @@ class _SearchResultSongItemState extends State<SearchResultSongItem> {
     );
   }
 
-  Song _toSong() {
-    return Song(
-      id: widget.song.id,
-      title: widget.song.title,
-      artist: widget.song.artist,
-      album: null,
-      albumId: widget.song.albumId,
-      duration: Duration(seconds: widget.song.duration),
-      filePath: widget.song.id,
-      fileSize: 0,
-      modifiedTime: DateTime.now(),
-      trackNumber: widget.song.trackNumber,
-    );
-  }
+  Song _toSong() => songFromModel(widget.song);
 
   void _handlePlayNext() {
     final playbackManager = PlaybackManager();

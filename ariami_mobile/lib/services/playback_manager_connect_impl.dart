@@ -748,6 +748,7 @@ extension _PlaybackManagerConnectImpl on PlaybackManager {
       fileSize: (json['fileSize'] as num?)?.toInt() ?? 0,
       modifiedTime: DateTime.tryParse(json['modifiedTime'] as String? ?? '') ??
           DateTime.fromMillisecondsSinceEpoch(0),
+      hasLyrics: json['hasLyrics'] as bool? ?? false,
     );
   }
 }

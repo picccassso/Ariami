@@ -34,6 +34,8 @@ class SongMetadata {
 
   final DateTime? modifiedTime;
 
+  final bool hasLyrics;
+
   const SongMetadata({
     required this.filePath,
     this.title,
@@ -50,6 +52,7 @@ class SongMetadata {
     this.albumArt,
     this.fileSize,
     this.modifiedTime,
+    this.hasLyrics = false,
   });
 
   SongMetadata copyWith({
@@ -68,6 +71,7 @@ class SongMetadata {
     List<int>? albumArt,
     int? fileSize,
     DateTime? modifiedTime,
+    bool? hasLyrics,
   }) {
     return SongMetadata(
       filePath: filePath ?? this.filePath,
@@ -85,6 +89,7 @@ class SongMetadata {
       albumArt: albumArt ?? this.albumArt,
       fileSize: fileSize ?? this.fileSize,
       modifiedTime: modifiedTime ?? this.modifiedTime,
+      hasLyrics: hasLyrics ?? this.hasLyrics,
     );
   }
 
@@ -113,6 +118,7 @@ class SongMetadata {
       if (comment != null) 'comment': comment,
       if (fileSize != null) 'fileSize': fileSize,
       if (modifiedTime != null) 'modifiedTime': modifiedTime!.toIso8601String(),
+      'hasLyrics': hasLyrics,
     };
   }
 
@@ -134,6 +140,7 @@ class SongMetadata {
       modifiedTime: json['modifiedTime'] != null
           ? DateTime.parse(json['modifiedTime'] as String)
           : null,
+      hasLyrics: json['hasLyrics'] as bool? ?? false,
       // albumArt is not cached - extracted lazily
     );
   }

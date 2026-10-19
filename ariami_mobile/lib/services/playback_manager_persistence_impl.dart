@@ -120,6 +120,7 @@ extension _PlaybackManagerPersistenceImpl on PlaybackManager {
           filePath: task.songId,
           fileSize: task.bytesDownloaded,
           modifiedTime: DateTime.now(),
+          hasLyrics: _downloadManager.hasDownloadedLyrics(task.songId),
         );
       }
     } catch (e) {

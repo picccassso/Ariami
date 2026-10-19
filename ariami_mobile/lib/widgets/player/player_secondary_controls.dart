@@ -9,6 +9,9 @@ class PlayerSecondaryControls extends StatelessWidget {
   final VoidCallback? onAddToPlaylist;
   final VoidCallback? onPlayNext;
   final VoidCallback? onAddToQueue;
+  final bool isLyricsVisible;
+  final bool hasLyrics;
+  final VoidCallback? onToggleLyrics;
 
   const PlayerSecondaryControls({
     super.key,
@@ -17,6 +20,9 @@ class PlayerSecondaryControls extends StatelessWidget {
     this.onAddToPlaylist,
     this.onPlayNext,
     this.onAddToQueue,
+    this.isLyricsVisible = false,
+    this.hasLyrics = false,
+    this.onToggleLyrics,
   });
 
   @override
@@ -34,6 +40,22 @@ class PlayerSecondaryControls extends StatelessWidget {
             ),
             const SizedBox(width: 8),
           ],
+          IconButton(
+            icon: Icon(
+              Icons.lyrics_outlined,
+              color: !hasLyrics
+                  ? Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.25)
+                  : (isLyricsVisible
+                      ? Theme.of(context).colorScheme.primary
+                      : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7)),
+            ),
+            onPressed: hasLyrics ? onToggleLyrics : null,
+            tooltip: hasLyrics
+                ? (isLyricsVisible ? 'Hide lyrics' : 'Show lyrics')
+                : 'No lyrics available',
+            iconSize: 24,
+          ),
+          const SizedBox(width: 4),
           Expanded(
             child: Align(
               alignment: Alignment.centerLeft,

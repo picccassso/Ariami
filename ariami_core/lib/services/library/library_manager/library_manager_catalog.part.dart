@@ -156,6 +156,7 @@ extension _LibraryManagerCatalogPart on LibraryManager {
             bitrateKbps: record.bitrateKbps,
             artworkKey: record.artworkKey,
             updatedToken: tokenCursor,
+            hasLyrics: record.hasLyrics,
             isDeleted: false,
           ),
         );

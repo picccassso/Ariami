@@ -170,4 +170,21 @@ extension _LibraryManagerDurationPart on LibraryManager {
     _songArtworkCache[songId] = artwork;
     return artwork;
   }
+
+  Future<SongLyrics?> _getSongLyricsImpl(String songId) async {
+    if (_lyricsCache.containsKey(songId)) {
+      return _lyricsCache[songId];
+    }
+
+    final filePath = getSongFilePath(songId);
+    if (filePath == null) {
+      _lyricsCache[songId] = null;
+      return null;
+    }
+
+    final lyrics =
+        await _lyricsExtractor.extractLyrics(filePath, songId: songId);
+    _lyricsCache[songId] = lyrics;
+    return lyrics;
+  }
 }

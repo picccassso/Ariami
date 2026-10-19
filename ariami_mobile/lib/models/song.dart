@@ -15,6 +15,7 @@ class Song {
   final String filePath;
   final int fileSize;
   final DateTime modifiedTime;
+  final bool hasLyrics;
 
   const Song({
     required this.id,
@@ -31,6 +32,7 @@ class Song {
     required this.filePath,
     required this.fileSize,
     required this.modifiedTime,
+    this.hasLyrics = false,
   });
 
   factory Song.fromJson(Map<String, dynamic> json) {
@@ -49,6 +51,7 @@ class Song {
       filePath: json['filePath'] as String,
       fileSize: json['fileSize'] as int,
       modifiedTime: DateTime.parse(json['modifiedTime'] as String),
+      hasLyrics: json['hasLyrics'] as bool? ?? false,
     );
   }
 
@@ -68,6 +71,7 @@ class Song {
       'filePath': filePath,
       'fileSize': fileSize,
       'modifiedTime': modifiedTime.toIso8601String(),
+      'hasLyrics': hasLyrics,
     };
   }
 
@@ -86,6 +90,7 @@ class Song {
     String? filePath,
     int? fileSize,
     DateTime? modifiedTime,
+    bool? hasLyrics,
   }) {
     return Song(
       id: id ?? this.id,
@@ -102,6 +107,7 @@ class Song {
       filePath: filePath ?? this.filePath,
       fileSize: fileSize ?? this.fileSize,
       modifiedTime: modifiedTime ?? this.modifiedTime,
+      hasLyrics: hasLyrics ?? this.hasLyrics,
     );
   }
 

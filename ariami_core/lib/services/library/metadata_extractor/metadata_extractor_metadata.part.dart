@@ -146,9 +146,11 @@ extension _MetadataExtractorMetadataPart on MetadataExtractor {
 
       // ffprobe is the cross-format parser and a per-field fallback for MP3
       // fields that the primary parser omitted or rejected.
+      Map<String, String>? probedTags;
       if (shouldProbe) {
         final probed = await _probeWithFfprobe(filePath);
         if (probed != null) {
+          probedTags = probed.tags;
           String? probe(List<String> keys) {
             for (final key in keys) {
               final value = probed.tags[key];
@@ -209,6 +211,9 @@ extension _MetadataExtractorMetadataPart on MetadataExtractor {
       // Example: "01 - Song Title.mp3" => 1
       trackNumber ??= inferTrackNumberFromFilename(filePath);
 
+      final hasLyrics =
+          await LyricsExtractor.hasLyrics(filePath, knownTags: probedTags);
+
       var songMetadata = SongMetadata(
         filePath: filePath,
         title: title,
@@ -225,6 +230,7 @@ extension _MetadataExtractorMetadataPart on MetadataExtractor {
         albumArt: albumArt,
         fileSize: fileSize,
         modifiedTime: modifiedTime,
+        hasLyrics: hasLyrics,
       );
 
       if (songMetadata.title == null || songMetadata.title!.isEmpty) {
@@ -245,6 +251,8 @@ extension _MetadataExtractorMetadataPart on MetadataExtractor {
           filePath: filePath,
           fileSize: fileStat.size,
           modifiedTime: fileStat.modified,
+          hasLyrics: LyricsExtractor.findSidecarFile(filePath, '.lrc') != null ||
+              LyricsExtractor.findSidecarFile(filePath, '.txt') != null,
         ),
       );
     }

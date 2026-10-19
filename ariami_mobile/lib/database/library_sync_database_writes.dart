@@ -128,8 +128,8 @@ class _LibrarySyncDatabaseWrites {
 
     await db.rawInsert('''
       INSERT INTO ${LibrarySyncDatabase._songsTable}
-      (id, title, artist, genre, album_id, duration, track_number, is_deleted)
-      SELECT id, title, artist, genre, album_id, duration, track_number, is_deleted
+      (id, title, artist, genre, album_id, duration, track_number, is_deleted, has_lyrics)
+      SELECT id, title, artist, genre, album_id, duration, track_number, is_deleted, has_lyrics
       FROM ${LibrarySyncDatabase._bootstrapSongsTable}
     ''');
 
@@ -327,6 +327,7 @@ class _LibrarySyncDatabaseWrites {
           'duration': song.duration,
           'track_number': song.trackNumber,
           'is_deleted': song.isDeleted ? 1 : 0,
+          'has_lyrics': song.hasLyrics ? 1 : 0,
         },
         conflictAlgorithm: ConflictAlgorithm.replace,
       );

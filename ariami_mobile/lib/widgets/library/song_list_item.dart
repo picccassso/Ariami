@@ -3,13 +3,14 @@ import 'package:ariami_core/utils/format.dart';
 import '../../utils/artwork_url.dart';
 import '../common/mini_player_aware_bottom_sheet.dart';
 import '../../models/api_models.dart';
-import '../../models/song.dart';
+import '../../utils/song_from_model.dart';
 import '../../screens/playlist/add_to_playlist_screen.dart';
 import '../../services/playback_manager.dart';
 import '../../services/download/download_manager.dart';
 import '../../services/api/connection_service.dart';
 import '../common/artist_link.dart';
 import '../common/cached_artwork.dart';
+import '../common/lyrics_badge.dart';
 import '../common/song_artwork.dart';
 import '../common/song_overflow_menu.dart';
 import '../common/swipe_to_queue.dart';
@@ -109,20 +110,31 @@ class SongListItem extends StatelessWidget {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Text(
-                            song.title,
-                            style: Theme.of(context)
-                                .textTheme
-                                .titleMedium
-                                ?.copyWith(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w600,
-                                  color: isAvailable
-                                      ? Theme.of(context).colorScheme.onSurface
-                                      : Colors.grey,
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Flexible(
+                                child: Text(
+                                  song.title,
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .titleMedium
+                                      ?.copyWith(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w600,
+                                        color: isAvailable
+                                            ? Theme.of(context).colorScheme.onSurface
+                                            : Colors.grey,
+                                      ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
                                 ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
+                              ),
+                              if (song.hasLyrics) ...[
+                                const SizedBox(width: 6),
+                                const LyricsBadge(),
+                              ],
+                            ],
                           ),
                           const SizedBox(height: 4),
                           Row(
@@ -381,40 +393,13 @@ class SongListItem extends StatelessWidget {
   void _handlePlayNext(BuildContext context) {
     final playbackManager = PlaybackManager();
 
-    final convertedSong = Song(
-      id: song.id,
-      title: song.title,
-      artist: song.artist,
-      genre: song.genre,
-      album: null,
-      albumId: song.albumId,
-      duration: Duration(seconds: song.duration),
-      filePath: song.id,
-      fileSize: 0,
-      modifiedTime: DateTime.now(),
-      trackNumber: song.trackNumber,
-    );
-
-    playbackManager.playNext(convertedSong);
+    playbackManager.playNext(songFromModel(song));
   }
 
   void _handleAddToQueue(BuildContext context) {
     final playbackManager = PlaybackManager();
 
-    final convertedSong = Song(
-      id: song.id,
-      title: song.title,
-      artist: song.artist,
-      album: null,
-      albumId: song.albumId,
-      duration: Duration(seconds: song.duration),
-      filePath: song.id,
-      fileSize: 0,
-      modifiedTime: DateTime.now(),
-      trackNumber: song.trackNumber,
-    );
-
-    playbackManager.addToQueue(convertedSong);
+    playbackManager.addToQueue(songFromModel(song));
   }
 
   void _handleDownload(BuildContext context) {

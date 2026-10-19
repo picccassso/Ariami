@@ -27,7 +27,8 @@ class _LibrarySyncDatabaseSchema {
         album_id TEXT,
         duration INTEGER NOT NULL DEFAULT 0,
         track_number INTEGER,
-        is_deleted INTEGER NOT NULL DEFAULT 0
+        is_deleted INTEGER NOT NULL DEFAULT 0,
+        has_lyrics INTEGER NOT NULL DEFAULT 0
       )
     ''');
 
@@ -112,12 +113,27 @@ class _LibrarySyncDatabaseSchema {
         LibrarySyncDatabase._bootstrapSongsTable,
       );
     }
+    if (oldVersion < 7) {
+      await _addHasLyricsColumnIfMissing(db, LibrarySyncDatabase._songsTable);
+      await _addHasLyricsColumnIfMissing(
+        db,
+        LibrarySyncDatabase._bootstrapSongsTable,
+      );
+    }
   }
 
   Future<void> _addGenreColumnIfMissing(Database db, String table) async {
     final columns = await db.rawQuery('PRAGMA table_info($table)');
     if (columns.any((column) => column['name'] == 'genre')) return;
     await db.execute('ALTER TABLE $table ADD COLUMN genre TEXT');
+  }
+
+  Future<void> _addHasLyricsColumnIfMissing(Database db, String table) async {
+    final columns = await db.rawQuery('PRAGMA table_info($table)');
+    if (columns.any((column) => column['name'] == 'has_lyrics')) return;
+    await db.execute(
+      'ALTER TABLE $table ADD COLUMN has_lyrics INTEGER NOT NULL DEFAULT 0',
+    );
   }
 
   Future<void> _migrateToVersion3(Database db) async {
@@ -170,7 +186,8 @@ class _LibrarySyncDatabaseSchema {
         album_id TEXT,
         duration INTEGER NOT NULL DEFAULT 0,
         track_number INTEGER,
-        is_deleted INTEGER NOT NULL DEFAULT 0
+        is_deleted INTEGER NOT NULL DEFAULT 0,
+        has_lyrics INTEGER NOT NULL DEFAULT 0
       )
     ''');
 

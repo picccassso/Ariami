@@ -14,6 +14,7 @@ extension _DownloadManagerInitializationImpl on DownloadManager {
     final appDir = await getApplicationDocumentsDirectory();
     _downloadPath = '${appDir.path}/downloads';
     await Directory(_downloadPath!).create(recursive: true);
+    await _loadDownloadedLyricsIds();
 
     final savedQueue = await _database.loadDownloadQueue();
     if (savedQueue.isNotEmpty) {

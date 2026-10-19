@@ -23,6 +23,7 @@ extension _LibraryManagerCatalogRecordsPart on LibraryManager {
           bitrateKbps: song.bitrate,
           artworkKey: album.id,
           updatedToken: 0,
+          hasLyrics: song.hasLyrics,
           isDeleted: false,
         );
       }
@@ -44,6 +45,7 @@ extension _LibraryManagerCatalogRecordsPart on LibraryManager {
         bitrateKbps: song.bitrate,
         artworkKey: null,
         updatedToken: 0,
+        hasLyrics: song.hasLyrics,
         isDeleted: false,
       );
     }

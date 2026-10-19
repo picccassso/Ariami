@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'dart:isolate';
 import 'dart:math' as math;
@@ -6,6 +7,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:ariami_core/models/lyrics_models.dart';
 import '../../models/api_models.dart';
 import '../../database/download_database.dart';
 import '../../models/download_task.dart';
@@ -19,6 +21,7 @@ import 'local_artwork_extractor.dart';
 import 'download_helpers.dart';
 import 'native_download_service.dart';
 import '../library/album_metadata_resolver.dart';
+import '../library/library_repository.dart';
 
 part 'download_manager_initialization_impl.dart';
 part 'download_manager_operations_impl.dart';
@@ -54,6 +57,9 @@ class DownloadManager {
   /// run above its limit, and a path that forgets to release leaks one slot
   /// for that task instead of corrupting the count for every later download.
   final Set<String> _slotHolders = <String>{};
+
+  /// Song IDs with a downloaded lyrics file, so badges can check synchronously.
+  final Set<String> _downloadedLyricsIds = <String>{};
   int _maxConcurrentDownloads = 10; // Max concurrent downloads allowed
   final StreamController<DownloadProgress> _progressController =
       StreamController<DownloadProgress>.broadcast();
@@ -268,6 +274,13 @@ class DownloadManager {
   /// Returns null when the album has no completed downloads.
   String? getAnyDownloadedSongPathForAlbum(String albumId) =>
       _getAnyDownloadedSongPathForAlbumImpl(albumId);
+
+  /// Whether a durable `<songId>.lyrics.json` was saved with the download.
+  bool hasDownloadedLyrics(String songId) =>
+      _downloadedLyricsIds.contains(songId);
+
+  Future<SongLyrics?> getDownloadedLyrics(String songId) =>
+      _getDownloadedLyricsImpl(songId);
 
   double getTotalDownloadedSizeMB() => _getTotalDownloadedSizeMBImpl();
 

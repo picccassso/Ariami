@@ -193,6 +193,7 @@ class SongModel {
   final String? albumId;
   final int duration; // in seconds
   final int? trackNumber;
+  final bool hasLyrics;
 
   SongModel({
     required this.id,
@@ -202,6 +203,7 @@ class SongModel {
     this.albumId,
     required this.duration,
     this.trackNumber,
+    this.hasLyrics = false,
   });
 
   factory SongModel.fromJson(Map<String, dynamic> json) {
@@ -215,6 +217,7 @@ class SongModel {
       albumId: json['albumId'] as String?,
       duration: json['duration'] as int,
       trackNumber: json['trackNumber'] as int?,
+      hasLyrics: json['hasLyrics'] as bool? ?? false,
     );
   }
 
@@ -227,6 +230,7 @@ class SongModel {
       'albumId': albumId,
       'duration': duration,
       'trackNumber': trackNumber,
+      'hasLyrics': hasLyrics,
     };
   }
 }

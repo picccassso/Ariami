@@ -5,6 +5,7 @@ import '../../models/song.dart';
 import '../../services/api/connection_service.dart';
 import '../../services/playback_manager.dart';
 import '../common/cached_artwork.dart';
+import '../common/lyrics_badge.dart';
 import '../common/song_overflow_menu.dart';
 import '../common/swipe_to_queue.dart';
 
@@ -56,24 +57,35 @@ class TrackListItem extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       mainAxisSize: MainAxisSize.min, // shrink wrap
                       children: [
-                        Text(
-                          track.title,
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: isCurrentTrack
-                                ? FontWeight.w600
-                                : FontWeight.w500,
-                            color: isCurrentTrack
-                                ? Theme.of(context).primaryColor
-                                : (isAvailable
-                                    ? Theme.of(context)
-                                        .textTheme
-                                        .bodyLarge
-                                        ?.color
-                                    : Colors.grey),
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Flexible(
+                              child: Text(
+                                track.title,
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: isCurrentTrack
+                                      ? FontWeight.w600
+                                      : FontWeight.w500,
+                                  color: isCurrentTrack
+                                      ? Theme.of(context).primaryColor
+                                      : (isAvailable
+                                          ? Theme.of(context)
+                                              .textTheme
+                                              .bodyLarge
+                                              ?.color
+                                          : Colors.grey),
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                            if (track.hasLyrics) ...[
+                              const SizedBox(width: 6),
+                              const LyricsBadge(),
+                            ],
+                          ],
                         ),
                         const SizedBox(height: 4),
                         Text(
