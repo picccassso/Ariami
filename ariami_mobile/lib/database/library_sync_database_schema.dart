@@ -126,6 +126,21 @@ class _LibrarySyncDatabaseSchema {
         await _addFlagColumnIfMissing(db, table, column);
       }
     }
+
+    // A build that predates a field still applies the server's change events
+    // and advances last_applied_token while ignoring it, leaving the migrated
+    // column at its default permanently. Any schema upgrade therefore discards
+    // the cursor so the engine bootstraps again and repopulates every row.
+    await db.insert(
+      LibrarySyncDatabase._syncStateTable,
+      <String, Object?>{
+        'id': 1,
+        'last_applied_token': 0,
+        'bootstrap_complete': 0,
+        'last_sync_epoch_ms': 0,
+      },
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
   }
 
   Future<void> _addGenreColumnIfMissing(Database db, String table) async {

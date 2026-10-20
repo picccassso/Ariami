@@ -8,7 +8,9 @@ part 'library_sync_database_writes.dart';
 
 class LibrarySyncDatabase {
   static const String _databaseName = 'library_sync.db';
-  static const int _databaseVersion = 8;
+  // v9 has no schema change: it re-runs the upgrade path on existing installs
+  // so their sync cursor is reset (see onUpgrade).
+  static const int _databaseVersion = 9;
 
   static const String _albumsTable = 'albums';
   static const String _songsTable = 'songs';
