@@ -7,7 +7,7 @@ import '../../screens/playlist/add_to_playlist_screen.dart';
 import '../../utils/artwork_url.dart';
 import '../../services/playback_manager.dart';
 import '../common/cached_artwork.dart';
-import '../common/lyrics_badge.dart';
+import '../common/track_badge.dart';
 import '../common/mini_player_aware_bottom_sheet.dart';
 import '../common/playing_bars.dart';
 import '../common/song_artwork.dart';
@@ -82,8 +82,8 @@ class _SearchResultSongItemState extends State<SearchResultSongItem> {
       builder: (context, _) {
         final isCurrent = widget.isAvailable &&
             playbackManager.currentSong?.id == widget.song.id;
-        final isAnimating =
-            isCurrent && (playbackManager.isPlaying || playbackManager.isLoading);
+        final isAnimating = isCurrent &&
+            (playbackManager.isPlaying || playbackManager.isLoading);
 
         final titleColor = !widget.isAvailable
             ? Colors.grey
@@ -126,10 +126,10 @@ class _SearchResultSongItemState extends State<SearchResultSongItem> {
                                   overflow: TextOverflow.ellipsis,
                                 ),
                               ),
-                              if (widget.song.hasLyrics) ...[
-                                const SizedBox(width: 6),
-                                const LyricsBadge(),
-                              ],
+                              TrackBadge(
+                                hasLyrics: widget.song.hasLyrics,
+                                isInstrumental: widget.song.isInstrumental,
+                              ),
                             ],
                           ),
                           const SizedBox(height: 4),

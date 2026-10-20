@@ -7,7 +7,7 @@ import 'package:ariami_core/utils/text_sanitizer.dart';
 
 /// Forward-only schema migrations for the catalog database.
 class CatalogMigrations {
-  static const int currentVersion = 8;
+  static const int currentVersion = 9;
 
   static void migrate(Database database) {
     final existingVersion = database.userVersion;
@@ -57,6 +57,10 @@ class CatalogMigrations {
         _applyVersion8(database);
         database.userVersion = 8;
       }
+      if (existingVersion < 9) {
+        _applyVersion9(database);
+        database.userVersion = 9;
+      }
 
       database.execute('COMMIT;');
     } catch (_) {
@@ -96,6 +100,7 @@ CREATE TABLE IF NOT EXISTS songs (
   artwork_key TEXT NULL,
   updated_token INTEGER NOT NULL,
   has_lyrics INTEGER NOT NULL DEFAULT 0,
+  is_instrumental INTEGER NOT NULL DEFAULT 0,
   is_deleted INTEGER NOT NULL DEFAULT 0
 );
 ''');
@@ -305,6 +310,18 @@ CREATE TABLE IF NOT EXISTS song_attributes (
     database.execute('''
 ALTER TABLE songs
 ADD COLUMN has_lyrics INTEGER NOT NULL DEFAULT 0;
+''');
+  }
+
+  static void _applyVersion9(Database database) {
+    final existingColumns = database
+        .select('PRAGMA table_info(songs);')
+        .map((row) => row['name'] as String)
+        .toSet();
+    if (existingColumns.contains('is_instrumental')) return;
+    database.execute('''
+ALTER TABLE songs
+ADD COLUMN is_instrumental INTEGER NOT NULL DEFAULT 0;
 ''');
   }
 

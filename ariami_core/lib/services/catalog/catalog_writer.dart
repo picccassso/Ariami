@@ -2,6 +2,7 @@ import 'package:ariami_core/models/library_structure.dart';
 import 'package:ariami_core/models/song_metadata.dart';
 import 'package:ariami_core/services/catalog/catalog_change_log.dart';
 import 'package:ariami_core/services/catalog/catalog_repository.dart';
+import 'package:ariami_core/services/catalog/song_attribute_repository.dart';
 import 'package:path/path.dart' as path;
 import 'package:sqlite3/sqlite3.dart';
 
@@ -197,6 +198,7 @@ ON CONFLICT(artwork_key, variant) DO UPDATE SET
             artworkKey: snapshot.artworkKey,
             updatedToken: tokenCursor,
             hasLyrics: snapshot.hasLyrics,
+            isInstrumental: snapshot.isInstrumental,
           ),
         );
         insertChangeEvent(
@@ -213,6 +215,7 @@ ON CONFLICT(artwork_key, variant) DO UPDATE SET
             durationSeconds: snapshot.durationSeconds,
             trackNumber: snapshot.trackNumber,
             hasLyrics: snapshot.hasLyrics,
+            isInstrumental: snapshot.isInstrumental,
           ),
           occurredEpochMs: occurredEpochMs,
         );
@@ -380,6 +383,8 @@ ON CONFLICT(artwork_key, variant) DO UPDATE SET
     String Function(String filePath) songIdForPath,
   ) {
     final snapshots = <String, _SongSnapshot>{};
+    final instrumentalOverrides = _repository.songAttributes
+        .readKey(SongAttributeRepository.instrumentalKey);
 
     for (final album in library.albums.values.where((a) => a.isValid)) {
       for (final song in album.songs) {
@@ -387,6 +392,7 @@ ON CONFLICT(artwork_key, variant) DO UPDATE SET
           song: song,
           songIdForPath: songIdForPath,
           albumId: album.id,
+          instrumentalOverrides: instrumentalOverrides,
         );
         snapshots[snapshot.id] = snapshot;
       }
@@ -397,6 +403,7 @@ ON CONFLICT(artwork_key, variant) DO UPDATE SET
         song: song,
         songIdForPath: songIdForPath,
         albumId: null,
+        instrumentalOverrides: instrumentalOverrides,
       );
       snapshots[snapshot.id] = snapshot;
     }
@@ -455,7 +462,9 @@ ON CONFLICT(artwork_key, variant) DO UPDATE SET
     required SongMetadata song,
     required String Function(String filePath) songIdForPath,
     required String? albumId,
+    required Map<String, Object> instrumentalOverrides,
   }) {
+    final id = songIdForPath(song.filePath);
     final title = (song.title != null && song.title!.trim().isNotEmpty)
         ? song.title!.trim()
         : path.basenameWithoutExtension(song.filePath);
@@ -464,7 +473,7 @@ ON CONFLICT(artwork_key, variant) DO UPDATE SET
         : 'Unknown Artist';
 
     return _SongSnapshot(
-      id: songIdForPath(song.filePath),
+      id: id,
       filePath: song.filePath,
       title: title,
       artist: artist,
@@ -476,6 +485,7 @@ ON CONFLICT(artwork_key, variant) DO UPDATE SET
       modifiedEpochMs: song.modifiedTime?.millisecondsSinceEpoch,
       artworkKey: albumId,
       hasLyrics: song.hasLyrics,
+      isInstrumental: song.resolveInstrumental(instrumentalOverrides[id]),
     );
   }
 
@@ -581,6 +591,7 @@ class _SongSnapshot {
     required this.modifiedEpochMs,
     required this.artworkKey,
     required this.hasLyrics,
+    required this.isInstrumental,
   });
 
   final String id;
@@ -595,6 +606,7 @@ class _SongSnapshot {
   final int? modifiedEpochMs;
   final String? artworkKey;
   final bool hasLyrics;
+  final bool isInstrumental;
 }
 
 class _PlaylistSnapshot {

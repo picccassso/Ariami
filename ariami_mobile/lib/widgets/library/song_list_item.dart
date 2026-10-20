@@ -10,7 +10,7 @@ import '../../services/download/download_manager.dart';
 import '../../services/api/connection_service.dart';
 import '../common/artist_link.dart';
 import '../common/cached_artwork.dart';
-import '../common/lyrics_badge.dart';
+import '../common/track_badge.dart';
 import '../common/song_artwork.dart';
 import '../common/song_overflow_menu.dart';
 import '../common/swipe_to_queue.dart';
@@ -123,17 +123,19 @@ class SongListItem extends StatelessWidget {
                                         fontSize: 16,
                                         fontWeight: FontWeight.w600,
                                         color: isAvailable
-                                            ? Theme.of(context).colorScheme.onSurface
+                                            ? Theme.of(context)
+                                                .colorScheme
+                                                .onSurface
                                             : Colors.grey,
                                       ),
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                 ),
                               ),
-                              if (song.hasLyrics) ...[
-                                const SizedBox(width: 6),
-                                const LyricsBadge(),
-                              ],
+                              TrackBadge(
+                                hasLyrics: song.hasLyrics,
+                                isInstrumental: song.isInstrumental,
+                              ),
                             ],
                           ),
                           const SizedBox(height: 4),
@@ -142,8 +144,8 @@ class SongListItem extends StatelessWidget {
                               Flexible(
                                 child: ArtistLink(
                                   name: song.artist,
-                                  enabled: artistLinkEnabled &&
-                                      !isSelectionMode,
+                                  enabled:
+                                      artistLinkEnabled && !isSelectionMode,
                                   style: Theme.of(context)
                                       .textTheme
                                       .bodyMedium

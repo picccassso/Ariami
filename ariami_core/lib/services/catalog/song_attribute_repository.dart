@@ -7,6 +7,9 @@ import 'package:sqlite3/sqlite3.dart';
 /// Values are stored as JSON, so their type (bool, number or string list)
 /// round-trips without a separate type column.
 class SongAttributeRepository {
+  /// Attribute that overrides the tag-derived instrumental badge.
+  static const String instrumentalKey = 'instrumental';
+
   SongAttributeRepository({required Database database}) : _database = database;
 
   final Database _database;
@@ -23,6 +26,15 @@ class SongAttributeRepository {
     }
     return result;
   }
+
+  /// One attribute's value for every song that has it, keyed by song id.
+  Map<String, Object> readKey(String key) => {
+        for (final row in _database.select(
+            'SELECT song_id, value_json FROM song_attributes WHERE key = ?;',
+            <Object?>[key]))
+          row['song_id'] as String:
+              jsonDecode(row['value_json'] as String) as Object,
+      };
 
   /// Merges [updates] (song id -> key -> value) in one transaction. A null
   /// value removes that key; keys not mentioned are left untouched.

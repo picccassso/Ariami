@@ -32,12 +32,13 @@ CREATE TABLE songs (
 
       CatalogMigrations.migrate(db);
 
-      expect(db.userVersion, 8);
+      expect(db.userVersion, CatalogMigrations.currentVersion);
       final columns = db
           .select('PRAGMA table_info(songs);')
           .map((row) => row['name'] as String)
           .toSet();
       expect(columns.contains('has_lyrics'), isTrue);
+      expect(columns.contains('is_instrumental'), isTrue);
     });
 
     test('CatalogRepository upserts and reads hasLyrics correctly', () {

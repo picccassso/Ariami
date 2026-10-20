@@ -18,15 +18,17 @@ extension _LibraryManagerApiPart on LibraryManager {
         .toList();
 
     final songsJson = <Map<String, dynamic>>[];
+    final instrumentalOverrides = _instrumentalOverrides;
 
     for (final album in _library!.albums.values.where((a) => a.isValid)) {
       for (final song in album.sortedSongs) {
-        songsJson.add(_songToApiJson(song, baseUrl, album.id));
+        songsJson.add(
+            _songToApiJson(song, baseUrl, album.id, instrumentalOverrides));
       }
     }
 
     for (final song in _library!.standaloneSongs) {
-      songsJson.add(_songToApiJson(song, baseUrl, null));
+      songsJson.add(_songToApiJson(song, baseUrl, null, instrumentalOverrides));
     }
 
     final playlistsJson =
@@ -53,15 +55,14 @@ extension _LibraryManagerApiPart on LibraryManager {
       'id': album.id,
       'title': album.title,
       'artist': album.artist,
-      'coverArt':
-          album.hasArtwork ? '$baseUrl/api/artwork/${album.id}' : null,
+      'coverArt': album.hasArtwork ? '$baseUrl/api/artwork/${album.id}' : null,
       'songCount': album.songCount,
       'duration': totalDurationSeconds,
     };
   }
 
-  Map<String, dynamic> _songToApiJson(
-      SongMetadata song, String baseUrl, String? albumId) {
+  Map<String, dynamic> _songToApiJson(SongMetadata song, String baseUrl,
+      String? albumId, Map<String, Object> instrumentalOverrides) {
     final songId = generateSongId(song.filePath);
     final duration = _resolveSongDuration(song, songId);
 
@@ -74,6 +75,7 @@ extension _LibraryManagerApiPart on LibraryManager {
       'duration': duration,
       'trackNumber': song.trackNumber,
       'hasLyrics': song.hasLyrics,
+      'isInstrumental': song.resolveInstrumental(instrumentalOverrides[songId]),
     };
   }
 
@@ -119,8 +121,10 @@ extension _LibraryManagerApiPart on LibraryManager {
     print('[LibraryManager] Generated coverArt URL: $coverArtUrl');
 
     final songsJson = <Map<String, dynamic>>[];
+    final instrumentalOverrides = _instrumentalOverrides;
     for (final song in album.sortedSongs) {
-      final songJson = await _songToApiJsonWithDuration(song, baseUrl, albumId);
+      final songJson = await _songToApiJsonWithDuration(
+          song, baseUrl, albumId, instrumentalOverrides);
       songsJson.add(songJson);
     }
 
@@ -138,7 +142,10 @@ extension _LibraryManagerApiPart on LibraryManager {
   }
 
   Future<Map<String, dynamic>> _songToApiJsonWithDuration(
-      SongMetadata song, String baseUrl, String? albumId) async {
+      SongMetadata song,
+      String baseUrl,
+      String? albumId,
+      Map<String, Object> instrumentalOverrides) async {
     final songId = generateSongId(song.filePath);
 
     int duration = song.duration ?? 0;
@@ -155,6 +162,7 @@ extension _LibraryManagerApiPart on LibraryManager {
       'duration': duration,
       'trackNumber': song.trackNumber,
       'hasLyrics': song.hasLyrics,
+      'isInstrumental': song.resolveInstrumental(instrumentalOverrides[songId]),
     };
   }
 }

@@ -23,5 +23,6 @@ Song songFromModel(
     fileSize: 0,
     modifiedTime: DateTime.now(),
     hasLyrics: model.hasLyrics,
+    isInstrumental: model.isInstrumental,
   );
 }

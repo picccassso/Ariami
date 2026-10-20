@@ -63,6 +63,13 @@ extension AriamiHttpServerSongAttributesMethods on AriamiHttpServer {
     }
 
     repository.songAttributes.apply(updates);
+    final instrumentalSongIds = updates.entries
+        .where((entry) =>
+            entry.value.containsKey(SongAttributeRepository.instrumentalKey))
+        .map((entry) => entry.key);
+    if (_libraryManager.refreshInstrumentalFlags(instrumentalSongIds)) {
+      _broadcastLibraryUpdated(syncReason: 'song_attributes');
+    }
     return _jsonOk({'results': results});
   }
 

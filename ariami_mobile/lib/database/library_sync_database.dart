@@ -8,7 +8,7 @@ part 'library_sync_database_writes.dart';
 
 class LibrarySyncDatabase {
   static const String _databaseName = 'library_sync.db';
-  static const int _databaseVersion = 7;
+  static const int _databaseVersion = 8;
 
   static const String _albumsTable = 'albums';
   static const String _songsTable = 'songs';

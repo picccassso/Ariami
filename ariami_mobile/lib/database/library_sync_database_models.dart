@@ -46,6 +46,7 @@ class LibrarySongRow {
   final int? trackNumber;
   final bool isDeleted;
   final bool hasLyrics;
+  final bool isInstrumental;
 
   const LibrarySongRow({
     required this.id,
@@ -57,6 +58,7 @@ class LibrarySongRow {
     this.trackNumber,
     this.isDeleted = false,
     this.hasLyrics = false,
+    this.isInstrumental = false,
   });
 }
 

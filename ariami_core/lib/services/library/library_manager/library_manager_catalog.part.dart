@@ -157,6 +157,7 @@ extension _LibraryManagerCatalogPart on LibraryManager {
             artworkKey: record.artworkKey,
             updatedToken: tokenCursor,
             hasLyrics: record.hasLyrics,
+            isInstrumental: record.isInstrumental,
             isDeleted: false,
           ),
         );
@@ -174,6 +175,7 @@ extension _LibraryManagerCatalogPart on LibraryManager {
             durationSeconds: record.durationSeconds,
             trackNumber: record.trackNumber,
             hasLyrics: record.hasLyrics,
+            isInstrumental: record.isInstrumental,
           ),
           occurredEpochMs: occurredEpochMs,
         );
@@ -332,5 +334,60 @@ extension _LibraryManagerCatalogPart on LibraryManager {
       library: updatedLibrary,
       albumIds: orderedAffectedAlbumIds,
     );
+  }
+
+  bool _refreshInstrumentalFlagsImpl(Iterable<String> songIds) {
+    final repository = createCatalogRepository();
+    final catalogDatabase = _catalogDatabase;
+    if (!_shouldWriteCatalog || repository == null || catalogDatabase == null) {
+      return false;
+    }
+
+    final overrides = repository.songAttributes
+        .readKey(SongAttributeRepository.instrumentalKey);
+    final changed = <CatalogSongRecord>[
+      for (final songId in songIds.toSet())
+        if (repository.getSongById(songId) case final record?)
+          if (_songById[songId]?.resolveInstrumental(overrides[songId])
+              case final isInstrumental?)
+            if (isInstrumental != record.isInstrumental) record,
+    ];
+    if (changed.isEmpty) return false;
+
+    final database = catalogDatabase.database;
+    var tokenCursor = readLatestChangeToken(database);
+    final occurredEpochMs = DateTime.now().millisecondsSinceEpoch;
+    database.execute('BEGIN IMMEDIATE TRANSACTION;');
+    try {
+      for (final record in changed) {
+        tokenCursor += 1;
+        repository.setSongInstrumental(
+            record.id, !record.isInstrumental, tokenCursor);
+        insertChangeEvent(
+          database,
+          entityType: 'song',
+          entityId: record.id,
+          op: 'upsert',
+          payloadJson: songChangePayloadJson(
+            id: record.id,
+            title: record.title,
+            artist: record.artist,
+            genre: record.genre,
+            albumId: record.albumId,
+            durationSeconds: record.durationSeconds,
+            trackNumber: record.trackNumber,
+            hasLyrics: record.hasLyrics,
+            isInstrumental: !record.isInstrumental,
+          ),
+          occurredEpochMs: occurredEpochMs,
+        );
+      }
+      database.execute('COMMIT;');
+      _latestCatalogToken = tokenCursor;
+      return true;
+    } catch (_) {
+      database.execute('ROLLBACK;');
+      rethrow;
+    }
   }
 }

@@ -5,7 +5,7 @@ import '../../models/song.dart';
 import '../../services/api/connection_service.dart';
 import '../../services/playback_manager.dart';
 import '../common/cached_artwork.dart';
-import '../common/lyrics_badge.dart';
+import '../common/track_badge.dart';
 import '../common/song_overflow_menu.dart';
 import '../common/swipe_to_queue.dart';
 
@@ -81,10 +81,10 @@ class TrackListItem extends StatelessWidget {
                                 overflow: TextOverflow.ellipsis,
                               ),
                             ),
-                            if (track.hasLyrics) ...[
-                              const SizedBox(width: 6),
-                              const LyricsBadge(),
-                            ],
+                            TrackBadge(
+                              hasLyrics: track.hasLyrics,
+                              isInstrumental: track.isInstrumental,
+                            ),
                           ],
                         ),
                         const SizedBox(height: 4),

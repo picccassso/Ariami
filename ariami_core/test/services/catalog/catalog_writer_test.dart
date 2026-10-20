@@ -120,7 +120,48 @@ void main() {
       expect(payloads, equals({'lyrics': true, 'plain': false}));
     });
 
-    test('does not set coverArtKey when album hasArtwork is false', () {
+    test('resolves isInstrumental from tags, attributes and lyrics', () {
+      final library = LibraryStructure(
+        albums: const {},
+        standaloneSongs: const <SongMetadata>[
+          SongMetadata(filePath: '/tmp/tagged.mp3', title: 'Song (Inst.)'),
+          SongMetadata(filePath: '/tmp/genre.mp3', genre: 'Instrumental Rock'),
+          SongMetadata(filePath: '/tmp/override.mp3', title: 'Plain'),
+          SongMetadata(
+            filePath: '/tmp/lyrics.mp3',
+            title: 'Song (Instrumental)',
+            hasLyrics: true,
+          ),
+        ],
+      );
+      repository.songAttributes.apply({
+        'genre': {'instrumental': false},
+        'override': {'instrumental': true},
+      });
+
+      writer.writeFullSnapshot(
+        library: library,
+        songIdForPath: (filePath) => filePath.substring(5, filePath.length - 4),
+      );
+
+      final expected = {
+        'tagged': true,
+        'genre': false,
+        'override': true,
+        'lyrics': false,
+      };
+      expect({
+        for (final id in expected.keys)
+          id: repository.getSongById(id)!.isInstrumental,
+      }, equals(expected));
+      expect({
+        for (final event in repository.readChangesSince(0, 100))
+          if (event.entityType == 'song')
+            event.entityId: jsonDecode(event.payloadJson!)['isInstrumental'],
+      }, equals(expected));
+    });
+
+        test('does not set coverArtKey when album hasArtwork is false', () {
       final library = LibraryStructure(
         albums: {
           'album-no-art': Album(

@@ -31,6 +31,7 @@ import 'package:ariami_core/services/library/library_manager.dart';
 import 'package:ariami_core/services/library/playlist_decision_store.dart';
 import 'package:ariami_core/services/catalog/catalog_repository.dart';
 import 'package:ariami_core/services/catalog/song_attribute_query.dart';
+import 'package:ariami_core/services/catalog/song_attribute_repository.dart';
 import 'package:ariami_core/services/auth/auth_service.dart';
 import 'package:ariami_core/services/auth/user_store.dart'
     show UserExistsException;

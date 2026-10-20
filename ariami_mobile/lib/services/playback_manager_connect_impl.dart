@@ -749,6 +749,7 @@ extension _PlaybackManagerConnectImpl on PlaybackManager {
       modifiedTime: DateTime.tryParse(json['modifiedTime'] as String? ?? '') ??
           DateTime.fromMillisecondsSinceEpoch(0),
       hasLyrics: json['hasLyrics'] as bool? ?? false,
+      isInstrumental: json['isInstrumental'] as bool? ?? false,
     );
   }
 }

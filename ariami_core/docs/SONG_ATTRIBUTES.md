@@ -22,6 +22,11 @@ The tags live on your server, and every account on that server sees the same
 values. The Ariami apps keep showing the genre from your file tags. Your tags
 come back through the API described below, ready for your own tools to use.
 
+One tag also shows up in the apps: `instrumental`. Set it to `true` or `false`
+to show or hide the INST badge next to a song, replacing Ariami's own guess
+from the song's title and genre. Set it to `null` to go back to that guess.
+Songs with lyrics always show the LYRICS badge instead.
+
 ## Before you start
 
 You'll need:

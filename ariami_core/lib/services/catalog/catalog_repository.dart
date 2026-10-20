@@ -41,6 +41,7 @@ class CatalogSongRecord {
     this.artworkKey,
     required this.updatedToken,
     this.hasLyrics = false,
+    this.isInstrumental = false,
     this.isDeleted = false,
   });
 
@@ -58,6 +59,9 @@ class CatalogSongRecord {
   final String? artworkKey;
   final int updatedToken;
   final bool hasLyrics;
+
+  /// Effective badge state, see [SongMetadata.resolveInstrumental].
+  final bool isInstrumental;
   final bool isDeleted;
 }
 
@@ -209,8 +213,9 @@ INSERT INTO songs (
   artwork_key,
   updated_token,
   has_lyrics,
+  is_instrumental,
   is_deleted
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 ON CONFLICT(id) DO UPDATE SET
   file_path = excluded.file_path,
   title = excluded.title,
@@ -225,6 +230,7 @@ ON CONFLICT(id) DO UPDATE SET
   artwork_key = excluded.artwork_key,
   updated_token = excluded.updated_token,
   has_lyrics = excluded.has_lyrics,
+  is_instrumental = excluded.is_instrumental,
   is_deleted = excluded.is_deleted;
 ''',
       <Object?>[
@@ -242,6 +248,7 @@ ON CONFLICT(id) DO UPDATE SET
         song.artworkKey,
         song.updatedToken,
         song.hasLyrics ? 1 : 0,
+        song.isInstrumental ? 1 : 0,
         song.isDeleted ? 1 : 0,
       ],
     );
@@ -438,6 +445,7 @@ SELECT
   artwork_key,
   updated_token,
   has_lyrics,
+  is_instrumental,
   is_deleted
 FROM songs
 WHERE is_deleted = 0
@@ -463,6 +471,7 @@ SELECT
   artwork_key,
   updated_token,
   has_lyrics,
+  is_instrumental,
   is_deleted
 FROM songs
 WHERE is_deleted = 0 AND id > ?
@@ -487,6 +496,13 @@ LIMIT ?;
     );
   }
 
+  void setSongInstrumental(String songId, bool isInstrumental, int token) {
+    _database.execute(
+      'UPDATE songs SET is_instrumental = ?, updated_token = ? WHERE id = ?;',
+      <Object?>[isInstrumental ? 1 : 0, token, songId],
+    );
+  }
+
   CatalogSongRecord? getSongById(String songId) {
     final rows = _database.select(
       '''
@@ -505,6 +521,7 @@ SELECT
   artwork_key,
   updated_token,
   has_lyrics,
+  is_instrumental,
   is_deleted
 FROM songs
 WHERE id = ? AND is_deleted = 0
@@ -539,6 +556,7 @@ SELECT
   artwork_key,
   updated_token,
   has_lyrics,
+  is_instrumental,
   is_deleted
 FROM songs
 WHERE id IN ($placeholders) AND is_deleted = 0;
@@ -573,6 +591,7 @@ SELECT
   artwork_key,
   updated_token,
   has_lyrics,
+  is_instrumental,
   is_deleted
 FROM songs
 WHERE album_id IN ($placeholders) AND is_deleted = 0;
@@ -861,6 +880,7 @@ WHERE token < ?;
       artworkKey: row['artwork_key'] as String?,
       updatedToken: row['updated_token'] as int,
       hasLyrics: ((row['has_lyrics'] as int?) ?? 0) == 1,
+      isInstrumental: ((row['is_instrumental'] as int?) ?? 0) == 1,
       isDeleted: (row['is_deleted'] as int) == 1,
     );
   }

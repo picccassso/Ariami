@@ -28,7 +28,8 @@ class _LibrarySyncDatabaseSchema {
         duration INTEGER NOT NULL DEFAULT 0,
         track_number INTEGER,
         is_deleted INTEGER NOT NULL DEFAULT 0,
-        has_lyrics INTEGER NOT NULL DEFAULT 0
+        has_lyrics INTEGER NOT NULL DEFAULT 0,
+        is_instrumental INTEGER NOT NULL DEFAULT 0
       )
     ''');
 
@@ -113,12 +114,17 @@ class _LibrarySyncDatabaseSchema {
         LibrarySyncDatabase._bootstrapSongsTable,
       );
     }
-    if (oldVersion < 7) {
-      await _addHasLyricsColumnIfMissing(db, LibrarySyncDatabase._songsTable);
-      await _addHasLyricsColumnIfMissing(
-        db,
+    for (final (version, column) in const [
+      (7, 'has_lyrics'),
+      (8, 'is_instrumental'),
+    ]) {
+      if (oldVersion >= version) continue;
+      for (final table in const [
+        LibrarySyncDatabase._songsTable,
         LibrarySyncDatabase._bootstrapSongsTable,
-      );
+      ]) {
+        await _addFlagColumnIfMissing(db, table, column);
+      }
     }
   }
 
@@ -128,11 +134,15 @@ class _LibrarySyncDatabaseSchema {
     await db.execute('ALTER TABLE $table ADD COLUMN genre TEXT');
   }
 
-  Future<void> _addHasLyricsColumnIfMissing(Database db, String table) async {
+  Future<void> _addFlagColumnIfMissing(
+    Database db,
+    String table,
+    String column,
+  ) async {
     final columns = await db.rawQuery('PRAGMA table_info($table)');
-    if (columns.any((column) => column['name'] == 'has_lyrics')) return;
+    if (columns.any((existing) => existing['name'] == column)) return;
     await db.execute(
-      'ALTER TABLE $table ADD COLUMN has_lyrics INTEGER NOT NULL DEFAULT 0',
+      'ALTER TABLE $table ADD COLUMN $column INTEGER NOT NULL DEFAULT 0',
     );
   }
 
@@ -187,7 +197,8 @@ class _LibrarySyncDatabaseSchema {
         duration INTEGER NOT NULL DEFAULT 0,
         track_number INTEGER,
         is_deleted INTEGER NOT NULL DEFAULT 0,
-        has_lyrics INTEGER NOT NULL DEFAULT 0
+        has_lyrics INTEGER NOT NULL DEFAULT 0,
+        is_instrumental INTEGER NOT NULL DEFAULT 0
       )
     ''');
 

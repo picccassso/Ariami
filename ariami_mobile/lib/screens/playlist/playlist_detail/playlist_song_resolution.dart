@@ -100,6 +100,7 @@ abstract class _PlaylistSongResolutionState extends _PlaylistDetailState {
             : (preferredSong?.duration ?? 0),
         trackNumber: preferredSong?.trackNumber,
         hasLyrics: preferredSong?.hasLyrics ?? false,
+        isInstrumental: preferredSong?.isInstrumental ?? false,
       );
     }).toList();
   }
@@ -214,6 +215,8 @@ abstract class _PlaylistSongResolutionState extends _PlaylistDetailState {
             : librarySong.duration,
         trackNumber: provisionalSong.trackNumber ?? librarySong.trackNumber,
         hasLyrics: provisionalSong.hasLyrics || librarySong.hasLyrics,
+        isInstrumental:
+            provisionalSong.isInstrumental || librarySong.isInstrumental,
       );
     }).toList();
   }

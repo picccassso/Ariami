@@ -2,7 +2,10 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:ariami_core/models/feature_flags.dart';
+import 'package:ariami_core/models/library_structure.dart';
+import 'package:ariami_core/models/song_metadata.dart';
 import 'package:ariami_core/services/catalog/catalog_repository.dart';
+import 'package:ariami_core/services/library/album_identity.dart';
 import 'package:ariami_core/services/server/http_server.dart';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
@@ -85,7 +88,51 @@ void main() {
       if (await testDir.exists()) await testDir.delete(recursive: true);
     });
 
-    test('requires a session', () async {
+    test('instrumental attribute overrides the badge and syncs as a change',
+        () async {
+      final manager = server.libraryManager;
+      const path = '/music/Artist/Album/04 Theme.flac';
+      manager.setLibraryForTesting(LibraryStructure(
+        albums: const {},
+        standaloneSongs: const [
+          SongMetadata(filePath: path, title: 'Theme (Instrumental)'),
+        ],
+      ));
+      final id = generateSongId(path);
+      final repository = manager.createCatalogRepository()!;
+      repository.upsertSong(CatalogSongRecord(
+        id: id,
+        filePath: path,
+        title: 'Theme (Instrumental)',
+        artist: 'Artist',
+        durationSeconds: 100,
+        updatedToken: 1,
+        isInstrumental: true,
+      ));
+
+      Future<void> expectBadge(Object? attribute, bool expected) async {
+        final (status, _) = await send('PUT', '/api/v2/song-attributes', {
+          'items': [
+            {
+              'songId': id,
+              'attributes': {'instrumental': attribute},
+            },
+          ],
+        });
+        expect(status, 200);
+        expect(repository.getSongById(id)!.isInstrumental, expected);
+        final payload = repository
+            .readChangesSince(0, 100)
+            .lastWhere((event) => event.entityId == id)
+            .payloadJson!;
+        expect(jsonDecode(payload)['isInstrumental'], expected);
+      }
+
+      await expectBadge(false, false);
+      await expectBadge(null, true);
+    });
+
+        test('requires a session', () async {
       final (status, _) = await send('POST', '/api/v2/songs/query', {}, false);
       expect(status, 401);
     });

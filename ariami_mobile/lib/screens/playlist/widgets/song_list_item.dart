@@ -3,7 +3,7 @@ import 'package:ariami_core/utils/format.dart';
 import '../../../models/api_models.dart';
 import '../../../services/api/connection_service.dart';
 import '../../../services/playback_manager.dart';
-import '../../../widgets/common/lyrics_badge.dart';
+import '../../../widgets/common/track_badge.dart';
 import '../../../widgets/common/queue_action_confirmation.dart';
 import '../../../widgets/common/song_overflow_menu.dart';
 import '../../../widgets/common/swipe_to_queue.dart';
@@ -110,10 +110,10 @@ class _SongListItemState extends State<SongListItem> {
                         ),
                       ),
                     ),
-                    if (widget.song.hasLyrics) ...[
-                      const SizedBox(width: 6),
-                      const LyricsBadge(),
-                    ],
+                    TrackBadge(
+                      hasLyrics: widget.song.hasLyrics,
+                      isInstrumental: widget.song.isInstrumental,
+                    ),
                   ],
                 ),
                 subtitle: Text(

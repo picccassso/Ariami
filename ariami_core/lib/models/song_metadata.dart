@@ -36,6 +36,20 @@ class SongMetadata {
 
   final bool hasLyrics;
 
+  static final RegExp _instrumentalPattern =
+      RegExp(r'\binstrumentals?\b|\binst\.|\(inst\)', caseSensitive: false);
+
+  /// Whether the title or genre tag marks this song as instrumental, e.g.
+  /// "Track (Instrumental)", "Track (Inst.)" or genre "Instrumental Hip Hop".
+  bool get isInstrumental =>
+      _instrumentalPattern.hasMatch(title ?? '') ||
+      _instrumentalPattern.hasMatch(genre ?? '');
+
+  /// The instrumental badge state: an explicit [override] (the
+  /// `instrumental` song attribute) beats the tag clue, and lyrics beat both.
+  bool resolveInstrumental(Object? override) =>
+      !hasLyrics && (override is bool ? override : isInstrumental);
+
   const SongMetadata({
     required this.filePath,
     this.title,

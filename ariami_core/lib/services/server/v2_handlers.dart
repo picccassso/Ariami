@@ -102,6 +102,7 @@ class AriamiV2Handlers {
               duration: record.durationSeconds,
               trackNumber: record.trackNumber,
               hasLyrics: record.hasLyrics,
+              isInstrumental: record.isInstrumental,
             ),
           )
           .toList(),
@@ -208,6 +209,7 @@ class AriamiV2Handlers {
               duration: record.durationSeconds,
               trackNumber: record.trackNumber,
               hasLyrics: record.hasLyrics,
+              isInstrumental: record.isInstrumental,
             ).toJson(),
           )
           .toList(),

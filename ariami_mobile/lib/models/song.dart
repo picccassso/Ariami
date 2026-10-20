@@ -16,6 +16,7 @@ class Song {
   final int fileSize;
   final DateTime modifiedTime;
   final bool hasLyrics;
+  final bool isInstrumental;
 
   const Song({
     required this.id,
@@ -33,13 +34,16 @@ class Song {
     required this.fileSize,
     required this.modifiedTime,
     this.hasLyrics = false,
+    this.isInstrumental = false,
   });
 
   factory Song.fromJson(Map<String, dynamic> json) {
     return Song(
       id: json['id'] as String,
-      title: EncodingUtils.fixEncoding(json['title'] as String) ?? json['title'] as String,
-      artist: EncodingUtils.fixEncoding(json['artist'] as String) ?? json['artist'] as String,
+      title: EncodingUtils.fixEncoding(json['title'] as String) ??
+          json['title'] as String,
+      artist: EncodingUtils.fixEncoding(json['artist'] as String) ??
+          json['artist'] as String,
       album: EncodingUtils.fixEncoding(json['album'] as String?),
       albumId: json['albumId'] as String?,
       albumArtist: EncodingUtils.fixEncoding(json['albumArtist'] as String?),
@@ -52,6 +56,7 @@ class Song {
       fileSize: json['fileSize'] as int,
       modifiedTime: DateTime.parse(json['modifiedTime'] as String),
       hasLyrics: json['hasLyrics'] as bool? ?? false,
+      isInstrumental: json['isInstrumental'] as bool? ?? false,
     );
   }
 
@@ -72,6 +77,7 @@ class Song {
       'fileSize': fileSize,
       'modifiedTime': modifiedTime.toIso8601String(),
       'hasLyrics': hasLyrics,
+      'isInstrumental': isInstrumental,
     };
   }
 
@@ -91,6 +97,7 @@ class Song {
     int? fileSize,
     DateTime? modifiedTime,
     bool? hasLyrics,
+    bool? isInstrumental,
   }) {
     return Song(
       id: id ?? this.id,
@@ -108,6 +115,7 @@ class Song {
       fileSize: fileSize ?? this.fileSize,
       modifiedTime: modifiedTime ?? this.modifiedTime,
       hasLyrics: hasLyrics ?? this.hasLyrics,
+      isInstrumental: isInstrumental ?? this.isInstrumental,
     );
   }
 

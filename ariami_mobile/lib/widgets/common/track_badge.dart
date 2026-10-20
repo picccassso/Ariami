@@ -1,22 +1,30 @@
 import 'package:flutter/material.dart';
 
-/// Compact inline pill badge displaying "LYRICS" next to track titles.
-class LyricsBadge extends StatelessWidget {
+/// Compact pill after a track title: "LYRICS" when the track has lyrics,
+/// otherwise "INST" when it is instrumental, otherwise nothing.
+class TrackBadge extends StatelessWidget {
+  final bool hasLyrics;
+  final bool isInstrumental;
   final double fontSize;
   final EdgeInsetsGeometry padding;
 
-  const LyricsBadge({
+  const TrackBadge({
     super.key,
+    required this.hasLyrics,
+    required this.isInstrumental,
     this.fontSize = 8.5,
     this.padding = const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
   });
 
   @override
   Widget build(BuildContext context) {
+    final label = hasLyrics ? 'LYRICS' : (isInstrumental ? 'INST' : null);
+    if (label == null) return const SizedBox.shrink();
     final colorScheme = Theme.of(context).colorScheme;
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Container(
+      margin: const EdgeInsets.only(left: 6),
       padding: padding,
       decoration: BoxDecoration(
         color: isDark
@@ -31,7 +39,7 @@ class LyricsBadge extends StatelessWidget {
         ),
       ),
       child: Text(
-        'LYRICS',
+        label,
         style: TextStyle(
           fontSize: fontSize,
           fontWeight: FontWeight.w700,

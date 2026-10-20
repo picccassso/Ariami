@@ -1,10 +1,18 @@
 part of '../library_manager.dart';
 
 extension _LibraryManagerCatalogRecordsPart on LibraryManager {
+  /// The `instrumental` attribute of every song that has one.
+  Map<String, Object> get _instrumentalOverrides =>
+      createCatalogRepository()
+          ?.songAttributes
+          .readKey(SongAttributeRepository.instrumentalKey) ??
+      const <String, Object>{};
+
   Map<String, CatalogSongRecord> _buildCatalogSongRecordsById(
     LibraryStructure library,
   ) {
     final records = <String, CatalogSongRecord>{};
+    final instrumentalOverrides = _instrumentalOverrides;
 
     for (final album in library.albums.values.where((a) => a.isValid)) {
       for (final song in album.songs) {
@@ -24,6 +32,8 @@ extension _LibraryManagerCatalogRecordsPart on LibraryManager {
           artworkKey: album.id,
           updatedToken: 0,
           hasLyrics: song.hasLyrics,
+          isInstrumental:
+              song.resolveInstrumental(instrumentalOverrides[songId]),
           isDeleted: false,
         );
       }
@@ -46,6 +56,7 @@ extension _LibraryManagerCatalogRecordsPart on LibraryManager {
         artworkKey: null,
         updatedToken: 0,
         hasLyrics: song.hasLyrics,
+        isInstrumental: song.resolveInstrumental(instrumentalOverrides[songId]),
         isDeleted: false,
       );
     }

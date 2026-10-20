@@ -229,6 +229,7 @@ class _LibrarySyncDatabaseReads {
       trackNumber: row['track_number'] as int?,
       isDeleted: (row['is_deleted'] as int? ?? 0) == 1,
       hasLyrics: (row['has_lyrics'] as int? ?? 0) == 1,
+      isInstrumental: (row['is_instrumental'] as int? ?? 0) == 1,
     );
   }
 

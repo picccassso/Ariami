@@ -18,6 +18,7 @@ import 'package:ariami_core/services/catalog/catalog_change_log.dart';
 import 'package:ariami_core/services/catalog/catalog_database.dart';
 import 'package:ariami_core/services/catalog/catalog_repository.dart';
 import 'package:ariami_core/services/catalog/catalog_writer.dart';
+import 'package:ariami_core/services/catalog/song_attribute_repository.dart';
 import 'package:ariami_core/services/library/album_identity.dart';
 import 'package:ariami_core/services/library/change_processor.dart';
 import 'package:ariami_core/services/library/folder_watcher.dart';
@@ -278,6 +279,12 @@ class LibraryManager {
 
     return CatalogRepository(database: catalogDatabase.database);
   }
+
+  /// Re-resolves the instrumental badge of [songIds] after their
+  /// `instrumental` attribute changed, recording a song change for each badge
+  /// that flipped. Returns whether anything changed.
+  bool refreshInstrumentalFlags(Iterable<String> songIds) =>
+      _refreshInstrumentalFlagsImpl(songIds);
 
   /// Set the path for persistent metadata cache
   ///

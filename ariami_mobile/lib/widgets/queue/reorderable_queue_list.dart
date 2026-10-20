@@ -8,7 +8,7 @@ import 'package:ariami_core/utils/format.dart';
 import '../../utils/artwork_url.dart';
 import '../../services/offline/offline_playback_service.dart';
 import '../common/cached_artwork.dart';
-import '../common/lyrics_badge.dart';
+import '../common/track_badge.dart';
 
 class ReorderableQueueList extends StatefulWidget {
   final List<Song> songs;
@@ -271,8 +271,9 @@ class QueueItem extends StatelessWidget {
                       song.title,
                       style: TextStyle(
                         fontSize: 14,
-                        fontWeight:
-                            isCurrentlyPlaying ? FontWeight.w800 : FontWeight.w600,
+                        fontWeight: isCurrentlyPlaying
+                            ? FontWeight.w800
+                            : FontWeight.w600,
                         color: colorScheme.onSurface,
                         letterSpacing: 0.2,
                       ),
@@ -280,10 +281,10 @@ class QueueItem extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
-                  if (song.hasLyrics) ...[
-                    const SizedBox(width: 6),
-                    const LyricsBadge(),
-                  ],
+                  TrackBadge(
+                    hasLyrics: song.hasLyrics,
+                    isInstrumental: song.isInstrumental,
+                  ),
                 ],
               ),
               subtitle: Text(
