@@ -94,6 +94,32 @@ void main() {
       );
     });
 
+    test('persists hasLyrics on song rows and change payloads', () {
+      final library = LibraryStructure(
+        albums: const {},
+        standaloneSongs: const <SongMetadata>[
+          SongMetadata(filePath: '/tmp/lyrics.mp3', hasLyrics: true),
+          SongMetadata(filePath: '/tmp/plain.mp3'),
+        ],
+      );
+
+      writer.writeFullSnapshot(
+        library: library,
+        songIdForPath: (filePath) =>
+            filePath.contains('lyrics') ? 'lyrics' : 'plain',
+      );
+
+      expect(repository.getSongById('lyrics')!.hasLyrics, isTrue);
+      expect(repository.getSongById('plain')!.hasLyrics, isFalse);
+
+      final payloads = {
+        for (final event in repository.readChangesSince(0, 100))
+          if (event.entityType == 'song')
+            event.entityId: jsonDecode(event.payloadJson!)['hasLyrics'],
+      };
+      expect(payloads, equals({'lyrics': true, 'plain': false}));
+    });
+
     test('does not set coverArtKey when album hasArtwork is false', () {
       final library = LibraryStructure(
         albums: {

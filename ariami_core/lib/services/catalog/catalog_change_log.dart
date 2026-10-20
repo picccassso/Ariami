@@ -71,6 +71,7 @@ String songChangePayloadJson({
   required String? albumId,
   required int durationSeconds,
   required int? trackNumber,
+  required bool hasLyrics,
 }) {
   return jsonEncode(<String, dynamic>{
     'id': id,
@@ -80,6 +81,7 @@ String songChangePayloadJson({
     'albumId': albumId,
     'duration': durationSeconds,
     'trackNumber': trackNumber,
+    'hasLyrics': hasLyrics,
   });
 }
 

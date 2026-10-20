@@ -99,6 +99,7 @@ abstract class _PlaylistSongResolutionState extends _PlaylistDetailState {
             ? cachedDuration
             : (preferredSong?.duration ?? 0),
         trackNumber: preferredSong?.trackNumber,
+        hasLyrics: preferredSong?.hasLyrics ?? false,
       );
     }).toList();
   }
@@ -122,6 +123,7 @@ abstract class _PlaylistSongResolutionState extends _PlaylistDetailState {
         albumId: task.albumId,
         duration: task.duration,
         trackNumber: task.trackNumber,
+        hasLyrics: _downloadManager.hasDownloadedLyrics(task.songId),
       );
     }
 
@@ -170,11 +172,9 @@ abstract class _PlaylistSongResolutionState extends _PlaylistDetailState {
       return const <SongModel>[];
     }
 
+    // Always merge library rows: stored playlist metadata can be complete
+    // while still lacking library-only fields such as hasLyrics.
     final provisionalSongs = _buildSongsFromStoredMetadata(playlist);
-    if (!_needsLibrarySongMetadata(provisionalSongs)) {
-      return provisionalSongs;
-    }
-
     final librarySongs = await _loadLibrarySongsForMetadata();
     final provisionalSongsById = {
       for (final song in provisionalSongs) song.id: song,
@@ -213,6 +213,7 @@ abstract class _PlaylistSongResolutionState extends _PlaylistDetailState {
             ? provisionalSong.duration
             : librarySong.duration,
         trackNumber: provisionalSong.trackNumber ?? librarySong.trackNumber,
+        hasLyrics: provisionalSong.hasLyrics || librarySong.hasLyrics,
       );
     }).toList();
   }

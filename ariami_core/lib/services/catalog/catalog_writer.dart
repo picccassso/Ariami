@@ -196,6 +196,7 @@ ON CONFLICT(artwork_key, variant) DO UPDATE SET
             modifiedEpochMs: snapshot.modifiedEpochMs,
             artworkKey: snapshot.artworkKey,
             updatedToken: tokenCursor,
+            hasLyrics: snapshot.hasLyrics,
           ),
         );
         insertChangeEvent(
@@ -211,6 +212,7 @@ ON CONFLICT(artwork_key, variant) DO UPDATE SET
             albumId: snapshot.albumId,
             durationSeconds: snapshot.durationSeconds,
             trackNumber: snapshot.trackNumber,
+            hasLyrics: snapshot.hasLyrics,
           ),
           occurredEpochMs: occurredEpochMs,
         );
@@ -473,6 +475,7 @@ ON CONFLICT(artwork_key, variant) DO UPDATE SET
       fileSizeBytes: song.fileSize,
       modifiedEpochMs: song.modifiedTime?.millisecondsSinceEpoch,
       artworkKey: albumId,
+      hasLyrics: song.hasLyrics,
     );
   }
 
@@ -577,6 +580,7 @@ class _SongSnapshot {
     required this.fileSizeBytes,
     required this.modifiedEpochMs,
     required this.artworkKey,
+    required this.hasLyrics,
   });
 
   final String id;
@@ -590,6 +594,7 @@ class _SongSnapshot {
   final int? fileSizeBytes;
   final int? modifiedEpochMs;
   final String? artworkKey;
+  final bool hasLyrics;
 }
 
 class _PlaylistSnapshot {

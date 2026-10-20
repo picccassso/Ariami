@@ -173,6 +173,7 @@ extension _LibraryManagerCatalogPart on LibraryManager {
             albumId: record.albumId,
             durationSeconds: record.durationSeconds,
             trackNumber: record.trackNumber,
+            hasLyrics: record.hasLyrics,
           ),
           occurredEpochMs: occurredEpochMs,
         );

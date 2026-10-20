@@ -160,7 +160,7 @@ abstract class _PlaylistDetailState extends State<PlaylistDetailScreen> {
         _isSongsLoading = needsLibraryMetadata;
       });
 
-      if (!needsLibraryMetadata && _pendingSyncRefresh) {
+      if (!needsLibraryMetadata) {
         await _reloadSongsFromLibrarySync();
       }
 
@@ -201,7 +201,7 @@ abstract class _PlaylistDetailState extends State<PlaylistDetailScreen> {
           _isSongsLoading = _needsLibrarySongMetadata(_songs);
         });
 
-        if (!_isSongsLoading && _pendingSyncRefresh) {
+        if (!_isSongsLoading) {
           await _reloadSongsFromLibrarySync();
         }
 
