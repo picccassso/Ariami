@@ -10,6 +10,59 @@ import 'ariami_connect_button.dart';
 
 enum _OutputPickerTarget { ariamiConnect, googleCast }
 
+/// The device playback is routed to, or null while playing on this phone.
+String? connectedOutputDeviceName(PlaybackManager playbackManager) {
+  final cast = ChromeCastService();
+  if (cast.isConnected) return cast.connectedDeviceName ?? 'Google Cast';
+  if (playbackManager.isConnectRemoteActive) {
+    return playbackManager.connectRemoteDeviceName;
+  }
+  return null;
+}
+
+/// A quiet "Playing on …" line for layouts whose [PlayerOutputButton] is
+/// icon-only, so a remote device name never has to squeeze into a button row.
+class PlayerOutputCaption extends StatelessWidget {
+  final PlaybackManager playbackManager;
+
+  const PlayerOutputCaption({super.key, required this.playbackManager});
+
+  @override
+  Widget build(BuildContext context) {
+    return ListenableBuilder(
+      listenable: Listenable.merge([
+        ChromeCastService(),
+        AriamiConnectController(),
+        playbackManager,
+      ]),
+      builder: (context, _) {
+        final deviceName = connectedOutputDeviceName(playbackManager);
+        return AnimatedSize(
+          duration: const Duration(milliseconds: 250),
+          curve: Curves.easeOutCubic,
+          alignment: Alignment.topCenter,
+          child: SizedBox(
+            width: double.infinity,
+            child: deviceName == null
+                ? null
+                : Text(
+                    'Playing on $deviceName',
+                    key: const ValueKey('player-output-caption'),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.center,
+                    style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                          color: Theme.of(context).colorScheme.primary,
+                          fontWeight: FontWeight.w600,
+                        ),
+                  ),
+          ),
+        );
+      },
+    );
+  }
+}
+
 /// A single entry point for Ariami Connect and Google Cast.
 ///
 /// When playback is remote, the active client name is shown beside the icon so
@@ -50,15 +103,8 @@ class _PlayerOutputButtonState extends State<PlayerOutputButton> {
     _castService.initialize();
   }
 
-  String? get _connectedDeviceName {
-    if (_castService.isConnected) {
-      return _castService.connectedDeviceName ?? 'Google Cast';
-    }
-    if (widget.playbackManager.isConnectRemoteActive) {
-      return widget.playbackManager.connectRemoteDeviceName;
-    }
-    return null;
-  }
+  String? get _connectedDeviceName =>
+      connectedOutputDeviceName(widget.playbackManager);
 
   @override
   Widget build(BuildContext context) {

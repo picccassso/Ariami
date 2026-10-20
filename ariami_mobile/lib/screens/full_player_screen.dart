@@ -616,7 +616,11 @@ class _FullPlayerScreenState extends State<FullPlayerScreen> {
 
   Widget _buildSecondaryControls() {
     return PlayerSecondaryControls(
-      outputButton: PlayerOutputButton(playbackManager: _playbackManager),
+      outputButton: PlayerOutputButton(
+        playbackManager: _playbackManager,
+        showDeviceName: false,
+      ),
+      outputCaption: PlayerOutputCaption(playbackManager: _playbackManager),
       onPlayNext: _playCurrentSongNext,
       onAddToQueue: _addCurrentSongToQueue,
       onOpenQueue: _openQueue,
