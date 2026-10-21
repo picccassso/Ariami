@@ -36,6 +36,14 @@ CREATE TABLE $table (
 )
 ''');
           }
+          await db.execute('''
+CREATE TABLE sync_state (
+  id INTEGER PRIMARY KEY CHECK (id = 1),
+  last_applied_token INTEGER NOT NULL DEFAULT 0,
+  bootstrap_complete INTEGER NOT NULL DEFAULT 0,
+  last_sync_epoch_ms INTEGER NOT NULL DEFAULT 0
+)
+''');
           await db.insert('songs', <String, Object?>{
             'id': 'song-1',
             'title': 'Existing Song',
