@@ -32,6 +32,15 @@ class _PlayerLyricsViewState extends State<PlayerLyricsView> {
   bool _userIsScrolling = false;
   Timer? _userScrollResumeTimer;
 
+  /// Polls the position between notifier updates: a Connect mirror only
+  /// publishes once a second, which would make line changes land late.
+  Timer? _positionPoller;
+
+  /// Backward position steps smaller than this keep the current line. Connect
+  /// broadcasts land slightly behind the locally extrapolated position, which
+  /// would otherwise flick the highlight back and forth across a boundary.
+  static const Duration _backwardTolerance = Duration(seconds: 1);
+
   // GlobalKeys for each line item to ensure accurate auto-scrolling
   final List<GlobalKey> _lineKeys = [];
 
@@ -40,6 +49,10 @@ class _PlayerLyricsViewState extends State<PlayerLyricsView> {
     super.initState();
     _loadLyrics();
     _playbackManager.positionNotifier.addListener(_onPositionChanged);
+    _positionPoller = Timer.periodic(
+      const Duration(milliseconds: 200),
+      (_) => _onPositionChanged(),
+    );
   }
 
   @override
@@ -54,6 +67,7 @@ class _PlayerLyricsViewState extends State<PlayerLyricsView> {
   void dispose() {
     _playbackManager.positionNotifier.removeListener(_onPositionChanged);
     _userScrollResumeTimer?.cancel();
+    _positionPoller?.cancel();
     _scrollController.dispose();
     super.dispose();
   }
@@ -82,6 +96,11 @@ class _PlayerLyricsViewState extends State<PlayerLyricsView> {
     });
 
     _onPositionChanged();
+    // Lines have no layout until the next frame, so the scroll above was a
+    // no-op; jump straight to the current line once they are built.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _scrollToActiveLine(_activeLineIndex, animate: false);
+    });
   }
 
   void _onPositionChanged() {
@@ -90,10 +109,13 @@ class _PlayerLyricsViewState extends State<PlayerLyricsView> {
       return;
     }
 
-    final newIndex =
-        lyrics.activeLineIndexAt(_playbackManager.positionNotifier.value);
+    final position = _playbackManager.position;
+    final newIndex = lyrics.activeLineIndexAt(position);
+    final isSmallBackwardStep = newIndex < _activeLineIndex &&
+        lyrics.lines[_activeLineIndex].timestamp - position <
+            _backwardTolerance;
 
-    if (newIndex != _activeLineIndex) {
+    if (newIndex != _activeLineIndex && !isSmallBackwardStep) {
       setState(() {
         _activeLineIndex = newIndex;
       });
@@ -103,14 +125,14 @@ class _PlayerLyricsViewState extends State<PlayerLyricsView> {
     }
   }
 
-  void _scrollToActiveLine(int index) {
+  void _scrollToActiveLine(int index, {bool animate = true}) {
     if (index < 0 || index >= _lineKeys.length) return;
     final key = _lineKeys[index];
     final lineContext = key.currentContext;
     if (lineContext != null) {
       Scrollable.ensureVisible(
         lineContext,
-        duration: const Duration(milliseconds: 450),
+        duration: animate ? const Duration(milliseconds: 450) : Duration.zero,
         curve: Curves.easeInOutCubic,
         alignment: 0.35, // Align ~1/3 down from the top (Apple Music style)
       );
