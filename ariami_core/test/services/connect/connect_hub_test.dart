@@ -1406,6 +1406,36 @@ void main() {
     });
 
     test(
+        '[ownerless_owner_reclaims_unpaused] a sole player that blips and '
+        'returns is not paused and can reclaim', () {
+      final clock = _FakeClock();
+      final hub = AriamiConnectHub(
+        now: clock.now,
+        timerFactory: clock.createTimer,
+      );
+      addTearDown(hub.dispose);
+      final owner = _FakeChannel();
+      _registerDevice(hub, owner, 'owner');
+      hub.handle(owner, _stateMessage(activate: true));
+
+      hub.unregister(owner);
+      clock.elapse(Duration.zero);
+
+      final returned = _FakeChannel();
+      _registerDevice(hub, returned, 'owner');
+      expect(
+        returned.messages.where((message) =>
+            message.type == AriamiConnectMessageType.command &&
+            message.data?['command'] == AriamiConnectCommand.pause),
+        isEmpty,
+      );
+
+      hub.handle(returned, _stateMessage(activate: true, ownerEpoch: 2));
+      final devices = _lastMessage(returned, AriamiConnectMessageType.devices);
+      expect(devices.data?['activeDeviceId'], 'owner');
+    });
+
+    test(
         '[former_owner_reconnects_paused] the disconnected owner is paused '
         'when it returns after failover', () {
       final clock = _FakeClock();

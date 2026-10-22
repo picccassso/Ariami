@@ -351,7 +351,8 @@
         "previous_player_is_preferred",
         "failed_failover_tries_next",
         "failover_exhaustion_settles_paused",
-        "former_owner_reconnects_paused"
+        "former_owner_reconnects_paused",
+        "ownerless_owner_reclaims_unpaused"
       ],
       "failureModes": [
         {
@@ -381,6 +382,10 @@
         {
           "name": "a former owner reconnects after failover without pausing",
           "probe": "former_owner_reconnects_paused"
+        },
+        {
+          "name": "a sole owner that briefly drops is paused on return",
+          "probe": "ownerless_owner_reclaims_unpaused"
         }
       ]
     },

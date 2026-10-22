@@ -159,8 +159,12 @@ class AriamiConnectHub {
       if (session?.activeDeviceId == deviceId) {
         _redeliverPendingCommands(session!, socket, peer);
       }
-      if (session != null) {
-        _redeliverFormerOwnerPause(userId, session, deviceId);
+      if (session?.activeDeviceId == null) {
+        // Failover found no taker, so nobody owns the session this device
+        // left. It has no one to yield to: drop the pause and let it reclaim.
+        if (session != null) _clearFormerOwnerPauses(session, deviceId);
+      } else {
+        _redeliverFormerOwnerPause(userId, session!, deviceId);
       }
       _broadcastDevices(userId);
     }
