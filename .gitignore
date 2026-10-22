@@ -186,3 +186,7 @@ plan.md
 
 # Screenshot sources (only the WebP versions used by the README are tracked)
 app photos/**/*.png
+
+# Local tool config and stray assets
+.antigravitycli/
+/Ariami.png
