@@ -103,7 +103,7 @@ and [`TROUBLESHOOTING.md`](TROUBLESHOOTING.md#memory--performance-on-low-end-har
 ## Under the hood (for context, not required reading)
 
 - Language/runtime: Dart + Flutter (`environment: sdk: ^3.5.0` in
-  `pubspec.yaml`), version `5.2.3`.
+  `pubspec.yaml`), version `5.3.0`.
   - The CLI executable itself is plain Dart (`bin/ariami_cli.dart`).
   - The setup/dashboard UI (`lib/web/`) is a Flutter web app, built once with
     `flutter build web -t lib/web/main.dart` and served as static files by

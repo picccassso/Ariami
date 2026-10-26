@@ -117,7 +117,7 @@ means:
 ## Versioning
 
 Per [`pubspec.yaml`](../pubspec.yaml), `ariami_core` is currently at
-`version: 5.2.3`. The same number is exposed at runtime as `kAriamiVersion` in
+`version: 5.3.0`. The same number is exposed at runtime as `kAriamiVersion` in
 [`lib/app_version.dart`](../lib/app_version.dart), which documents itself as
 needing to stay in sync with `ariami_core/pubspec.yaml` and
 `ariami_cli/pubspec.yaml`.
