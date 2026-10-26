@@ -6,6 +6,83 @@ Thank you for those that actually support and use this project at all! :D
 
 ---
 
+## 5.3.0
+
+Ariami 5.3.0 adds synced and plain lyrics to the server, Mobile and Premium
+Desktop, with an Instrumental badge for songs that have none. Premium Desktop
+gains Cmd/Ctrl+K Spotlight navigation, Mobile can turn a desktop's volume from
+the cover art, and every app uses far less memory for images. Connect and
+reconnects are steadier, and the server shrinks uploaded photos and lets
+external tools tag and query the library.
+
+### Highlights
+
+- Added synced and plain lyrics, read from `.lrc` and `.txt` sidecars or
+  embedded tags, with a lyrics view on Mobile and Premium Desktop that follows
+  the song and seeks on tap.
+- Added LYRICS and INST badges to song rows on Mobile and Premium Desktop.
+- Added Cmd/Ctrl+K Spotlight quick navigation and library quick jump shortcuts
+  to Premium Desktop.
+- Let Mobile control a Premium Desktop's volume by swiping on the cover art,
+  as it already could for Chromecast.
+- Cut image memory across Mobile, Premium Desktop and TV, taking Premium
+  Desktop's launch footprint from about 570 MB to 320 MB.
+- Added song attributes so external tools can tag songs and query the
+  library by those tags.
+
+### Full changes
+
+- Added lyrics support to the server, with `.lrc` sidecars first, then
+  embedded synced or plain lyrics, then `.txt` sidecars
+- Added a lyrics view to Mobile's full player and Premium Desktop's full player
+  and side panel, kept on the current line and steady while another Connect
+  device plays
+- Kept lyrics available offline alongside downloaded songs
+- Added an Instrumental (INST) badge, set by the `instrumental` song attribute
+  or an "Instrumental" title or genre
+- Added `PUT /api/v2/song-attributes` and `POST /api/v2/songs/query` for
+  tagging songs and querying the library by attributes and playlists
+- Added Cmd/Ctrl+K Spotlight and library quick jump shortcuts to Premium
+  Desktop
+- Showed playback state and recent search badges in search on Mobile, Premium
+  Desktop and TV, and let Escape clear a desktop search
+- Let Mobile control a Premium Desktop's volume from the cover art, with the
+  desktop slider moving smoothly
+- Let Premium Desktop's full-screen player pin the queue and control volume
+- Decluttered Mobile's full player bottom row to Lyrics, Device, Song options
+  and Queue
+- Faded TV full-screen controls after 90 seconds of idle playback, centring the
+  artwork
+- Decoded images at display size on Mobile, Premium Desktop and TV, and capped
+  their image caches at 64 MB
+- Shrank uploaded avatars, playlist covers and artist photos on the server,
+  stored opaque PNG covers as JPEG, and let Mobile downscale oversized picks
+- Disk-cached custom playlist and artist photos in Premium Desktop
+- Sped up Premium Desktop's connection on cold start and after sleep
+- Stopped Premium Desktop drawing frames while minimised, unfocused or paused,
+  and cut redraws during playback
+- Kept the music visualizer smooth on slow GPUs
+- Prevented queue restarts when Mobile reconnects, and let a sole Connect
+  player take back playback after a connection blip
+- Kept single-song repeat looping in Premium Desktop
+- Kept new song fields after upgrades by resyncing Mobile and Premium Desktop
+  libraries when their schema changes
+- Added suggested playlists and renamable LAN and Tailscale addresses to the
+  Desktop Server dashboard
+- Hid account and licence details in Premium Desktop's settings by default
+- Put Premium Desktop's setup screens on the plain dark theme
+- Fixed the artist page reopening when tapping a top track on Mobile
+- Included Premium Desktop 5.2.3 build 25's fixes: the Windows and Linux
+  visualizer crash, a visualizer that follows the music on Windows, an even
+  volume slider on Windows and Linux, the bundled Visual C++ runtime, and
+  Windows media keys
+- Dropped debug info from Linux Sonic builds, shrinking the Linux CLI, Desktop
+  Server AppImage and Docker image
+- Shared duplicated code across the apps through Ariami Core and removed dead
+  code
+
+---
+
 ## 5.2.3
 
 Ariami 5.2.3 brings a new ambient glass look to Mobile, Premium Desktop and
