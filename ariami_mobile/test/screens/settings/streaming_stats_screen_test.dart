@@ -32,20 +32,20 @@ void main() {
     await tester.pump();
 
     // Existing structure still loads: tabs plus the bottom selector bar.
-    expect(find.text('TRACKS'), findsOneWidget);
-    expect(find.text('ARTISTS'), findsOneWidget);
-    expect(find.text('ALBUMS'), findsOneWidget);
-    expect(find.text('DAY'), findsOneWidget);
-    expect(find.text('WEEK'), findsOneWidget);
-    expect(find.text('MONTH'), findsOneWidget);
-    expect(find.text('YEAR'), findsOneWidget);
-    expect(find.text('ALL'), findsOneWidget);
+    expect(find.text('Tracks'), findsOneWidget);
+    expect(find.text('Artists'), findsOneWidget);
+    expect(find.text('Albums'), findsOneWidget);
+    expect(find.text('Day'), findsOneWidget);
+    expect(find.text('Week'), findsOneWidget);
+    expect(find.text('Month'), findsOneWidget);
+    expect(find.text('Year'), findsOneWidget);
+    expect(find.text('All'), findsOneWidget);
     expect(find.text('Today'), findsOneWidget);
 
     final selectedChip = tester.widget<AnimatedContainer>(
       find
           .ancestor(
-            of: find.text('DAY'),
+            of: find.text('Day'),
             matching: find.byType(AnimatedContainer),
           )
           .first,
@@ -55,7 +55,7 @@ void main() {
       theme.colorScheme.secondary,
     );
     expect(
-      tester.widget<Text>(find.text('DAY')).style?.color,
+      tester.widget<Text>(find.text('Day')).style?.color,
       theme.colorScheme.onSecondary,
     );
     expect(find.byIcon(Icons.chevron_left_rounded), findsOneWidget);
@@ -86,7 +86,7 @@ void main() {
 
     // Back to all-time restores the local view. (Two pumps: the stream
     // emission on re-subscribe is deferred a microtask.)
-    await tester.tap(find.text('ALL'));
+    await tester.tap(find.text('All'));
     await tester.pump();
     await tester.pump();
     expect(find.text('All time'), findsOneWidget);
@@ -114,7 +114,7 @@ void main() {
     ]);
     await tester.pump();
 
-    await tester.tap(find.text('YEAR'));
+    await tester.tap(find.text('Year'));
     await tester.pump();
 
     expect(find.text('${now.year}'), findsOneWidget);

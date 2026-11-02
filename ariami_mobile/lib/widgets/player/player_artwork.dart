@@ -10,6 +10,7 @@ import '../../utils/artwork_url.dart';
 import '../../utils/responsive.dart';
 import '../../utils/shared_preferences_cache.dart';
 import '../common/cached_artwork.dart';
+import '../../utils/constants.dart';
 
 /// Page-turn duration for cover art (swipe, prev/next).
 const Duration _kArtworkPageTurnDuration = Duration(milliseconds: 450);
@@ -427,7 +428,7 @@ class _PlayerArtworkState extends State<PlayerArtwork> {
         maxHeight: maxArtworkExtent,
       ),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(AppTheme.coverRadius),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.3),
@@ -437,7 +438,7 @@ class _PlayerArtworkState extends State<PlayerArtwork> {
         ],
       ),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(AppTheme.coverRadius),
         child: AspectRatio(
           aspectRatio: 1.0,
           child: Stack(
@@ -587,7 +588,7 @@ class _PlayerArtworkState extends State<PlayerArtwork> {
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
         color: Colors.black.withValues(alpha: 0.58),
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(AppTheme.coverRadius),
         border: Border.all(
           color: Colors.white.withValues(alpha: 0.14),
         ),

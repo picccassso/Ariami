@@ -10,6 +10,8 @@ import '../../widgets/settings/connection_status_card.dart';
 import '../../widgets/common/mini_player_aware_bottom_sheet.dart';
 import '../../widgets/settings/settings_section.dart';
 import '../../widgets/settings/settings_tile.dart';
+import '../../widgets/common/confirm_dialog.dart';
+import '../../utils/constants.dart';
 
 class RetryConnectionResult {
   const RetryConnectionResult({
@@ -93,66 +95,15 @@ class _ConnectionSettingsScreenState extends State<ConnectionSettingsScreen> {
     super.dispose();
   }
 
-  void _handleLogout() {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final colorScheme = Theme.of(context).colorScheme;
-
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(
-          'LOG OUT',
-          style: TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w900,
-            letterSpacing: 1.5,
-            color: isDark ? Colors.white : colorScheme.onSurface,
-          ),
-        ),
-        content: Text(
-          'Are you sure you want to log out of this account?',
-          style: TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w500,
-            color: isDark
-                ? Colors.grey[400]
-                : colorScheme.onSurface.withValues(alpha: 0.75),
-          ),
-        ),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        actions: [
-          TextButton(
-            onPressed: Navigator.of(context).pop,
-            child: Text(
-              'CANCEL',
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w900,
-                letterSpacing: 1.0,
-                color: isDark
-                    ? Colors.grey[500]
-                    : colorScheme.onSurface.withValues(alpha: 0.7),
-              ),
-            ),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.of(context).pop();
-              _logout();
-            },
-            child: Text(
-              'LOG OUT',
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w900,
-                letterSpacing: 1.0,
-                color: colorScheme.error,
-              ),
-            ),
-          ),
-        ],
-      ),
+  Future<void> _handleLogout() async {
+    final confirmed = await showConfirmDialog(
+      context,
+      title: 'Log out',
+      message: 'Are you sure you want to log out of this account?',
+      confirmLabel: 'Log out',
+      destructive: true,
     );
+    if (confirmed == true) await _logout();
   }
 
   Future<void> _logout() async {
@@ -307,7 +258,7 @@ class _ConnectionSettingsScreenState extends State<ConnectionSettingsScreen> {
                   ],
                   if (serverInfo != null && !_isOfflineModeEnabled) ...[
                     SettingsSection(
-                      title: 'Server Information',
+                      title: 'Server information',
                       tiles: [
                         SettingsTile(
                           icon: Icons.dns_rounded,
@@ -374,8 +325,8 @@ class _ConnectionSettingsScreenState extends State<ConnectionSettingsScreen> {
                                     ),
                                   ),
                                 IconButton(
-                                  icon: const Icon(Icons.edit_outlined,
-                                      size: 20),
+                                  icon:
+                                      const Icon(Icons.edit_outlined, size: 20),
                                   tooltip: 'Rename alias',
                                   onPressed: () => _showRenameDialog(
                                     title: 'Rename Local Network Alias',
@@ -395,17 +346,18 @@ class _ConnectionSettingsScreenState extends State<ConnectionSettingsScreen> {
                           SettingsTile(
                             icon: Icons.public_rounded,
                             title: 'Tailscale Address',
-                            subtitle: (serverInfo.tailscaleServerAlias != null &&
-                                    serverInfo.tailscaleServerAlias!.isNotEmpty &&
-                                    !_revealTailscale)
-                                ? serverInfo.tailscaleServerAlias!
-                                : serverInfo.tailscaleServer!,
+                            subtitle:
+                                (serverInfo.tailscaleServerAlias != null &&
+                                        serverInfo
+                                            .tailscaleServerAlias!.isNotEmpty &&
+                                        !_revealTailscale)
+                                    ? serverInfo.tailscaleServerAlias!
+                                    : serverInfo.tailscaleServer!,
                             trailing: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
                                 if (serverInfo.tailscaleServerAlias != null &&
-                                    serverInfo
-                                        .tailscaleServerAlias!.isNotEmpty)
+                                    serverInfo.tailscaleServerAlias!.isNotEmpty)
                                   IconButton(
                                     icon: Icon(
                                       _revealTailscale
@@ -422,8 +374,8 @@ class _ConnectionSettingsScreenState extends State<ConnectionSettingsScreen> {
                                     ),
                                   ),
                                 IconButton(
-                                  icon: const Icon(Icons.edit_outlined,
-                                      size: 20),
+                                  icon:
+                                      const Icon(Icons.edit_outlined, size: 20),
                                   tooltip: 'Rename alias',
                                   onPressed: () => _showRenameDialog(
                                     title: 'Rename Tailscale Alias',
@@ -475,7 +427,7 @@ class _ConnectionSettingsScreenState extends State<ConnectionSettingsScreen> {
                               color:
                                   colorScheme.outline.withValues(alpha: 0.35),
                             ),
-                            shape: const StadiumBorder(),
+                            shape: const RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(AppTheme.tileRadius))),
                           ),
                         ),
                       ),

@@ -203,7 +203,7 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 100));
 
-    expect(find.text('OFFLINE'), findsOneWidget);
+    expect(find.text('Offline'), findsOneWidget);
 
     final optionsButton = find.byTooltip('Library Options');
     await tester.tap(optionsButton);
@@ -227,7 +227,7 @@ void main() {
 
     expect(
         find.descendant(
-            of: find.byType(AppBar), matching: find.text('OFFLINE')),
+            of: find.byType(AppBar), matching: find.text('Offline')),
         findsOneWidget);
     expect(
         find.descendant(

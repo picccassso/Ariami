@@ -7,6 +7,7 @@ import 'package:package_info_plus/package_info_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../test_support/sqflite_mock.dart';
+import 'package:ariami_mobile/widgets/settings/settings_tile.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -54,7 +55,7 @@ void main() {
     // Changed often enough to stay one tap away.
     expect(find.text('Streaming Quality'), findsOneWidget);
     // The search settings live on the General screen now too.
-    final general = find.text('General');
+    final general = find.widgetWithText(SettingsTile, 'General');
     await tester.scrollUntilVisible(general, 200);
     expect(general, findsOneWidget);
     expect(find.text('Search Mode'), findsNothing);

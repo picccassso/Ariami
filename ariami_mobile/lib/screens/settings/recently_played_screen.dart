@@ -19,6 +19,7 @@ import '../../widgets/common/song_overflow_menu.dart';
 import '../album_detail_screen.dart';
 import '../playlist/add_to_playlist_screen.dart';
 import '../../utils/song_from_model.dart';
+import '../../utils/constants.dart';
 
 /// Recently played songs derived from qualified Listening Stats rollups.
 /// A Connect handoff does not create an entry, while real plays synced from
@@ -299,12 +300,12 @@ class _RecentlyPlayedScreenState extends State<RecentlyPlayedScreen> {
 
   static String _dayLabel(BuildContext context, DateTime value) {
     final now = DateTime.now();
-    if (_sameDay(now, value)) return 'TODAY';
+    if (_sameDay(now, value)) return 'Today';
     if (_sameDay(now.subtract(const Duration(days: 1)), value)) {
-      return 'YESTERDAY';
+      return 'Yesterday';
     }
     final l10n = MaterialLocalizations.of(context);
-    final label = l10n.formatMediumDate(value).toUpperCase();
+    final label = l10n.formatMediumDate(value);
     // A medium date carries no year, so a play from 2019 would read exactly
     // like one from this July. Spell the year out once it isn't this one.
     return value.year == now.year ? label : '$label, ${l10n.formatYear(value)}';
@@ -447,7 +448,7 @@ class _DayHeader extends StatelessWidget {
       expanded: !collapsed,
       child: Material(
         color: Colors.transparent,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(AppTheme.tileRadius),
         clipBehavior: Clip.antiAlias,
         child: InkWell(
           onTap: onTap,
@@ -466,8 +467,7 @@ class _DayHeader extends StatelessWidget {
                         style: TextStyle(
                           color: colorScheme.onSurfaceVariant,
                           fontSize: 11,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 1.1,
+                          fontWeight: FontWeight.w600,
                         ),
                       ),
                       Text(
@@ -555,7 +555,7 @@ class _RecentStatsTile extends StatelessWidget {
                 artworkUrl: artwork.artworkUrl,
                 width: 54,
                 height: 54,
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(AppTheme.coverRadius),
                 sizeHint: ArtworkSizeHint.thumbnail,
                 fallbackIconSize: 24,
               ),

@@ -21,6 +21,7 @@ import '../../widgets/search/search_result_song_item.dart';
 import '../../widgets/search/search_result_album_item.dart';
 import '../../widgets/search/search_result_playlist_item.dart';
 import '../../utils/song_from_model.dart';
+import '../../utils/constants.dart';
 
 enum _SearchListItemKind {
   headerSongs,
@@ -450,7 +451,7 @@ class _SearchScreenState extends State<SearchScreen> {
                                 .colorScheme
                                 .surfaceContainerHighest
                                 .withValues(alpha: 0.5),
-                            borderRadius: BorderRadius.circular(25),
+                            borderRadius: BorderRadius.circular(AppTheme.tileRadius),
                             border: Border.all(
                               color: Theme.of(context)
                                   .colorScheme

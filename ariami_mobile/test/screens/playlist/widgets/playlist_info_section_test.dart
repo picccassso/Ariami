@@ -55,7 +55,7 @@ void main() {
       );
 
       // Total duration: 540 seconds = 9 minutes
-      expect(find.text('3 songs • 9 min'), findsOneWidget);
+      expect(find.textContaining('Playlist, 3 songs, 9 min,'), findsOneWidget);
     });
 
     testWidgets('should display hours and minutes for long playlists',
@@ -86,7 +86,7 @@ void main() {
       );
 
       // Total duration: 5520 seconds = 1 hour 32 mins
-      expect(find.text('3 songs • 1 hour 32 mins'), findsOneWidget);
+      expect(find.textContaining('Playlist, 3 songs, 1 hour 32 mins,'), findsOneWidget);
     });
 
     testWidgets('should display description when provided', (tester) async {
@@ -138,7 +138,7 @@ void main() {
       );
 
       // Should say "1 song" not "1 songs"
-      expect(find.text('1 song • 3 min'), findsOneWidget);
+      expect(find.textContaining('Playlist, 1 song, 3 min,'), findsOneWidget);
     });
 
     testWidgets('should fall back to stored playlist metadata while loading',
@@ -163,7 +163,7 @@ void main() {
         ),
       );
 
-      expect(find.text('2 songs • 5 min'), findsOneWidget);
+      expect(find.textContaining('Playlist, 2 songs, 5 min,'), findsOneWidget);
     });
   });
 }

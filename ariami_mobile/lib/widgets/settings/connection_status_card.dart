@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../models/server_info.dart';
+import '../../utils/constants.dart';
 
 enum ConnectionStatus { connected, connecting, offline, error }
 
@@ -91,12 +92,11 @@ class ConnectionStatusCard extends StatelessWidget {
               ),
               const SizedBox(width: 12),
               Text(
-                _getStatusText().toUpperCase(),
+                _getStatusText(),
                 style: TextStyle(
                   fontSize: 12,
-                  fontWeight: FontWeight.w900,
+                  fontWeight: FontWeight.w600,
                   color: isDark ? Colors.white : Colors.black,
-                  letterSpacing: 1.2,
                 ),
               ),
             ],
@@ -105,7 +105,7 @@ class ConnectionStatusCard extends StatelessWidget {
 
           if (serverInfo != null) ...[
             Text(
-              serverInfo!.name.toUpperCase(),
+              serverInfo!.name,
               style: TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.w900,
@@ -137,11 +137,10 @@ class ConnectionStatusCard extends StatelessWidget {
                   ),
                   const SizedBox(width: 8),
                   Text(
-                    'ROUTE: ${serverInfo!.routeLabel.toUpperCase()}',
+                    'Route: ${serverInfo!.routeLabel}',
                     style: TextStyle(
                       fontSize: 11,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: 0.8,
+                      fontWeight: FontWeight.w600,
                       color: isDark ? Colors.white70 : Colors.black87,
                     ),
                   ),
@@ -160,12 +159,11 @@ class ConnectionStatusCard extends StatelessWidget {
               ),
               const SizedBox(width: 8),
               Text(
-                'LAST SYNCED: ${_getLastSyncText().toUpperCase()}',
+                'Last synced: ${_getLastSyncText()}',
                 style: TextStyle(
                   fontSize: 10,
-                  fontWeight: FontWeight.w800,
+                  fontWeight: FontWeight.w600,
                   color: isDark ? Colors.grey[700] : Colors.grey[400],
-                  letterSpacing: 0.5,
                 ),
               ),
             ],
@@ -178,7 +176,7 @@ class ConnectionStatusCard extends StatelessWidget {
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
                 color: const Color(0xFFFF4B4B).withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(16),
+                borderRadius: BorderRadius.circular(AppTheme.tileRadius),
                 border: Border.all(
                   color: const Color(0xFFFF4B4B).withValues(alpha: 0.2),
                 ),
@@ -205,15 +203,15 @@ class ConnectionStatusCard extends StatelessWidget {
                 onPressed: onRetry,
                 icon: const Icon(Icons.refresh_rounded, size: 20),
                 label: const Text(
-                  'RETRY CONNECTION',
+                  'Retry connection',
                   style: TextStyle(
-                      fontWeight: FontWeight.w900, letterSpacing: 1.0),
+                      fontWeight: FontWeight.w600),
                 ),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: isDark ? Colors.white : Colors.black,
                   foregroundColor: isDark ? Colors.black : Colors.white,
                   elevation: 0,
-                  shape: const StadiumBorder(),
+                  shape: const RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(AppTheme.tileRadius))),
                 ),
               ),
             ),

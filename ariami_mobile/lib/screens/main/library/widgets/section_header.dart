@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../../../utils/constants.dart';
+
 class SectionHeader extends StatelessWidget {
   final String title;
   final bool isExpanded;
@@ -23,10 +25,7 @@ class SectionHeader extends StatelessWidget {
             children: [
               Text(
                 title,
-                style: const TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                ),
+                style: AppTheme.heading(22, color: context.colors.textPrimary),
               ),
               const Spacer(),
               AnimatedRotation(

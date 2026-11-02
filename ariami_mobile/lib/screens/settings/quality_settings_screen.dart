@@ -135,7 +135,7 @@ class _QualitySettingsScreenState extends State<QualitySettingsScreen> {
                 children: [
                   _buildCurrentNetworkCard(),
                   const SizedBox(height: 12),
-                  const SettingsHeader('STREAMING QUALITY'),
+                  const SettingsHeader('Streaming quality'),
                   _buildQualityCard(
                     context,
                     icon: Icons.wifi_rounded,
@@ -181,7 +181,7 @@ class _QualitySettingsScreenState extends State<QualitySettingsScreen> {
                     onChanged: _updatePreferLocalWhenOnline,
                   ),
                   const SizedBox(height: 12),
-                  const SettingsHeader('DOWNLOAD QUALITY'),
+                  const SettingsHeader('Download quality'),
                   _buildQualityCard(
                     context,
                     icon: Icons.file_download_outlined,
@@ -451,12 +451,11 @@ class _QualitySettingsScreenState extends State<QualitySettingsScreen> {
               ),
               const SizedBox(width: 16),
               Text(
-                'SYSTEM INFO',
+                'System info',
                 style: TextStyle(
                   fontSize: 14,
-                  fontWeight: FontWeight.w900,
+                  fontWeight: FontWeight.w600,
                   color: colorScheme.onSurface,
-                  letterSpacing: 1.5,
                 ),
               ),
             ],

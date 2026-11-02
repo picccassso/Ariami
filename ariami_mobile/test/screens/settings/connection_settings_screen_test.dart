@@ -173,7 +173,7 @@ void main() {
     await tester.tap(find.text('Log Out'));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.widgetWithText(TextButton, 'LOG OUT'));
+    await tester.tap(find.widgetWithText(TextButton, 'Log out'));
     await tester.pumpAndSettle();
 
     expect(find.text('WELCOME_SCREEN'), findsOneWidget);
@@ -209,8 +209,8 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.ensureVisible(find.text('RETRY CONNECTION'));
-    await tester.tap(find.text('RETRY CONNECTION'));
+    await tester.ensureVisible(find.text('Retry connection'));
+    await tester.tap(find.text('Retry connection'));
     await tester.pump();
 
     expect(retryAttempted, isTrue);
@@ -237,8 +237,8 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.ensureVisible(find.text('RETRY CONNECTION'));
-    await tester.tap(find.text('RETRY CONNECTION'));
+    await tester.ensureVisible(find.text('Retry connection'));
+    await tester.tap(find.text('Retry connection'));
     await tester.pump();
 
     expect(retryAttempted, isTrue);
@@ -365,7 +365,7 @@ void main() {
     await tester.tap(find.text('Disconnect Server'));
     await tester.pumpAndSettle();
 
-    expect(find.text('DISCONNECT SERVER'), findsOneWidget);
-    expect(find.text('DISCONNECT & CLEAR DATA'), findsOneWidget);
+    expect(find.text('Disconnect server'), findsOneWidget);
+    expect(find.text('Disconnect & clear data'), findsOneWidget);
   });
 }

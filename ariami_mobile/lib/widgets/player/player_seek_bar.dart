@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:ariami_core/utils/format.dart';
+import '../../utils/constants.dart';
 
 class PlayerSeekBar extends StatefulWidget {
   final Duration position;
@@ -69,12 +70,14 @@ class _PlayerSeekBarState extends State<PlayerSeekBar> {
                 ),
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
                       color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      fontFeatures: AppTheme.tabular,
                     ),
               ),
               Text(
                 formatDurationMinSec(widget.duration),
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
                       color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      fontFeatures: AppTheme.tabular,
                     ),
               ),
             ],

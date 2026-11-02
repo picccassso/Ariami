@@ -24,7 +24,9 @@ Future<bool?> showConfirmDialog(
           onPressed: () => Navigator.of(dialogContext).pop(true),
           child: Text(
             confirmLabel,
-            style: destructive ? const TextStyle(color: Colors.red) : null,
+            style: destructive
+                ? TextStyle(color: Theme.of(dialogContext).colorScheme.error)
+                : null,
           ),
         ),
       ],

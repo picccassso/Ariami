@@ -6,6 +6,7 @@ import '../../../../models/artist_stats.dart';
 import '../../../../models/song_stats.dart';
 import '../../../../services/stats/stats_artwork_resolver.dart';
 import '../../../../widgets/common/cached_artwork.dart';
+import '../../../../utils/constants.dart';
 
 class TopSongTile extends StatelessWidget {
   const TopSongTile({
@@ -30,7 +31,7 @@ class TopSongTile extends StatelessWidget {
           _RankNumber(rank: rank),
 
           ClipRRect(
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(AppTheme.coverRadius),
             child: CachedArtwork(
               albumId: artwork.cacheId,
               artworkUrl: artwork.artworkUrl,
@@ -48,7 +49,7 @@ class TopSongTile extends StatelessWidget {
               title: stat.songTitle ?? 'Unknown Track',
               subtitle: stat.songArtist ?? 'Unknown Artist',
               detail:
-                  '${stat.playCount} PLAYS • ${stat.formattedTime.toUpperCase()}',
+                  '${stat.playCount} plays, ${stat.formattedTime}',
             ),
           ),
         ],
@@ -75,8 +76,8 @@ class TopArtistTile extends StatelessWidget {
 
     // Credited-artist rollups don't carry a song count; fall back to plays.
     final subtitle = stat.uniqueSongsCount > 0
-        ? '${stat.uniqueSongsCount} ${stat.uniqueSongsCount == 1 ? 'SONG' : 'SONGS'}'
-        : '${stat.playCount} ${stat.playCount == 1 ? 'PLAY' : 'PLAYS'}';
+        ? '${stat.uniqueSongsCount} ${stat.uniqueSongsCount == 1 ? 'song' : 'songs'}'
+        : '${stat.playCount} ${stat.playCount == 1 ? 'play' : 'plays'}';
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
@@ -85,7 +86,7 @@ class TopArtistTile extends StatelessWidget {
           _RankNumber(rank: rank),
 
           ClipRRect(
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(AppTheme.coverRadius),
             child: CachedArtwork(
               albumId: artwork.cacheId,
               artworkUrl: artwork.artworkUrl,
@@ -105,7 +106,7 @@ class TopArtistTile extends StatelessWidget {
               subtitle: subtitle,
               subtitleEllipsis: false,
               detail:
-                  '${stat.playCount} PLAYS • ${stat.formattedTime.toUpperCase()}',
+                  '${stat.playCount} plays, ${stat.formattedTime}',
             ),
           ),
         ],
@@ -135,8 +136,8 @@ class TopAlbumTile extends StatelessWidget {
     final artwork = artworkResolver.forAlbum(stat);
     // Period rollups don't carry a song count; fall back to plays.
     final detail = stat.uniqueSongsCount > 0
-        ? '${stat.uniqueSongsCount} ${stat.uniqueSongsCount == 1 ? 'SONG' : 'SONGS'}'
-        : '${stat.playCount} ${stat.playCount == 1 ? 'PLAY' : 'PLAYS'}';
+        ? '${stat.uniqueSongsCount} ${stat.uniqueSongsCount == 1 ? 'song' : 'songs'}'
+        : '${stat.playCount} ${stat.playCount == 1 ? 'play' : 'plays'}';
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
@@ -145,7 +146,7 @@ class TopAlbumTile extends StatelessWidget {
           _RankNumber(rank: rank),
 
           ClipRRect(
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(AppTheme.coverRadius),
             child: CachedArtwork(
               albumId: artwork.cacheId,
               artworkUrl: artwork.artworkUrl,
@@ -166,7 +167,7 @@ class TopAlbumTile extends StatelessWidget {
               subtitle: stat.albumArtist ??
                   albumsById[stat.albumId]?.artist ??
                   'Unknown Artist',
-              detail: '$detail • ${stat.formattedTime.toUpperCase()}',
+              detail: '$detail, ${stat.formattedTime}',
             ),
           ),
         ],
@@ -247,9 +248,8 @@ class _TileInfo extends StatelessWidget {
           detail,
           style: TextStyle(
             fontSize: 10,
-            fontWeight: FontWeight.w800,
+            fontWeight: FontWeight.w600,
             color: isDark ? Colors.grey[700] : Colors.grey[400],
-            letterSpacing: 0.5,
           ),
         ),
       ],

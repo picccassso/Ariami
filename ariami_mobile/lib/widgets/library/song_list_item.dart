@@ -14,6 +14,7 @@ import '../common/track_badge.dart';
 import '../common/song_artwork.dart';
 import '../common/song_overflow_menu.dart';
 import '../common/swipe_to_queue.dart';
+import '../player/progress_fill.dart';
 
 class SongListItem extends StatelessWidget {
   final SongModel song;
@@ -52,169 +53,173 @@ class SongListItem extends StatelessWidget {
   Widget build(BuildContext context) {
     final opacity = isAvailable ? 1.0 : 0.5;
 
-    return SwipeToQueue(
-      itemKey: ValueKey('library_queue_${song.id}'),
-      addToQueueEnabled: isAvailable && !isSelectionMode,
-      onAddToQueue: () => _handleAddToQueue(context),
-      child: Opacity(
-        opacity: opacity,
-        child: Material(
-          color: Colors.transparent,
-          child: InkWell(
-            onTap: isAvailable ? onTap : null,
-            onLongPress: isSelectionMode ? null : onLongPress,
-            borderRadius: BorderRadius.circular(0),
-            child: Container(
-              color: isSelected
-                  ? Colors.white.withValues(alpha: 0.05)
-                  : Colors.transparent,
-              child: Padding(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                child: Row(
-                  children: [
-                    if (isSelectionMode) ...[
-                      AnimatedContainer(
-                        duration: const Duration(milliseconds: 200),
-                        width: 24,
-                        height: 24,
-                        decoration: BoxDecoration(
-                          color: isSelected
-                              ? Theme.of(context).colorScheme.primary
-                              : Colors.transparent,
-                          shape: BoxShape.circle,
-                          border: Border.all(
+    return ProgressFillRow(
+      songId: song.id,
+      child: SwipeToQueue(
+        itemKey: ValueKey('library_queue_${song.id}'),
+        addToQueueEnabled: isAvailable && !isSelectionMode,
+        onAddToQueue: () => _handleAddToQueue(context),
+        child: Opacity(
+          opacity: opacity,
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: isAvailable ? onTap : null,
+              onLongPress: isSelectionMode ? null : onLongPress,
+              borderRadius: BorderRadius.circular(0),
+              child: Container(
+                color: isSelected
+                    ? Colors.white.withValues(alpha: 0.05)
+                    : Colors.transparent,
+                child: Padding(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  child: Row(
+                    children: [
+                      if (isSelectionMode) ...[
+                        AnimatedContainer(
+                          duration: const Duration(milliseconds: 200),
+                          width: 24,
+                          height: 24,
+                          decoration: BoxDecoration(
                             color: isSelected
                                 ? Theme.of(context).colorScheme.primary
-                                : Theme.of(context)
-                                    .colorScheme
-                                    .onSurface
-                                    .withValues(alpha: 0.4),
-                            width: 1.5,
+                                : Colors.transparent,
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: isSelected
+                                  ? Theme.of(context).colorScheme.primary
+                                  : Theme.of(context)
+                                      .colorScheme
+                                      .onSurface
+                                      .withValues(alpha: 0.4),
+                              width: 1.5,
+                            ),
                           ),
+                          child: isSelected
+                              ? Icon(
+                                  Icons.check,
+                                  size: 14,
+                                  color:
+                                      Theme.of(context).colorScheme.onPrimary,
+                                )
+                              : null,
                         ),
-                        child: isSelected
-                            ? Icon(
-                                Icons.check,
-                                size: 14,
-                                color: Theme.of(context).colorScheme.onPrimary,
-                              )
-                            : null,
-                      ),
+                        const SizedBox(width: 16),
+                      ],
+                      _buildLeading(context),
                       const SizedBox(width: 16),
-                    ],
-                    _buildLeading(context),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Flexible(
+                                  child: Text(
+                                    song.title,
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .titleMedium
+                                        ?.copyWith(
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.w600,
+                                          color: isAvailable
+                                              ? Theme.of(context)
+                                                  .colorScheme
+                                                  .onSurface
+                                              : Colors.grey,
+                                        ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                                TrackBadge(
+                                  hasLyrics: song.hasLyrics,
+                                  isInstrumental: song.isInstrumental,
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 4),
+                            Row(
+                              children: [
+                                Flexible(
+                                  child: ArtistLink(
+                                    name: song.artist,
+                                    enabled:
+                                        artistLinkEnabled && !isSelectionMode,
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .bodyMedium
+                                        ?.copyWith(
+                                          fontSize: 14,
+                                          color: isOfflineCopy
+                                              ? Theme.of(context)
+                                                  .colorScheme
+                                                  .secondary
+                                              : Theme.of(context)
+                                                  .colorScheme
+                                                  .onSurface
+                                                  .withValues(alpha: 0.6),
+                                        ),
+                                  ),
+                                ),
+                                if (isOfflineCopy)
+                                  Text(
+                                    ' · Offline copy',
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .bodyMedium
+                                        ?.copyWith(
+                                          fontSize: 14,
+                                          color: Theme.of(context)
+                                              .colorScheme
+                                              .secondary,
+                                        ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                      Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Flexible(
-                                child: Text(
-                                  song.title,
-                                  style: Theme.of(context)
-                                      .textTheme
-                                      .titleMedium
-                                      ?.copyWith(
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.w600,
-                                        color: isAvailable
-                                            ? Theme.of(context)
-                                                .colorScheme
-                                                .onSurface
-                                            : Colors.grey,
-                                      ),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                              TrackBadge(
-                                hasLyrics: song.hasLyrics,
-                                isInstrumental: song.isInstrumental,
-                              ),
-                            ],
+                          Text(
+                            formatMinSec(song.duration),
+                            style:
+                                Theme.of(context).textTheme.bodySmall?.copyWith(
+                                      color: Theme.of(context)
+                                          .colorScheme
+                                          .onSurface
+                                          .withValues(alpha: 0.4),
+                                    ),
                           ),
-                          const SizedBox(height: 4),
-                          Row(
-                            children: [
-                              Flexible(
-                                child: ArtistLink(
-                                  name: song.artist,
-                                  enabled:
-                                      artistLinkEnabled && !isSelectionMode,
-                                  style: Theme.of(context)
-                                      .textTheme
-                                      .bodyMedium
-                                      ?.copyWith(
-                                        fontSize: 14,
-                                        color: isOfflineCopy
-                                            ? Theme.of(context)
-                                                .colorScheme
-                                                .secondary
-                                            : Theme.of(context)
-                                                .colorScheme
-                                                .onSurface
-                                                .withValues(alpha: 0.6),
-                                      ),
-                                ),
+                          if (!isSelectionMode) ...[
+                            const SizedBox(width: 4),
+                            IconButton(
+                              icon: Icon(
+                                Icons.more_vert_rounded,
+                                color: Theme.of(context)
+                                    .colorScheme
+                                    .onSurface
+                                    .withValues(alpha: 0.5),
+                                size: 20,
                               ),
-                              if (isOfflineCopy)
-                                Text(
-                                  ' · Offline copy',
-                                  style: Theme.of(context)
-                                      .textTheme
-                                      .bodyMedium
-                                      ?.copyWith(
-                                        fontSize: 14,
-                                        color: Theme.of(context)
-                                            .colorScheme
-                                            .secondary,
-                                      ),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                            ],
-                          ),
+                              onPressed: () => _showSongMenu(context),
+                              padding: EdgeInsets.zero,
+                              constraints: const BoxConstraints(
+                                  minWidth: 40, minHeight: 40),
+                            ),
+                          ],
                         ],
                       ),
-                    ),
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          formatMinSec(song.duration),
-                          style:
-                              Theme.of(context).textTheme.bodySmall?.copyWith(
-                                    color: Theme.of(context)
-                                        .colorScheme
-                                        .onSurface
-                                        .withValues(alpha: 0.4),
-                                  ),
-                        ),
-                        if (!isSelectionMode) ...[
-                          const SizedBox(width: 4),
-                          IconButton(
-                            icon: Icon(
-                              Icons.more_vert_rounded,
-                              color: Theme.of(context)
-                                  .colorScheme
-                                  .onSurface
-                                  .withValues(alpha: 0.5),
-                              size: 20,
-                            ),
-                            onPressed: () => _showSongMenu(context),
-                            padding: EdgeInsets.zero,
-                            constraints: const BoxConstraints(
-                                minWidth: 40, minHeight: 40),
-                          ),
-                        ],
-                      ],
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
             ),

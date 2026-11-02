@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../../utils/constants.dart';
 
 class DownloadAllCard extends StatelessWidget {
   const DownloadAllCard({
@@ -155,7 +156,7 @@ class DownloadAllRow extends StatelessWidget {
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
               color: isDark ? const Color(0xFF1A1A1A) : const Color(0xFFF5F5F5),
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(AppTheme.tileRadius),
             ),
             child: Icon(
               icon,

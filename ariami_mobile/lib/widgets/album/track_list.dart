@@ -8,6 +8,7 @@ import '../common/cached_artwork.dart';
 import '../common/track_badge.dart';
 import '../common/song_overflow_menu.dart';
 import '../common/swipe_to_queue.dart';
+import '../player/progress_fill.dart';
 
 class TrackListItem extends StatelessWidget {
   final SongModel track;
@@ -35,100 +36,103 @@ class TrackListItem extends StatelessWidget {
   Widget build(BuildContext context) {
     final opacity = isAvailable ? 1.0 : 0.4;
 
-    return SwipeToQueue(
-      itemKey: ValueKey('album_queue_${track.id}'),
-      addToQueueEnabled: isAvailable,
-      onAddToQueue: _addTrackToQueue,
-      child: Opacity(
-        opacity: opacity,
-        child: Material(
-          color: Colors.transparent,
-          child: InkWell(
-            onTap: isAvailable ? onTap : null,
-            child: Padding(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-              child: Row(
-                children: [
-                  _buildLeading(context),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min, // shrink wrap
-                      children: [
-                        Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Flexible(
-                              child: Text(
-                                track.title,
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: isCurrentTrack
-                                      ? FontWeight.w600
-                                      : FontWeight.w500,
-                                  color: isCurrentTrack
-                                      ? Theme.of(context).primaryColor
-                                      : (isAvailable
-                                          ? Theme.of(context)
-                                              .textTheme
-                                              .bodyLarge
-                                              ?.color
-                                          : Colors.grey),
+    return ProgressFillRow(
+      songId: track.id,
+      child: SwipeToQueue(
+        itemKey: ValueKey('album_queue_${track.id}'),
+        addToQueueEnabled: isAvailable,
+        onAddToQueue: _addTrackToQueue,
+        child: Opacity(
+          opacity: opacity,
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: isAvailable ? onTap : null,
+              child: Padding(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+                child: Row(
+                  children: [
+                    _buildLeading(context),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min, // shrink wrap
+                        children: [
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Flexible(
+                                child: Text(
+                                  track.title,
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: isCurrentTrack
+                                        ? FontWeight.w600
+                                        : FontWeight.w500,
+                                    color: isCurrentTrack
+                                        ? Theme.of(context).primaryColor
+                                        : (isAvailable
+                                            ? Theme.of(context)
+                                                .textTheme
+                                                .bodyLarge
+                                                ?.color
+                                            : Colors.grey),
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
                                 ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
                               ),
-                            ),
-                            TrackBadge(
-                              hasLyrics: track.hasLyrics,
-                              isInstrumental: track.isInstrumental,
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          track.artist,
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: Theme.of(context)
-                                    .textTheme
-                                    .bodyMedium
-                                    ?.color
-                                    ?.withValues(alpha: 0.7) ??
-                                Colors.grey[600],
+                              TrackBadge(
+                                hasLyrics: track.hasLyrics,
+                                isInstrumental: track.isInstrumental,
+                              ),
+                            ],
                           ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ],
+                          const SizedBox(height: 4),
+                          Text(
+                            track.artist,
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: Theme.of(context)
+                                      .textTheme
+                                      .bodyMedium
+                                      ?.color
+                                      ?.withValues(alpha: 0.7) ??
+                                  Colors.grey[600],
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
-                  const SizedBox(width: 16),
-                  Text(
-                    formatMinSec(track.duration),
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: Theme.of(context)
-                          .textTheme
-                          .bodySmall
-                          ?.color
-                          ?.withValues(alpha: 0.5),
+                    const SizedBox(width: 16),
+                    Text(
+                      formatMinSec(track.duration),
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: Theme.of(context)
+                            .textTheme
+                            .bodySmall
+                            ?.color
+                            ?.withValues(alpha: 0.5),
+                      ),
                     ),
-                  ),
-                  if (isAvailable) ...[
-                    const SizedBox(width: 8),
-                    SongOverflowMenu(
-                      song: track,
-                      onPlay: onTap,
-                      isDownloaded: isDownloaded,
-                      albumName: albumName,
-                      albumArtist: albumArtist,
-                    ),
-                  ] else
-                    const SizedBox(width: 48), // Placeholder
-                ],
+                    if (isAvailable) ...[
+                      const SizedBox(width: 8),
+                      SongOverflowMenu(
+                        song: track,
+                        onPlay: onTap,
+                        isDownloaded: isDownloaded,
+                        albumName: albumName,
+                        albumArtist: albumArtist,
+                      ),
+                    ] else
+                      const SizedBox(width: 48), // Placeholder
+                  ],
+                ),
               ),
             ),
           ),

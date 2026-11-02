@@ -106,7 +106,7 @@ class StatsTracksTab extends StatelessWidget {
   Widget build(BuildContext context) {
     return _StatsStreamTab<SongStats>(
       stream: statsService.topSongsStream,
-      title: 'TOP SONGS',
+      title: 'Top songs',
       emptyText: 'No stats yet. Start listening to see your top songs!',
       itemBuilder: (stat, rank) => TopSongTile(
         stat: stat,
@@ -141,13 +141,13 @@ class StatsArtistsTab extends StatelessWidget {
     if (credited != null) {
       if (credited.isEmpty) {
         return _statusListView(
-          'TOP ARTISTS',
+          'Top artists',
           const StatsEmptyState(
               'No stats yet. Start listening to see your top artists!'),
         );
       }
       return _rankedListView(
-        title: 'TOP ARTISTS',
+        title: 'Top artists',
         itemCount: credited.length,
         itemBuilder: (context, index) => TopArtistTile(
           stat: credited[index],
@@ -159,7 +159,7 @@ class StatsArtistsTab extends StatelessWidget {
 
     return _StatsStreamTab<ArtistStats>(
       stream: statsService.topArtistsStream,
-      title: 'TOP ARTISTS',
+      title: 'Top artists',
       emptyText: 'No stats yet. Start listening to see your top artists!',
       itemBuilder: (stat, rank) => TopArtistTile(
         stat: stat,
@@ -186,7 +186,7 @@ class StatsAlbumsTab extends StatelessWidget {
   Widget build(BuildContext context) {
     return _StatsStreamTab<AlbumStats>(
       stream: statsService.topAlbumsStream,
-      title: 'TOP ALBUMS',
+      title: 'Top albums',
       emptyText: 'No stats yet. Start listening to see your top albums!',
       itemBuilder: (stat, rank) => TopAlbumTile(
         stat: stat,
@@ -263,9 +263,9 @@ class _StatsPeriodTabState extends State<StatsPeriodTab> {
     _ensureAdapted(periodStats);
 
     final title = switch (widget.tab) {
-      1 => 'TOP ARTISTS',
-      2 => 'TOP ALBUMS',
-      _ => 'TOP SONGS',
+      1 => 'Top artists',
+      2 => 'Top albums',
+      _ => 'Top songs',
     };
     final itemCount = switch (widget.tab) {
       1 => _artists.length,
@@ -314,8 +314,5 @@ class _SectionTitle extends StatelessWidget {
   final String title;
 
   @override
-  Widget build(BuildContext context) => SettingsHeader(
-        title,
-        isDark: Theme.of(context).brightness == Brightness.dark,
-      );
+  Widget build(BuildContext context) => SettingsHeader(title);
 }

@@ -385,12 +385,10 @@ class _ServerPlaylistDetailScreenState
         SliverAppBar(
           expandedHeight: expandedArtHeight,
           pinned: true,
-          flexibleSpace: FlexibleSpaceBar(
-            background: PlaylistHeader(
-              playlist: playlistModel,
-              songs: _songs,
-              baseUrl: baseUrl,
-            ),
+          flexibleSpace: PlaylistHeader(
+            playlist: playlistModel,
+            songs: _songs,
+            baseUrl: baseUrl,
           ),
         ),
         SliverToBoxAdapter(

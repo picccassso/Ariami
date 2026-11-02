@@ -12,6 +12,8 @@ import '../../services/audio/equalizer_service.dart';
 import '../../widgets/common/mini_player_aware_bottom_sheet.dart';
 import '../../widgets/common/queue_action_confirmation.dart';
 import '../../widgets/settings/settings_header.dart';
+import '../../utils/constants.dart';
+import '../../widgets/common/confirm_dialog.dart';
 
 class EqualizerScreen extends StatefulWidget {
   const EqualizerScreen({super.key});
@@ -98,7 +100,7 @@ class _EqualizerScreenState extends State<EqualizerScreen> {
             children: [
               _buildEnableCard(),
               const SizedBox(height: 12),
-              const SettingsHeader('PRESETS'),
+              const SettingsHeader('Presets'),
               _buildPresetsCard(),
               const SizedBox(height: 12),
               _buildBandsHeader(parameters != null),
@@ -154,7 +156,7 @@ class _EqualizerScreenState extends State<EqualizerScreen> {
 
     return _buildCard(
       child: InkWell(
-        borderRadius: BorderRadius.circular(15),
+        borderRadius: BorderRadius.circular(AppTheme.tileRadius),
         onTap: () => _equalizerService.setEnabled(!_equalizerService.isEnabled),
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -248,10 +250,11 @@ class _EqualizerScreenState extends State<EqualizerScreen> {
               ? colorScheme.primary
               : colorScheme.onSurfaceVariant.withValues(alpha: 0.35),
         ),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+        shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(AppTheme.tileRadius)),
         labelStyle: TextStyle(
           fontSize: 13,
-          fontWeight: FontWeight.w700,
+          fontWeight: FontWeight.w500,
           color: isSelected ? colorScheme.onPrimary : colorScheme.onSurface,
         ),
         onSelected: (_) {
@@ -271,13 +274,8 @@ class _EqualizerScreenState extends State<EqualizerScreen> {
         children: [
           Expanded(
             child: Text(
-              'BANDS',
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w900,
-                color: colorScheme.onSurface,
-                letterSpacing: 1.5,
-              ),
+              'Bands',
+              style: AppTheme.heading(20, color: colorScheme.onSurface),
             ),
           ),
           if (showReset)
@@ -492,7 +490,8 @@ class _EqualizerScreenState extends State<EqualizerScreen> {
       style: OutlinedButton.styleFrom(
         foregroundColor: colorScheme.onSurface,
         side: BorderSide(color: colorScheme.onSurface.withValues(alpha: 0.25)),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+        shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(AppTheme.tileRadius)),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         textStyle: const TextStyle(
           fontSize: 14,
@@ -502,12 +501,15 @@ class _EqualizerScreenState extends State<EqualizerScreen> {
     );
   }
 
+  /// A ruled panel rather than a filled card, as on Premium Desktop.
   Widget _buildCard({required Widget child}) {
-    final colorScheme = Theme.of(context).colorScheme;
-
     return Material(
-      color: colorScheme.surfaceContainerHighest,
-      borderRadius: BorderRadius.circular(15),
+      color: Colors.transparent,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(AppTheme.tileRadius),
+        side: BorderSide(color: context.colors.border),
+      ),
+      clipBehavior: Clip.antiAlias,
       child: child,
     );
   }
@@ -526,67 +528,19 @@ class _EqualizerScreenState extends State<EqualizerScreen> {
   }
 
   Future<void> _showDeletePresetDialog(String presetName) async {
-    final colorScheme = Theme.of(context).colorScheme;
-
-    await showDialog<void>(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: colorScheme.surface,
-        title: Text(
-          'DELETE PRESET',
-          style: TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w900,
-            letterSpacing: 1.5,
-            color: colorScheme.onSurface,
-          ),
-        ),
-        content: Text(
-          'Delete "$presetName"? This action cannot be undone.',
-          style: TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w500,
-            color: colorScheme.onSurface.withValues(alpha: 0.7),
-          ),
-        ),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        actions: [
-          TextButton(
-            onPressed: Navigator.of(context).pop,
-            child: Text(
-              'CANCEL',
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w900,
-                letterSpacing: 1.0,
-                color: colorScheme.onSurface.withValues(alpha: 0.5),
-              ),
-            ),
-          ),
-          TextButton(
-            onPressed: () async {
-              final navigator = Navigator.of(context);
-              await _equalizerService.deleteUserPreset(presetName);
-              if (!mounted) return;
-              navigator.pop();
-            },
-            child: const Text(
-              'DELETE',
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w900,
-                letterSpacing: 1.0,
-                color: Color(0xFFFF4B4B),
-              ),
-            ),
-          ),
-        ],
-      ),
+    final confirmed = await showConfirmDialog(
+      context,
+      title: 'Delete preset',
+      message: 'Delete "$presetName"? This action cannot be undone.',
+      confirmLabel: 'Delete',
+      destructive: true,
     );
+    if (confirmed == true) {
+      await _equalizerService.deleteUserPreset(presetName);
+    }
   }
 
   Future<void> _showSavePresetDialog() async {
-    final colorScheme = Theme.of(context).colorScheme;
     final controller = TextEditingController();
     String? errorText;
 
@@ -618,16 +572,7 @@ class _EqualizerScreenState extends State<EqualizerScreen> {
             }
 
             return AlertDialog(
-              backgroundColor: colorScheme.surface,
-              title: Text(
-                'SAVE PRESET',
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: 1.5,
-                  color: colorScheme.onSurface,
-                ),
-              ),
+              title: const Text('Save preset'),
               content: TextField(
                 controller: controller,
                 autofocus: true,
@@ -635,12 +580,6 @@ class _EqualizerScreenState extends State<EqualizerScreen> {
                 decoration: InputDecoration(
                   labelText: 'Preset name',
                   errorText: errorText,
-                  filled: true,
-                  fillColor: colorScheme.surfaceContainerHighest,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(15),
-                    borderSide: BorderSide.none,
-                  ),
                 ),
                 onChanged: (_) {
                   if (errorText == null) return;
@@ -650,33 +589,14 @@ class _EqualizerScreenState extends State<EqualizerScreen> {
                 },
                 onSubmitted: (_) => savePreset(),
               ),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(20),
-              ),
               actions: [
                 TextButton(
                   onPressed: Navigator.of(context).pop,
-                  child: Text(
-                    'CANCEL',
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: 1.0,
-                      color: colorScheme.onSurface.withValues(alpha: 0.5),
-                    ),
-                  ),
+                  child: const Text('Cancel'),
                 ),
                 TextButton(
                   onPressed: savePreset,
-                  child: Text(
-                    'SAVE',
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: 1.0,
-                      color: colorScheme.onSurface,
-                    ),
-                  ),
+                  child: const Text('Save'),
                 ),
               ],
             );

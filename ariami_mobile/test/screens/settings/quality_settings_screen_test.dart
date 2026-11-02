@@ -62,7 +62,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('DOWNLOAD QUALITY'), findsOneWidget);
+    expect(find.text('Download quality'), findsOneWidget);
     expect(find.text('Downloads'), findsOneWidget);
     expect(find.text('High (192 kbps)'), findsOneWidget);
 
@@ -124,7 +124,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('DOWNLOAD QUALITY'), findsOneWidget);
+    expect(find.text('Download quality'), findsOneWidget);
     expect(find.text('Original'), findsOneWidget);
   });
 

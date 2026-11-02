@@ -1,5 +1,10 @@
 import 'package:flutter/material.dart';
 
+import 'settings_header.dart';
+
+/// One section of a settings page: a ruled, sentence-case [SettingsHeader]
+/// over its tiles. Sections are separated by rules rather than boxed as
+/// cards, as on Premium Desktop.
 class SettingsSection extends StatelessWidget {
   final String title;
   final List<Widget> tiles;
@@ -12,32 +17,11 @@ class SettingsSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 0.0, vertical: 12.0),
+      padding: const EdgeInsets.only(bottom: 8),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.only(left: 16.0, bottom: 8.0),
-            child: Text(
-              title.toUpperCase(),
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w900,
-                color: colorScheme.onSurface,
-                letterSpacing: 1.5,
-              ),
-            ),
-          ),
-          Column(
-            children: List.generate(
-              tiles.length,
-              (index) => tiles[index],
-            ),
-          ),
-        ],
+        children: [SettingsHeader(title), ...tiles],
       ),
     );
   }

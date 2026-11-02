@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../models/api_models.dart';
 import '../utils/playlist_helpers.dart';
+import '../../../widgets/common/sleeve_header.dart';
 
 class PlaylistInfoSection extends StatelessWidget {
   final PlaylistModel playlist;
@@ -24,47 +25,14 @@ class PlaylistInfoSection extends StatelessWidget {
           );
     final formattedDuration = formatPlaylistTotalDuration(totalDuration);
 
-    return Padding(
-      padding: const EdgeInsets.all(16.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            playlist.name,
-            style: const TextStyle(
-              fontSize: 28,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          if (playlist.description != null &&
-              playlist.description!.isNotEmpty) ...[
-            const SizedBox(height: 8),
-            Text(
-              playlist.description!,
-              style: TextStyle(
-                fontSize: 14,
-                color: Colors.grey[600],
-              ),
-            ),
-          ],
-          const SizedBox(height: 8),
-          Text(
-            '$songCount song${songCount != 1 ? 's' : ''} • $formattedDuration',
-            style: TextStyle(
-              fontSize: 14,
-              color: Colors.grey[600],
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            'Created ${_formatDate(playlist.createdAt)}',
-            style: TextStyle(
-              fontSize: 12,
-              color: Colors.grey[500],
-            ),
-          ),
-        ],
-      ),
+    final description = playlist.description;
+    return SleeveTitle(
+      title: playlist.name,
+      subtitle: description != null && description.isNotEmpty
+          ? Text(description, style: SleeveTitle.subtitleStyle(context))
+          : null,
+      meta: 'Playlist, $songCount song${songCount != 1 ? 's' : ''}, '
+          '$formattedDuration, created ${_formatDate(playlist.createdAt)}',
     );
   }
 

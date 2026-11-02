@@ -9,6 +9,10 @@ import '../../utils/artwork_url.dart';
 import '../../services/offline/offline_playback_service.dart';
 import '../common/cached_artwork.dart';
 import '../common/track_badge.dart';
+import '../common/playing_bars.dart';
+import '../player/progress_fill.dart';
+import '../../services/playback_manager.dart';
+import '../../utils/constants.dart';
 
 class ReorderableQueueList extends StatefulWidget {
   final List<Song> songs;
@@ -220,7 +224,7 @@ class QueueItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
+    final colors = context.colors;
     final opacity = isAvailable ? 1.0 : 0.4;
 
     return Dismissible(
@@ -234,194 +238,159 @@ class QueueItem extends StatelessWidget {
       background: Container(
         alignment: Alignment.centerRight,
         padding: const EdgeInsets.only(right: 24),
-        decoration: BoxDecoration(
-          color: colorScheme.surfaceContainerHighest,
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Icon(
-          LucideIcons.trash2,
-          color: colorScheme.onSurfaceVariant,
-          size: 28,
-        ),
+        color: colors.surfaceHigh,
+        child: Icon(LucideIcons.trash2, color: colors.textSecondary, size: 24),
       ),
       onDismissed: (_) => onRemove?.call(),
       child: Opacity(
         opacity: opacity,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-          child: Container(
-            decoration: BoxDecoration(
-              color: isCurrentlyPlaying
-                  ? colorScheme.surfaceContainerHighest
-                  : Colors.transparent,
-              borderRadius: BorderRadius.circular(20),
-              border: isCurrentlyPlaying
-                  ? Border.all(color: colorScheme.outlineVariant, width: 1)
-                  : null,
+        child: Stack(
+          children: [
+            // Up next starts with the playing song, its progress sweeping
+            // across it, as on Premium Desktop.
+            Positioned.fill(
+              child: isCurrentlyPlaying
+                  ? ProgressFill(fill: colors.fill)
+                  : const SizedBox.shrink(),
             ),
-            child: ListTile(
-              contentPadding:
-                  const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-              leading: _buildLeading(context),
-              title: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Flexible(
-                    child: Text(
-                      song.title,
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: isCurrentlyPlaying
-                            ? FontWeight.w800
-                            : FontWeight.w600,
-                        color: colorScheme.onSurface,
-                        letterSpacing: 0.2,
+            Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: isAvailable ? onTap : null,
+                child: Padding(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  child: Row(
+                    children: [
+                      SizedBox(
+                        width: 28,
+                        child: Center(child: _buildNumber(context)),
                       ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
+                      const SizedBox(width: 8),
+                      _buildLeading(context),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Flexible(
+                                  child: Text(
+                                    song.title,
+                                    style: TextStyle(
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.w600,
+                                      color: colors.textPrimary,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                                TrackBadge(
+                                  hasLyrics: song.hasLyrics,
+                                  isInstrumental: song.isInstrumental,
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              song.artist,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: colors.textSecondary,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Text(
+                        formatDurationMinSec(song.duration),
+                        style: TextStyle(
+                          fontSize: 12.5,
+                          color: colors.textSecondary,
+                          fontFeatures: AppTheme.tabular,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      _buildDragHandle(context),
+                    ],
                   ),
-                  TrackBadge(
-                    hasLyrics: song.hasLyrics,
-                    isInstrumental: song.isInstrumental,
-                  ),
-                ],
-              ),
-              subtitle: Text(
-                song.artist.toUpperCase(),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontSize: 10,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 0.5,
-                  color: isCurrentlyPlaying
-                      ? colorScheme.onSurfaceVariant
-                      : colorScheme.onSurfaceVariant.withValues(alpha: 0.6),
                 ),
               ),
-              trailing: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    formatDurationMinSec(song.duration),
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      color:
-                          colorScheme.onSurfaceVariant.withValues(alpha: 0.6),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  _buildDragHandle(context),
-                ],
-              ),
-              onTap: isAvailable ? onTap : null,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(20),
-              ),
             ),
-          ),
+          ],
         ),
       ),
     );
   }
 
-  Widget _buildDragHandle(BuildContext context) {
-    final iconColor = isCurrentlyPlaying ? Colors.white38 : Colors.grey[800];
+  /// The row's place in Up next; the playing song shows playing bars.
+  Widget _buildNumber(BuildContext context) {
+    final colors = context.colors;
+    if (!isCurrentlyPlaying) {
+      return Text(
+        '$index',
+        style: TextStyle(
+          fontSize: 13,
+          color: colors.textSecondary,
+          fontFeatures: AppTheme.tabular,
+        ),
+      );
+    }
+    final playback = PlaybackManager();
+    return ListenableBuilder(
+      listenable: playback,
+      builder: (context, _) => PlayingBars(
+        playing: playback.isPlaying,
+        color: colors.textPrimary,
+        size: 14,
+      ),
+    );
+  }
 
+  Widget _buildDragHandle(BuildContext context) {
+    final color = context.colors.textSecondary;
     if (isCurrentlyPlaying || !isAvailable) {
       return Icon(
         LucideIcons.gripHorizontal,
-        color: iconColor,
+        color: color.withValues(alpha: 0.3),
         size: 20,
       );
     }
 
     return ReorderableDragStartListener(
       index: index,
-      child: Icon(
-        LucideIcons.gripHorizontal,
-        color: Colors.grey[500],
-        size: 20,
-      ),
+      child: Icon(LucideIcons.gripHorizontal, color: color, size: 20),
     );
   }
 
   Widget _buildLeading(BuildContext context) {
     final artwork = resolveSongArtwork(songId: song.id, albumId: song.albumId);
-
-    return Container(
-      width: 48,
-      height: 48,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.3),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
+    return CachedArtwork(
+      albumId: artwork.cacheId,
+      artworkUrl: artwork.url,
+      width: 44,
+      height: 44,
+      fit: BoxFit.cover,
+      borderRadius: BorderRadius.circular(AppTheme.coverRadius),
+      fallback: Container(
+        width: 44,
+        height: 44,
+        color: context.colors.surfaceHigh,
+        child: Icon(
+          LucideIcons.music,
+          color: context.colors.textSecondary,
+          size: 22,
+        ),
       ),
-      child: Stack(
-        fit: StackFit.expand,
-        children: [
-          CachedArtwork(
-            albumId: artwork.cacheId,
-            artworkUrl: artwork.url,
-            width: 48,
-            height: 48,
-            fit: BoxFit.cover,
-            borderRadius: BorderRadius.circular(12),
-            fallback: _buildPlaceholder(context),
-            fallbackIcon: LucideIcons.music,
-            fallbackIconSize: 24,
-            sizeHint: ArtworkSizeHint.thumbnail,
-          ),
-          if (isCurrentlyPlaying)
-            ClipRRect(
-              borderRadius: BorderRadius.circular(12),
-              child: Container(
-                decoration: BoxDecoration(
-                  color: Colors.black.withValues(alpha: 0.4),
-                ),
-                child: Center(
-                  child: Container(
-                    padding: const EdgeInsets.all(4),
-                    decoration: const BoxDecoration(
-                      color: Colors.white,
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(
-                      LucideIcons.play,
-                      color: Colors.black,
-                      size: 16,
-                    ),
-                  ),
-                ),
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildPlaceholder(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-
-    return Container(
-      width: 48,
-      height: 48,
-      decoration: BoxDecoration(
-        color: colorScheme.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Icon(
-        LucideIcons.music,
-        color: colorScheme.onSurfaceVariant,
-        size: 24,
-      ),
+      fallbackIcon: LucideIcons.music,
+      fallbackIconSize: 22,
+      sizeHint: ArtworkSizeHint.thumbnail,
     );
   }
 }

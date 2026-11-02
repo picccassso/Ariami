@@ -14,7 +14,6 @@ import '../services/offline/offline_playback_service.dart';
 import '../services/playback_manager.dart';
 import '../services/playlist_service.dart';
 import '../services/stats/streaming_stats_service.dart';
-import '../utils/constants.dart';
 import '../utils/image_content_type.dart';
 import '../utils/image_upload.dart';
 import '../utils/responsive.dart';
@@ -25,6 +24,8 @@ import '../widgets/library/album_grid_item.dart';
 import '../widgets/library/playlist_card.dart';
 import '../widgets/library/song_list_item.dart';
 import '../utils/song_from_model.dart';
+import '../widgets/common/sleeve_header.dart';
+import '../utils/constants.dart';
 
 /// Artist page: header with play/shuffle, the artist's top songs, their
 /// albums, compilations they appear on, and the playlists their songs appear
@@ -78,11 +79,9 @@ class ArtistDetailScreen extends StatelessWidget {
           SliverAppBar(
             pinned: true,
             expandedHeight: detailHeaderHeight(context),
-            backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-            surfaceTintColor: Colors.transparent,
             title: _CollapsedTitle(artistName),
-            flexibleSpace: FlexibleSpaceBar(
-              background: _ArtistHeaderArtwork(
+            flexibleSpace: SleeveHeader(
+              cover: _ArtistHeaderArtwork(
                 artistName: artistName,
                 album: artworkAlbum,
                 song: artworkSong,
@@ -92,23 +91,16 @@ class ArtistDetailScreen extends StatelessWidget {
 
           SliverToBoxAdapter(
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    artistName,
-                    style: const TextStyle(
-                      fontSize: 28,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    '${_plural(albums.length, 'album')} • '
-                    '${_plural(playlists.length, 'playlist')} • '
-                    '${_plural(tracks.length, 'song')}',
-                    style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+                  SleeveTitle(
+                    title: artistName,
+                    meta: 'Artist, ${_plural(albums.length, 'album')}, '
+                        '${_plural(playlists.length, 'playlist')}, '
+                        '${_plural(tracks.length, 'song')}',
+                    padding: EdgeInsets.zero,
                   ),
                   const SizedBox(height: 16),
                   Row(
@@ -394,10 +386,7 @@ class _SectionTitle extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
         child: Text(
           title,
-          style: const TextStyle(
-            fontSize: 20,
-            fontWeight: FontWeight.bold,
-          ),
+          style: AppTheme.heading(22, color: context.colors.textPrimary),
         ),
       ),
     );
@@ -443,7 +432,6 @@ class _ArtistHeaderArtwork extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final apiClient = ConnectionService().apiClient;
-    final artworkSize = isExpandedWidth(context) ? 280.0 : 200.0;
     final customImageVersion =
         ArtistImageService().artistImageVersion(artistName);
 
@@ -493,52 +481,7 @@ class _ArtistHeaderArtwork extends StatelessWidget {
           )
         : albumArtwork;
 
-    return Stack(
-      fit: StackFit.expand,
-      children: [
-        Container(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: [
-                Colors.black.withValues(alpha: 0.2),
-                Theme.of(context).scaffoldBackgroundColor,
-              ],
-            ),
-          ),
-        ),
-        Center(
-          child: Padding(
-            padding: const EdgeInsets.only(top: 40.0, bottom: 20.0),
-            child: Container(
-              width: artworkSize,
-              height: artworkSize,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(AppTheme.cardRadius),
-                boxShadow: [
-                  BoxShadow(
-                    color: context.colors.glowA.withValues(alpha: 0.45),
-                    blurRadius: 60,
-                    spreadRadius: -8,
-                    offset: const Offset(0, 24),
-                  ),
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.4),
-                    blurRadius: 20,
-                    offset: const Offset(0, 10),
-                  ),
-                ],
-              ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(AppTheme.cardRadius),
-                child: artworkWidget,
-              ),
-            ),
-          ),
-        ),
-      ],
-    );
+    return artworkWidget;
   }
 
   Widget _buildPlaceholder() {

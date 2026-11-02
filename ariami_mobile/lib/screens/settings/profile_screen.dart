@@ -18,6 +18,7 @@ import '../../widgets/settings/settings_section.dart';
 import '../../widgets/settings/settings_tile.dart';
 import 'appearance_settings_screen.dart';
 import '../../utils/image_decode.dart';
+import '../../widgets/common/confirm_dialog.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -180,61 +181,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Future<void> _handleLogout() async {
     if (_isLoggingOut) return;
 
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final colorScheme = Theme.of(context).colorScheme;
-
-    final shouldLogout = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(
-          'LOG OUT',
-          style: TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w900,
-            letterSpacing: 1.5,
-            color: isDark ? Colors.white : colorScheme.onSurface,
-          ),
-        ),
-        content: Text(
-          'Are you sure you want to log out of this account?',
-          style: TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w500,
-            color: isDark
-                ? Colors.grey[400]
-                : colorScheme.onSurface.withValues(alpha: 0.75),
-          ),
-        ),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: Text(
-              'CANCEL',
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w900,
-                letterSpacing: 1.0,
-                color: isDark
-                    ? Colors.grey[500]
-                    : colorScheme.onSurface.withValues(alpha: 0.7),
-              ),
-            ),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: Text(
-              'LOG OUT',
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w900,
-                letterSpacing: 1.0,
-                color: colorScheme.error,
-              ),
-            ),
-          ),
-        ],
-      ),
+    final shouldLogout = await showConfirmDialog(
+      context,
+      title: 'Log out',
+      message: 'Are you sure you want to log out of this account?',
+      confirmLabel: 'Log out',
+      destructive: true,
     );
 
     if (shouldLogout != true) return;
@@ -614,7 +566,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final serverInfo = _connectionService.serverInfo;
 
     return SettingsSection(
-      title: 'Profile Snapshot',
+      title: 'Profile snapshot',
       tiles: [
         SettingsTile(
           icon: Icons.account_circle_rounded,
@@ -668,7 +620,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         final topArtist = topArtists.isNotEmpty ? topArtists.first : null;
 
         return SettingsSection(
-          title: 'Listening Snapshot',
+          title: 'Listening snapshot',
           tiles: [
             SettingsTile(
               icon: Icons.schedule_rounded,
@@ -707,7 +659,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Widget _buildQuickActionsSection() {
     return SettingsSection(
-      title: 'Quick Actions',
+      title: 'Quick actions',
       tiles: [
         SettingsTile(
           icon: Icons.palette_rounded,

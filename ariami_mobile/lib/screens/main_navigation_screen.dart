@@ -1,6 +1,5 @@
 import '../widgets/music_availability_banner.dart';
 import 'dart:async';
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../models/api_models.dart';
@@ -19,7 +18,6 @@ import '../services/cast/chrome_cast_service.dart';
 import '../services/playback_manager.dart';
 import '../services/ariami_connect_controller.dart';
 import '../utils/constants.dart';
-import '../widgets/common/ambient_backdrop.dart';
 import '../widgets/common/queue_action_confirmation.dart';
 
 class MainNavigationScreen extends StatefulWidget {
@@ -226,10 +224,6 @@ class _MainNavigationScreenState extends State<MainNavigationScreen>
     // sidebar (Spotify-style), so the content overlay is phone-only.
     final useRail = useNavigationRail(context);
     final colors = context.colors;
-    final songSeed = (_playbackManager.currentSong?.albumId ??
-            _playbackManager.currentSong?.id ??
-            '')
-        .hashCode;
     final content = Stack(
       children: [
         Column(
@@ -259,8 +253,12 @@ class _MainNavigationScreenState extends State<MainNavigationScreen>
       body: Stack(
         fit: StackFit.expand,
         children: [
+          // The sleeve's two-ink ground; the glow only backs the full player
+          // and the setup screens.
           Positioned.fill(
-            child: PlayerBackdrop(layoutSeed: songSeed),
+            child: DecoratedBox(
+              decoration: BoxDecoration(gradient: colors.groundGradient),
+            ),
           ),
           useRail
               ? Row(
@@ -279,40 +277,32 @@ class _MainNavigationScreenState extends State<MainNavigationScreen>
       ),
       bottomNavigationBar: useRail
           ? null
-          : ClipRect(
-              child: BackdropFilter(
-                filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: colors.base.withValues(alpha: 0.82),
-                    border: Border(
-                      top: BorderSide(
-                        color: colors.border,
-                        width: 0.5,
-                      ),
+          // The same band as the mini player above it, so the bottom chrome
+          // reads as one transport bar.
+          : DecoratedBox(
+              decoration: BoxDecoration(
+                color: colors.band,
+                border: Border(top: BorderSide(color: colors.border)),
+              ),
+              child: SafeArea(
+                top: false,
+                child: BottomNavigationBar(
+                  currentIndex: _currentIndex,
+                  onTap: _onTabTapped,
+                  items: const [
+                    BottomNavigationBarItem(
+                      icon: Icon(Icons.library_music),
+                      label: 'Library',
                     ),
-                  ),
-                  child: SafeArea(
-                    top: false,
-                    child: BottomNavigationBar(
-                      currentIndex: _currentIndex,
-                      onTap: _onTabTapped,
-                      items: const [
-                        BottomNavigationBarItem(
-                          icon: Icon(Icons.library_music),
-                          label: 'Library',
-                        ),
-                        BottomNavigationBarItem(
-                          icon: Icon(Icons.search),
-                          label: 'Search',
-                        ),
-                        BottomNavigationBarItem(
-                          icon: Icon(Icons.settings),
-                          label: 'Settings',
-                        ),
-                      ],
+                    BottomNavigationBarItem(
+                      icon: Icon(Icons.search),
+                      label: 'Search',
                     ),
-                  ),
+                    BottomNavigationBarItem(
+                      icon: Icon(Icons.settings),
+                      label: 'Settings',
+                    ),
+                  ],
                 ),
               ),
             ),
@@ -325,22 +315,17 @@ class _MainNavigationScreenState extends State<MainNavigationScreen>
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        ValueListenableBuilder<Duration>(
-          valueListenable: _playbackManager.positionNotifier,
-          builder: (context, _, __) => MiniPlayer(
-            currentSong: _playbackManager.currentSong,
-            isPlaying: _playbackManager.isPlaying,
-            isVisible: _playbackManager.currentSong != null,
-            onTap: _openFullPlayer,
-            onPlayPause: _playbackManager.togglePlayPause,
-            onSkipNext: _playbackManager.skipNext,
-            onSkipPrevious: _playbackManager.skipPrevious,
-            hasNext: _playbackManager.hasNext,
-            hasPrevious: _playbackManager.hasPrevious,
-            position: _playbackManager.position,
-            duration: _playbackManager.duration ?? Duration.zero,
-            playbackManager: _playbackManager,
-          ),
+        MiniPlayer(
+          currentSong: _playbackManager.currentSong,
+          isPlaying: _playbackManager.isPlaying,
+          isVisible: _playbackManager.currentSong != null,
+          onTap: _openFullPlayer,
+          onPlayPause: _playbackManager.togglePlayPause,
+          onSkipNext: _playbackManager.skipNext,
+          onSkipPrevious: _playbackManager.skipPrevious,
+          hasNext: _playbackManager.hasNext,
+          hasPrevious: _playbackManager.hasPrevious,
+          playbackManager: _playbackManager,
         ),
         const DownloadProgressBar(),
       ],
@@ -353,20 +338,15 @@ class _MainNavigationScreenState extends State<MainNavigationScreen>
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        ValueListenableBuilder<Duration>(
-          valueListenable: _playbackManager.positionNotifier,
-          builder: (context, _, __) => SidebarNowPlayingCard(
-            currentSong: _playbackManager.currentSong,
-            isPlaying: _playbackManager.isPlaying,
-            onTap: _openFullPlayer,
-            onPlayPause: _playbackManager.togglePlayPause,
-            onSkipNext: _playbackManager.skipNext,
-            onSkipPrevious: _playbackManager.skipPrevious,
-            hasNext: _playbackManager.hasNext,
-            hasPrevious: _playbackManager.hasPrevious,
-            position: _playbackManager.position,
-            duration: _playbackManager.duration ?? Duration.zero,
-          ),
+        SidebarNowPlayingCard(
+          currentSong: _playbackManager.currentSong,
+          isPlaying: _playbackManager.isPlaying,
+          onTap: _openFullPlayer,
+          onPlayPause: _playbackManager.togglePlayPause,
+          onSkipNext: _playbackManager.skipNext,
+          onSkipPrevious: _playbackManager.skipPrevious,
+          hasNext: _playbackManager.hasNext,
+          hasPrevious: _playbackManager.hasPrevious,
         ),
         const DownloadProgressBar(),
       ],

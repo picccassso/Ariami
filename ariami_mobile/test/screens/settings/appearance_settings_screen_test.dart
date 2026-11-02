@@ -70,17 +70,17 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('THEME SOURCE'), findsOneWidget);
+      expect(find.text('Theme source'), findsOneWidget);
       expect(find.text('Theme Mode'), findsNothing);
       expect(find.byType(SegmentedButton), findsNothing);
 
       expect(find.text('System'), findsOneWidget);
       expect(find.text('Light'), findsOneWidget);
       expect(find.text('Dark'), findsOneWidget);
-      expect(find.text('Preset Colors'), findsOneWidget);
-      expect(find.text('Custom Color'), findsOneWidget);
-      expect(find.text('Dynamic Cover Art'), findsOneWidget);
-      expect(find.text('Static Cover Art'), findsOneWidget);
+      expect(find.text('Preset colors'), findsOneWidget);
+      expect(find.text('Custom color'), findsOneWidget);
+      expect(find.text('Dynamic cover art'), findsOneWidget);
+      expect(find.text('Static cover art'), findsOneWidget);
     },
   );
 }

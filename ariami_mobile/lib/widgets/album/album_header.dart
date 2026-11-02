@@ -1,9 +1,7 @@
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import '../../services/api/connection_service.dart';
-import '../../utils/constants.dart';
-import '../../utils/responsive.dart';
 import '../common/cached_artwork.dart';
+import '../common/sleeve_header.dart';
 import '../../utils/image_decode.dart';
 
 class AlbumArtworkHeader extends StatelessWidget {
@@ -19,66 +17,7 @@ class AlbumArtworkHeader extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
-    return FlexibleSpaceBar(
-      background: Stack(
-        fit: StackFit.expand,
-        children: [
-          Positioned.fill(
-            child: _buildArtwork(fit: BoxFit.cover),
-          ),
-
-          Positioned.fill(
-            child: BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 40, sigmaY: 40),
-              child: Container(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      Colors.black.withValues(alpha: 0.2),
-                      Theme.of(context).scaffoldBackgroundColor,
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
-
-          Center(
-            child: Padding(
-              padding: const EdgeInsets.only(top: 40.0, bottom: 20.0),
-              child: Container(
-                width: isExpandedWidth(context) ? 280 : 200,
-                height: isExpandedWidth(context) ? 280 : 200,
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(14),
-                  boxShadow: [
-                    BoxShadow(
-                      color: context.colors.glowA.withValues(alpha: 0.45),
-                      blurRadius: 60,
-                      spreadRadius: -8,
-                      offset: const Offset(0, 24),
-                    ),
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.4),
-                      blurRadius: 20,
-                      offset: const Offset(0, 10),
-                    ),
-                  ],
-                ),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(14),
-                  child: _buildArtwork(fit: BoxFit.cover),
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+  Widget build(BuildContext context) => SleeveHeader(cover: _buildArtwork());
 
   Widget _buildArtwork({BoxFit fit = BoxFit.cover}) {
     final connectionService = ConnectionService();
@@ -143,7 +82,7 @@ class AlbumArtworkHeader extends StatelessWidget {
       child: const Center(
         child: Icon(
           Icons.album,
-          size: 120,
+          size: 64,
           color: Colors.white,
         ),
       ),

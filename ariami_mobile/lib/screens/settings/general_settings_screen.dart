@@ -240,7 +240,7 @@ class _GeneralSettingsScreenState extends State<GeneralSettingsScreen> {
             ),
             children: [
               SettingsSection(
-                title: 'GENERAL',
+                title: 'General',
                 tiles: [
                   SettingsTile(
                     icon: Icons.search_rounded,

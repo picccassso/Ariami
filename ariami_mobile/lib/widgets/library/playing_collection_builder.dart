@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../services/playback_manager.dart';
 import '../common/playing_bars.dart';
+import '../../utils/constants.dart';
 
 typedef PlayingCollectionWidgetBuilder = Widget Function(
   BuildContext context,
@@ -103,15 +104,17 @@ class PlayingCollectionIndicator extends StatelessWidget {
 
         Widget bars = PlayingBars(
           playing: isAnimating,
-          color: Theme.of(context).colorScheme.primary,
+          color: artworkBadge
+              ? Colors.white
+              : Theme.of(context).colorScheme.primary,
           size: size,
         );
         if (artworkBadge) {
           bars = Container(
             padding: const EdgeInsets.all(5),
             decoration: BoxDecoration(
-              color: Colors.black.withValues(alpha: 0.55),
-              borderRadius: BorderRadius.circular(6),
+              color: Colors.black.withValues(alpha: 0.6),
+              borderRadius: BorderRadius.circular(AppTheme.cardRadius),
             ),
             child: bars,
           );

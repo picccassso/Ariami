@@ -155,7 +155,7 @@ void main() {
       ),
     );
 
-    await tester.tap(find.byTooltip('Clear queue'));
+    await tester.tap(find.byTooltip('Clear Up next'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
     expect(
@@ -165,13 +165,13 @@ void main() {
       findsOneWidget,
     );
 
-    await tester.tap(find.text('CLEAR'));
+    await tester.tap(find.text('Clear'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
 
     expect(queue.songs.map((song) => song.id), ['b']);
     expect(queue.currentSong?.id, 'b');
     expect(find.text('Song b'), findsOneWidget);
-    expect(find.byTooltip('Clear queue'), findsNothing);
+    expect(find.byTooltip('Clear Up next'), findsNothing);
   });
 }

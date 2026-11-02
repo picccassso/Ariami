@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../test_support/sqflite_mock.dart';
+import 'package:ariami_mobile/widgets/settings/settings_header.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -26,7 +27,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('GENERAL'), findsOneWidget);
+    expect(find.widgetWithText(SettingsHeader, 'General'), findsOneWidget);
     expect(find.text('Search Mode'), findsOneWidget);
     expect(find.text('Spotify Mode'), findsOneWidget);
 

@@ -3,65 +3,21 @@ import 'package:flutter/material.dart';
 import 'app_local_data_reset.dart';
 import '../screens/welcome_screen.dart';
 import '../services/api/connection_service.dart';
+import '../widgets/common/confirm_dialog.dart';
+import 'constants.dart';
 
-void showDisconnectServerDialog(BuildContext context) {
-  final isDark = Theme.of(context).brightness == Brightness.dark;
-  showDialog(
-    context: context,
-    builder: (context) => AlertDialog(
-      backgroundColor: isDark ? const Color(0xFF111111) : Colors.white,
-      title: Text(
-        'DISCONNECT SERVER',
-        style: TextStyle(
-          fontSize: 14,
-          fontWeight: FontWeight.w900,
-          letterSpacing: 1.5,
-          color: isDark ? Colors.white : Colors.black,
-        ),
-      ),
-      content: Text(
-        'This will forget this server, sign you out, and remove downloaded music and cached server data from this phone. You will need to scan the QR code again to reconnect.',
-        style: TextStyle(
-          fontSize: 14,
-          fontWeight: FontWeight.w500,
-          color: isDark ? Colors.grey[400] : Colors.grey[600],
-        ),
-      ),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      actions: [
-        TextButton(
-          onPressed: Navigator.of(context).pop,
-          child: Text(
-            'CANCEL',
-            style: TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w900,
-              letterSpacing: 1.0,
-              color: isDark ? Colors.grey[500] : Colors.grey[600],
-            ),
-          ),
-        ),
-        TextButton(
-          onPressed: () {
-            // Grab the root navigator before the pop: once the dialog route is
-            // disposed this context unmounts and can no longer navigate.
-            final rootNavigator = Navigator.of(context, rootNavigator: true);
-            Navigator.of(context).pop();
-            disconnectServerAndClearData(rootNavigator);
-          },
-          child: const Text(
-            'DISCONNECT & CLEAR DATA',
-            style: TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w900,
-              letterSpacing: 1.0,
-              color: Color(0xFFFF4B4B),
-            ),
-          ),
-        ),
-      ],
-    ),
+Future<void> showDisconnectServerDialog(BuildContext context) async {
+  final confirmed = await showConfirmDialog(
+    context,
+    title: 'Disconnect server',
+    message: 'This will forget this server, sign you out, and remove '
+        'downloaded music and cached server data from this phone. You will '
+        'need to scan the QR code again to reconnect.',
+    confirmLabel: 'Disconnect & clear data',
+    destructive: true,
   );
+  if (confirmed != true || !context.mounted) return;
+  disconnectServerAndClearData(Navigator.of(context, rootNavigator: true));
 }
 
 void navigateToWelcomeScreen(BuildContext context) {
@@ -96,7 +52,7 @@ ButtonStyle disconnectServerButtonStyle() {
     backgroundColor: const Color(0xFF1A1A1A),
     foregroundColor: const Color(0xFFFF4B4B),
     elevation: 0,
-    shape: const StadiumBorder(),
+    shape: const RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(AppTheme.tileRadius))),
     side: BorderSide(color: const Color(0xFFFF4B4B).withValues(alpha: 0.2)),
   );
 }

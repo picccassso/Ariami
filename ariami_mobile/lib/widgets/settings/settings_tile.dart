@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../utils/constants.dart';
+
 class SettingsTile extends StatelessWidget {
   final IconData icon;
   final String title;
@@ -20,8 +22,8 @@ class SettingsTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    
+    final colors = context.colors;
+
     return Material(
       color: Colors.transparent,
       child: InkWell(
@@ -30,12 +32,12 @@ class SettingsTile extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
           child: Row(
             children: [
-              Container(
+              Padding(
                 padding: const EdgeInsets.all(8),
                 child: Icon(
                   icon,
-                  color: iconColor ?? colorScheme.onSurface,
-                  size: 24,
+                  color: iconColor ?? colors.textSecondary,
+                  size: 22,
                 ),
               ),
               const SizedBox(width: 16),
@@ -46,9 +48,9 @@ class SettingsTile extends StatelessWidget {
                     Text(
                       title,
                       style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                        color: colorScheme.onSurface,
+                        fontSize: 15.5,
+                        fontWeight: FontWeight.w500,
+                        color: colors.textPrimary,
                       ),
                     ),
                     if (subtitle != null)
@@ -57,9 +59,8 @@ class SettingsTile extends StatelessWidget {
                         child: Text(
                           subtitle!,
                           style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w400,
-                            color: colorScheme.onSurface.withValues(alpha: 0.7),
+                            fontSize: 13.5,
+                            color: colors.textSecondary,
                           ),
                         ),
                       ),
@@ -73,8 +74,8 @@ class SettingsTile extends StatelessWidget {
                 const SizedBox(width: 8),
                 Icon(
                   Icons.chevron_right_rounded,
-                  color: colorScheme.onSurface.withValues(alpha: 0.5),
-                  size: 24,
+                  color: colors.textSecondary,
+                  size: 22,
                 ),
               ],
             ],

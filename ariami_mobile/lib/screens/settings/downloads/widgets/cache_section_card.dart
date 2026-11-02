@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../../utils/constants.dart';
 
 class CacheSectionCard extends StatelessWidget {
   const CacheSectionCard({
@@ -141,7 +142,7 @@ class CacheSectionCard extends StatelessWidget {
                     isDark ? const Color(0xFF1A1A1A) : const Color(0xFFF5F5F5),
                 foregroundColor: isDark ? Colors.white : Colors.black,
                 elevation: 0,
-                shape: const StadiumBorder(),
+                shape: const RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(AppTheme.tileRadius))),
               ),
             ),
           ),

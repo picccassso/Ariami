@@ -10,9 +10,10 @@ void main() {
 
   group('Visual Overhaul - Constants & Extensions', () {
     test('AppTheme radius constants match refined design system', () {
-      expect(AppTheme.panelRadius, equals(20.0));
-      expect(AppTheme.cardRadius, equals(14.0));
-      expect(AppTheme.tileRadius, equals(10.0));
+      expect(AppTheme.panelRadius, equals(10.0));
+      expect(AppTheme.tileRadius, equals(6.0));
+      expect(AppTheme.cardRadius, equals(4.0));
+      expect(AppTheme.coverRadius, equals(2.0));
     });
 
     testWidgets('context.colors provides PlayerColors on light & dark themes', (tester) async {
@@ -35,7 +36,7 @@ void main() {
       expect(darkColors.glowA, isNotNull);
       expect(darkColors.glowB, isNotNull);
       expect(darkColors.glowC, isNotNull);
-      expect(darkColors.base, equals(const Color(0xFF08080A)));
+      expect(darkColors.base, equals(const Color(0xFF1C1D20)));
 
       await tester.pumpWidget(
         MaterialApp(
@@ -52,13 +53,15 @@ void main() {
       );
 
       expect(lightColors.glowA, isNotNull);
-      expect(lightColors.base, equals(const Color(0xFFE9E9EE)));
+      expect(lightColors.base, equals(const Color(0xFFEBECE8)));
     });
 
-    test('AppTheme.setup() uses dark navy palette', () {
+    test('AppTheme.setup() is graphite lit by navy glows', () {
       final setupTheme = AppTheme.setup();
       expect(setupTheme.brightness, equals(Brightness.dark));
-      expect(setupTheme.scaffoldBackgroundColor, equals(const Color(0xFF05070D)));
+      expect(setupTheme.scaffoldBackgroundColor, PlayerColors.dark.base);
+      expect(setupTheme.extension<PlayerColors>()!.glowA,
+          equals(const Color(0xFF2B4C9B)));
     });
   });
 

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../services/download/download_queue.dart';
+import '../../../../utils/constants.dart';
 
 class StatisticsCard extends StatelessWidget {
   const StatisticsCard({
@@ -41,7 +42,7 @@ class StatisticsCard extends StatelessWidget {
                         const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                     decoration: BoxDecoration(
                       color: isDark ? Colors.white : Colors.black,
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(AppTheme.tileRadius),
                     ),
                     child: Text(
                       '$activeCount active',

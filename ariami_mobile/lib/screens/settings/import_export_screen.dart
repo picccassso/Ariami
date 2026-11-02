@@ -2,6 +2,7 @@ import '../../utils/responsive.dart';
 import 'package:flutter/material.dart';
 import '../../services/import_export_service.dart';
 import '../../widgets/common/mini_player_aware_bottom_sheet.dart';
+import '../../utils/constants.dart';
 
 class ImportExportScreen extends StatefulWidget {
   const ImportExportScreen({super.key});
@@ -156,7 +157,7 @@ class _ImportExportScreenState extends State<ImportExportScreen> {
         ),
         onTap: () => Navigator.pop(context, mode),
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(15),
+          borderRadius: BorderRadius.circular(AppTheme.tileRadius),
         ),
       ),
     );
@@ -230,13 +231,13 @@ class _ImportExportScreenState extends State<ImportExportScreen> {
                   child: Column(
                     children: [
                       _buildStatusRow(
-                        'LAST EXPORT',
+                        'Last export',
                         _formatDateTime(_lastExportTime),
                         isDark,
                       ),
                       const SizedBox(height: 16),
                       _buildStatusRow(
-                        'LAST IMPORT',
+                        'Last import',
                         _formatDateTime(_lastImportTime),
                         isDark,
                       ),
@@ -253,7 +254,7 @@ class _ImportExportScreenState extends State<ImportExportScreen> {
                     style: ElevatedButton.styleFrom(
                       backgroundColor: isDark ? Colors.white : Colors.black,
                       foregroundColor: isDark ? Colors.black : Colors.white,
-                      shape: const StadiumBorder(),
+                      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(AppTheme.tileRadius))),
                       elevation: 0,
                     ),
                     child: _isLoading
@@ -263,11 +264,10 @@ class _ImportExportScreenState extends State<ImportExportScreen> {
                             child: CircularProgressIndicator(
                                 strokeWidth: 2, color: Colors.black))
                         : const Text(
-                            'EXPORT DATA',
+                            'Export data',
                             style: TextStyle(
                               fontSize: 13,
-                              fontWeight: FontWeight.w900,
-                              letterSpacing: 1.2,
+                              fontWeight: FontWeight.w600,
                             ),
                           ),
                   ),
@@ -286,15 +286,14 @@ class _ImportExportScreenState extends State<ImportExportScreen> {
                             : const Color(0xFFEEEEEE),
                         width: 1.5,
                       ),
-                      shape: const StadiumBorder(),
+                      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(AppTheme.tileRadius))),
                       foregroundColor: isDark ? Colors.white : Colors.black,
                     ),
                     child: const Text(
-                      'IMPORT DATA',
+                      'Import data',
                       style: TextStyle(
                         fontSize: 13,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: 1.2,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
                   ),
@@ -329,17 +328,15 @@ class _ImportExportScreenState extends State<ImportExportScreen> {
           style: TextStyle(
             color: isDark ? Colors.grey[600] : Colors.grey[500],
             fontSize: 11,
-            fontWeight: FontWeight.w800,
-            letterSpacing: 1.0,
+            fontWeight: FontWeight.w600,
           ),
         ),
         Text(
-          value.toUpperCase(),
+          value,
           style: TextStyle(
             color: isDark ? Colors.white : Colors.black,
             fontSize: 11,
-            fontWeight: FontWeight.w900,
-            letterSpacing: 0.5,
+            fontWeight: FontWeight.w600,
           ),
         ),
       ],

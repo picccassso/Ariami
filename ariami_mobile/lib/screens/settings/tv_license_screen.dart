@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../services/license/tv_license_service.dart';
+import '../../utils/constants.dart';
 
 /// Activates an Ariami TV license key from the phone.
 ///
@@ -85,7 +86,7 @@ class _TvLicenseScreenState extends State<TvLicenseScreen> {
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
               color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.4),
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(AppTheme.tileRadius),
             ),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -119,7 +120,7 @@ class _TvLicenseScreenState extends State<TvLicenseScreen> {
               labelText: 'TV license key',
               hintText: 'XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX',
               border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(AppTheme.tileRadius),
               ),
             ),
             onChanged: (_) {
@@ -165,7 +166,7 @@ class _TvLicenseScreenState extends State<TvLicenseScreen> {
               padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
                 color: colorScheme.errorContainer.withValues(alpha: 0.5),
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(AppTheme.tileRadius),
               ),
               child: Text(
                 _error!,
@@ -183,7 +184,7 @@ class _TvLicenseScreenState extends State<TvLicenseScreen> {
               padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
                 color: colorScheme.primaryContainer.withValues(alpha: 0.5),
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(AppTheme.tileRadius),
               ),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,

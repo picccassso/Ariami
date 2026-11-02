@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../../utils/constants.dart';
 
 class DownloadsInterruptionRecoveryCard extends StatelessWidget {
   const DownloadsInterruptionRecoveryCard({
@@ -63,7 +64,7 @@ class DownloadsInterruptionRecoveryCard extends StatelessWidget {
                           : const Color(0xFFF5F5F5),
                       foregroundColor: isDark ? Colors.white : Colors.black,
                       elevation: 0,
-                      shape: const StadiumBorder(),
+                      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(AppTheme.tileRadius))),
                     ),
                   ),
                 ),
@@ -79,7 +80,7 @@ class DownloadsInterruptionRecoveryCard extends StatelessWidget {
                           : const Color(0xFFF5F5F5),
                       foregroundColor: const Color(0xFFFF4B4B),
                       elevation: 0,
-                      shape: const StadiumBorder(),
+                      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(AppTheme.tileRadius))),
                     ),
                   ),
                 ),

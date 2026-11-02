@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import 'mini_player_aware_bottom_sheet.dart';
+import '../../utils/constants.dart';
 
 OverlayEntry? _queueConfirmationEntry;
 Timer? _queueConfirmationTimer;
@@ -128,12 +129,12 @@ class _QueueActionConfirmationState extends State<_QueueActionConfirmation> {
 
     final bar = Material(
       color: colorScheme.surfaceContainerHigh.withValues(alpha: 0.97),
-      borderRadius: BorderRadius.circular(16),
+      borderRadius: BorderRadius.circular(AppTheme.panelRadius),
       elevation: 4,
       clipBehavior: Clip.antiAlias,
       child: Container(
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(AppTheme.panelRadius),
           border: Border.all(
             color: colorScheme.outlineVariant.withValues(alpha: 0.45),
             width: 1.0,
@@ -171,7 +172,6 @@ class _QueueActionConfirmationState extends State<_QueueActionConfirmation> {
                     style: Theme.of(context).textTheme.labelLarge?.copyWith(
                           color: colorScheme.primary,
                           fontWeight: FontWeight.w700,
-                          letterSpacing: 0.5,
                         ),
                   ),
                 ),

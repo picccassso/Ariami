@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../models/song.dart';
+import '../../utils/constants.dart';
 import '../common/adaptive_marquee_text.dart';
 
 class PlayerInfo extends StatelessWidget {
@@ -28,18 +29,18 @@ class PlayerInfo extends StatelessWidget {
     final title = AdaptiveMarqueeText(
       key: ValueKey('title-${song.id}-${song.title}'),
       text: song.title,
-      style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-            fontWeight: FontWeight.bold,
-          ),
-      height: 32,
+      style: AppTheme.display(34, color: context.colors.textPrimary),
+      height: 34,
     );
 
     final artist = AdaptiveMarqueeText(
       key: ValueKey('artist-${song.id}-${song.artist}'),
       text: song.artist,
-      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-            color: Theme.of(context).colorScheme.onSurfaceVariant,
-          ),
+      style: TextStyle(
+        fontSize: 16,
+        fontWeight: FontWeight.w500,
+        color: context.colors.textSecondary,
+      ),
       height: 24,
       velocity: 25.0,
     );

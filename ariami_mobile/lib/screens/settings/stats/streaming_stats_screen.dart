@@ -387,14 +387,13 @@ class _StreamingStatsScreenState extends State<StreamingStatsScreen>
           unselectedLabelColor: Colors.grey[600],
           labelStyle: const TextStyle(
             fontSize: 12,
-            fontWeight: FontWeight.w800,
-            letterSpacing: 1.0,
+            fontWeight: FontWeight.w600,
           ),
           dividerColor: Colors.transparent,
           tabs: const [
-            Tab(text: 'TRACKS'),
-            Tab(text: 'ARTISTS'),
-            Tab(text: 'ALBUMS'),
+            Tab(text: 'Tracks'),
+            Tab(text: 'Artists'),
+            Tab(text: 'Albums'),
           ],
         ),
       ),

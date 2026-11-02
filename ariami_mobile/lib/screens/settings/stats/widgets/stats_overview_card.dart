@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../overview_metrics.dart';
 import 'tap_hint.dart';
+import '../../../../utils/constants.dart';
 
 class StatsOverviewCard extends StatelessWidget {
   const StatsOverviewCard({
@@ -49,27 +50,18 @@ class _StatItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final colors = context.colors;
     Widget item = Column(
       children: [
         Text(
           metric.value,
-          style: TextStyle(
-            fontSize: 24,
-            fontWeight: FontWeight.w900,
-            color: isDark ? Colors.white : Colors.black,
-            letterSpacing: -1.0,
-          ),
+          style: AppTheme.display(34, color: colors.textPrimary)
+              .copyWith(fontFeatures: AppTheme.tabular),
         ),
         const SizedBox(height: 6),
         Text(
           metric.label,
-          style: TextStyle(
-            fontSize: 10,
-            fontWeight: FontWeight.w800,
-            color: isDark ? Colors.grey[500] : Colors.grey[600],
-            letterSpacing: 1.0,
-          ),
+          style: TextStyle(fontSize: 12.5, color: colors.textSecondary),
         ),
       ],
     );
@@ -88,43 +80,19 @@ class _StatItem extends StatelessWidget {
 /// One-time explainer shown right after the first PLAYTIME tap, so the
 /// value switching units doesn't read as a glitch.
 void showPlaytimeHintDialog(BuildContext context) {
-  final isDark = Theme.of(context).brightness == Brightness.dark;
   showDialog(
     context: context,
     builder: (context) => AlertDialog(
-      backgroundColor: isDark ? const Color(0xFF111111) : Colors.white,
-      title: Text(
-        'PLAYTIME UNITS',
-        style: TextStyle(
-          fontSize: 14,
-          fontWeight: FontWeight.w900,
-          letterSpacing: 1.5,
-          color: isDark ? Colors.white : Colors.black,
-        ),
-      ),
-      content: Text(
-        'Tapping PLAYTIME cycles it through hours, minutes, and compact '
-        'minutes — AVG DAILY follows along when it\'s shown. Keep tapping '
+      title: const Text('Playtime units'),
+      content: const Text(
+        'Tapping Playtime cycles it through hours, minutes, and compact '
+        'minutes — Avg daily follows along when it\'s shown. Keep tapping '
         'to move through them.',
-        style: TextStyle(
-          fontSize: 14,
-          fontWeight: FontWeight.w500,
-          color: isDark ? Colors.grey[400] : Colors.grey[600],
-        ),
       ),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context),
-          child: Text(
-            'GOT IT',
-            style: TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w900,
-              letterSpacing: 1.0,
-              color: isDark ? Colors.white : Colors.black,
-            ),
-          ),
+          child: const Text('Got it'),
         ),
       ],
     ),

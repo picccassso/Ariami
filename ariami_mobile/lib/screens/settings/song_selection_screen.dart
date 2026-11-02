@@ -5,6 +5,7 @@ import '../../models/api_models.dart';
 import '../../services/api/connection_service.dart';
 import '../../services/search_service.dart';
 import '../../widgets/common/cached_artwork.dart';
+import '../../utils/constants.dart';
 
 class SongSelectionScreen extends StatefulWidget {
   const SongSelectionScreen({super.key});
@@ -104,7 +105,7 @@ class _SongSelectionScreenState extends State<SongSelectionScreen> {
                 fillColor:
                     Theme.of(context).colorScheme.surfaceContainerHighest,
                 border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(30),
+                  borderRadius: BorderRadius.circular(AppTheme.tileRadius),
                   borderSide: BorderSide.none,
                 ),
                 contentPadding: const EdgeInsets.symmetric(vertical: 0),

@@ -1,9 +1,7 @@
 import 'dart:io';
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import '../../../models/api_models.dart';
-import '../../../utils/constants.dart';
-import '../../../utils/responsive.dart';
+import '../../../widgets/common/sleeve_header.dart';
 import 'artwork_collage.dart';
 import 'fallback_header.dart';
 import '../../../utils/image_decode.dart';
@@ -28,12 +26,11 @@ class PlaylistHeader extends StatelessWidget {
 
     if (playlist?.customImagePath != null &&
         File(playlist!.customImagePath!).existsSync()) {
-      // Sits behind a heavy blur, so a modest decode (~600px) is plenty.
       artworkWidget = Image(
         image: resizedForDisplay(
           context,
           FileImage(File(playlist!.customImagePath!)),
-          100,
+          280,
         ),
         fit: BoxFit.cover,
         width: double.infinity,
@@ -46,62 +43,7 @@ class PlaylistHeader extends StatelessWidget {
       artworkWidget = _buildArtworkFromSongs();
     }
 
-    return Stack(
-      fit: StackFit.expand,
-      children: [
-        Positioned.fill(
-          child: artworkWidget,
-        ),
-
-        Positioned.fill(
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 40, sigmaY: 40),
-            child: Container(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    Colors.black.withValues(alpha: 0.2),
-                    Theme.of(context).scaffoldBackgroundColor,
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ),
-
-        Center(
-          child: Padding(
-            padding: const EdgeInsets.only(top: 40.0, bottom: 20.0),
-            child: Container(
-              width: isExpandedWidth(context) ? 280 : 200,
-              height: isExpandedWidth(context) ? 280 : 200,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(AppTheme.cardRadius),
-                boxShadow: [
-                  BoxShadow(
-                    color: context.colors.glowA.withValues(alpha: 0.45),
-                    blurRadius: 60,
-                    spreadRadius: -8,
-                    offset: const Offset(0, 24),
-                  ),
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.4),
-                    blurRadius: 20,
-                    offset: const Offset(0, 10),
-                  ),
-                ],
-              ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(AppTheme.cardRadius),
-                child: artworkWidget,
-              ),
-            ),
-          ),
-        ),
-      ],
-    );
+    return SleeveHeader(cover: artworkWidget);
   }
 
   Widget _buildArtworkFromSongs() {

@@ -57,15 +57,7 @@ class _QueueScreenState extends State<QueueScreen> {
           return Scaffold(
             backgroundColor: colorScheme.surface,
             appBar: AppBar(
-              title: Text(
-                'QUEUE ($queueLength SONG${queueLength != 1 ? 'S' : ''})',
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: 1.5,
-                  color: colorScheme.onSurface,
-                ),
-              ),
+              title: const Text('Up next'),
               centerTitle: true,
               backgroundColor: Colors.transparent,
               elevation: 0,
@@ -81,7 +73,7 @@ class _QueueScreenState extends State<QueueScreen> {
                     icon:
                         Icon(LucideIcons.trash2, color: colorScheme.onSurface),
                     onPressed: () => _showClearDialog(themedContext),
-                    tooltip: 'Clear queue',
+                    tooltip: 'Clear Up next',
                   ),
               ],
             ),
@@ -90,51 +82,17 @@ class _QueueScreenState extends State<QueueScreen> {
                 children: [
                   if (widget.queue.isNotEmpty)
                     Padding(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 16, vertical: 8),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 20, vertical: 16),
-                        decoration: BoxDecoration(
-                          color: colorScheme.surfaceContainerHighest,
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(
-                            color: colorScheme.outlineVariant,
-                            width: 1,
+                      padding: const EdgeInsets.fromLTRB(20, 4, 20, 8),
+                      child: Align(
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          '$queueLength song${queueLength != 1 ? 's' : ''}, '
+                          '${formatClockDuration(totalDuration)}',
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: colorScheme.onSurfaceVariant,
+                            fontFeatures: AppTheme.tabular,
                           ),
-                        ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text(
-                              'Total duration: ${formatClockDuration(totalDuration)}',
-                              style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600,
-                                color: colorScheme.onSurfaceVariant,
-                              ),
-                            ),
-                            if (widget.queue.currentSong != null)
-                              Row(
-                                children: [
-                                  Icon(
-                                    LucideIcons.playCircle,
-                                    size: 16,
-                                    color: colorScheme.onSurface,
-                                  ),
-                                  const SizedBox(width: 6),
-                                  Text(
-                                    'NOW PLAYING',
-                                    style: TextStyle(
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.w800,
-                                      color: colorScheme.onSurface,
-                                      letterSpacing: 0.5,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                          ],
                         ),
                       ),
                     ),
@@ -174,72 +132,24 @@ class _QueueScreenState extends State<QueueScreen> {
   }
 
   void _showClearDialog(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-
     showDialog(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        backgroundColor: colorScheme.surface,
-        surfaceTintColor: Colors.transparent,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(24),
-          side: BorderSide(color: colorScheme.outlineVariant, width: 1),
-        ),
-        title: Text(
-          'CLEAR QUEUE?',
-          style: TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.w800,
-            letterSpacing: 1.2,
-            color: colorScheme.onSurface,
-          ),
-        ),
-        content: Text(
+        title: const Text('Clear Up next?'),
+        content: const Text(
           'This will remove all upcoming songs. Your current song will keep playing.',
-          style: TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w500,
-            color: colorScheme.onSurfaceVariant,
-          ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(),
-            child: Text(
-              'CANCEL',
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w800,
-                color: colorScheme.onSurfaceVariant,
-                letterSpacing: 1.0,
-              ),
-            ),
+            child: const Text('Cancel'),
           ),
-          Padding(
-            padding: const EdgeInsets.only(left: 8.0),
-            child: ElevatedButton(
-              onPressed: () {
-                Navigator.of(dialogContext).pop();
-                unawaited(_handleClear());
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: colorScheme.onSurface,
-                foregroundColor: colorScheme.surface,
-                elevation: 0,
-                shape: const StadiumBorder(),
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-              ),
-              child: Text(
-                'CLEAR',
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: 1.0,
-                  color: colorScheme.surface,
-                ),
-              ),
-            ),
+          FilledButton(
+            onPressed: () {
+              Navigator.of(dialogContext).pop();
+              unawaited(_handleClear());
+            },
+            child: const Text('Clear'),
           ),
         ],
       ),

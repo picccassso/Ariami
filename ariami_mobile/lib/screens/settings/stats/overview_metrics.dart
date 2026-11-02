@@ -26,30 +26,30 @@ List<OverviewMetric> computeOverviewMetrics({
   if (!useAllTimeData) {
     final stats = periodStats;
     metric1Label = switch (tabIndex) {
-      1 => 'ARTISTS',
-      2 => 'ALBUMS',
-      _ => 'SONGS',
+      1 => 'Artists',
+      2 => 'Albums',
+      _ => 'Songs',
     };
     metric1Value = switch (tabIndex) {
       1 => '${stats?.artists.length ?? 0}',
       2 => '${stats?.albums.length ?? 0}',
       _ => '${stats?.songs.length ?? 0}',
     };
-    metric2Label = 'PLAYTIME';
+    metric2Label = 'Playtime';
     metric2Value = playtime
         .formatPlaytime(Duration(milliseconds: stats?.totalListenedMs ?? 0));
-    metric3Label = 'PLAYS';
+    metric3Label = 'Plays';
     metric3Value = '${stats?.totalPlays ?? 0}';
   } else {
     switch (tabIndex) {
       case 0: // Tracks
         final stats = statsService.getTotalStats();
         final avgData = statsService.getAverageDailyTime();
-        metric1Label = 'SONGS';
+        metric1Label = 'Songs';
         metric1Value = stats.totalSongsPlayed.toString();
-        metric2Label = 'PLAYTIME';
+        metric2Label = 'Playtime';
         metric2Value = playtime.formatPlaytime(stats.totalTimeStreamed);
-        metric3Label = 'AVG DAILY';
+        metric3Label = 'Avg daily';
         metric3Value = playtime.formatDurationShort(avgData.perActiveDay);
         break;
 
@@ -68,11 +68,11 @@ List<OverviewMetric> computeOverviewMetrics({
                   Duration.zero,
                   (sum, artist) => sum + artist.totalTime,
                 );
-        metric1Label = 'ARTISTS';
+        metric1Label = 'Artists';
         metric1Value = artistCount.toString();
-        metric2Label = 'PLAYTIME';
+        metric2Label = 'Playtime';
         metric2Value = playtime.formatPlaytime(totalTime);
-        metric3Label = 'AVG DAILY';
+        metric3Label = 'Avg daily';
         metric3Value = playtime.formatDurationShort(avgData.perActiveDay);
         break;
 
@@ -83,18 +83,18 @@ List<OverviewMetric> computeOverviewMetrics({
           Duration.zero,
           (sum, album) => sum + album.totalTime,
         );
-        metric1Label = 'ALBUMS';
+        metric1Label = 'Albums';
         metric1Value = albums.length.toString();
-        metric2Label = 'PLAYTIME';
+        metric2Label = 'Playtime';
         metric2Value = playtime.formatPlaytime(totalTime);
-        metric3Label = 'AVG DAILY';
+        metric3Label = 'Avg daily';
         metric3Value = playtime.formatDurationShort(avgData.perActiveDay);
         break;
 
       default:
-        metric1Label = 'SONGS';
+        metric1Label = 'Songs';
         metric1Value = '0';
-        metric2Label = 'PLAYTIME';
+        metric2Label = 'Playtime';
         playtime.lastTotalMs = 0;
         metric2Value = '0h';
         metric3Label = 'AVG';

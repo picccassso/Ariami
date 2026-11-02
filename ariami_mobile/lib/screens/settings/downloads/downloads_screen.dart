@@ -311,7 +311,7 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
                   ),
                   if (state.hasAnyInProgress)
                     SliverToBoxAdapter(
-                      child: SettingsHeader('IN PROGRESS', isDark: isDark),
+                      child: SettingsHeader('In progress'),
                     ),
                   if (state.hasAnyInProgress)
                     SliverList.builder(
@@ -337,13 +337,13 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
                     ),
                   if (state.completedTasks.isNotEmpty)
                     SliverToBoxAdapter(
-                      child: SettingsHeader('DOWNLOADED', isDark: isDark),
+                      child: SettingsHeader('Downloaded'),
                     ),
                   if (state.completedTasks.isNotEmpty)
                     ..._buildDownloadedSlivers(state, isDark),
                   if (state.hasAnyFailed)
                     SliverToBoxAdapter(
-                      child: SettingsHeader('FAILED', isDark: isDark),
+                      child: SettingsHeader('Failed'),
                     ),
                   if (state.hasAnyFailed)
                     SliverList.builder(

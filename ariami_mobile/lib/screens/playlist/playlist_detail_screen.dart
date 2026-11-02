@@ -68,12 +68,10 @@ class _PlaylistDetailScreenState extends _PlaylistDetailActionsState {
         SliverAppBar(
           expandedHeight: expandedArtHeight,
           pinned: true,
-          flexibleSpace: FlexibleSpaceBar(
-            background: PlaylistHeader(
-              playlist: _playlist,
-              songs: _songs,
-              baseUrl: baseUrl,
-            ),
+          flexibleSpace: PlaylistHeader(
+            playlist: _playlist,
+            songs: _songs,
+            baseUrl: baseUrl,
           ),
         ),
 

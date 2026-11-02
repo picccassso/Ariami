@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../../models/download_task.dart';
 import '../../../../widgets/common/cached_artwork.dart';
 import '../downloads_state.dart';
+import '../../../../utils/constants.dart';
 
 /// Collapsible album row for the Failed section. Header shows the failure
 /// count and a "Retry all" button; expanded body shows per-song error rows
@@ -113,7 +114,7 @@ class FailedAlbumCard extends StatelessWidget {
                       child: ElevatedButton.icon(
                         onPressed: onRetryAll,
                         icon: const Icon(Icons.refresh_rounded, size: 14),
-                        label: const Text('RETRY ALL'),
+                        label: const Text('Retry all'),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: isDark
                               ? const Color(0xFF1A1A1A)
@@ -124,11 +125,11 @@ class FailedAlbumCard extends StatelessWidget {
                           padding:
                               const EdgeInsets.symmetric(horizontal: 12),
                           minimumSize: const Size(0, 32),
-                          shape: const StadiumBorder(),
+                          shape: const RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(AppTheme.tileRadius))),
                           textStyle: const TextStyle(
                               fontSize: 10,
-                              fontWeight: FontWeight.w800,
-                              letterSpacing: 0.5),
+                              fontWeight: FontWeight.w600,
+),
                         ),
                       ),
                     ),

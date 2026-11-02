@@ -91,17 +91,17 @@ class _PlaylistCardState extends State<PlaylistCard> {
               children: [
                 Container(
                   decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(AppTheme.cardRadius),
+                    borderRadius: BorderRadius.circular(AppTheme.coverRadius),
                   ),
                   child: ClipRRect(
-                    borderRadius: BorderRadius.circular(AppTheme.cardRadius),
+                    borderRadius: BorderRadius.circular(AppTheme.coverRadius),
                     child: _buildPlaylistArt(),
                   ),
                 ),
                 if (widget.isSelected)
                   Positioned.fill(
                     child: ClipRRect(
-                      borderRadius: BorderRadius.circular(AppTheme.cardRadius),
+                      borderRadius: BorderRadius.circular(AppTheme.coverRadius),
                       child: Container(
                         color: Colors.black26,
                       ),
@@ -222,12 +222,8 @@ class _PlaylistCardState extends State<PlaylistCard> {
                           sourceId: _sourceId,
                           text: widget.playlist.name,
                           enabled: !widget.isSelectionMode,
-                          style:
-                              Theme.of(context).textTheme.titleMedium?.copyWith(
-                                    fontWeight: FontWeight.w600,
-                                    fontSize: 14,
-                                    letterSpacing: -0.2,
-                                  ),
+                          style: AppTheme.heading(15,
+                              color: context.colors.textPrimary),
                         ),
                       ),
                     ],
@@ -238,13 +234,8 @@ class _PlaylistCardState extends State<PlaylistCard> {
                         ? '${widget.playlist.songCount} songs · Offline copy'
                         : '${widget.playlist.songCount} songs',
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          fontSize: 12,
-                          color: widget.isOfflineCopy
-                              ? Theme.of(context).colorScheme.secondary
-                              : Theme.of(context)
-                                  .colorScheme
-                                  .onSurface
-                                  .withValues(alpha: 0.6),
+                          fontSize: 13,
+                          color: context.colors.textSecondary,
                         ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -274,54 +265,12 @@ class CreatePlaylistCard extends StatelessWidget {
   const CreatePlaylistCard({super.key, required this.onTap});
 
   @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          AspectRatio(
-            aspectRatio: 1.0,
-            child: Container(
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(0),
-                color: Theme.of(context)
-                    .colorScheme
-                    .surfaceContainerHighest
-                    .withValues(alpha: 0.5),
-              ),
-              child: Center(
-                child: Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: Theme.of(context).colorScheme.surface,
-                  ),
-                  child: Icon(
-                    Icons.add_rounded,
-                    size: 32,
-                    color: Theme.of(context).colorScheme.primary,
-                  ),
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(height: 12),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 4.0),
-            child: Text(
-              'Create Playlist',
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: Theme.of(context).colorScheme.onSurface,
-                  ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+  Widget build(BuildContext context) => _ActionTile(
+        onTap: onTap,
+        title: 'Create Playlist',
+        art: Icon(Icons.add_rounded,
+            size: 32, color: context.colors.textPrimary),
+      );
 }
 
 class ImportFromServerCard extends StatelessWidget {
@@ -335,7 +284,33 @@ class ImportFromServerCard extends StatelessWidget {
   });
 
   @override
+  Widget build(BuildContext context) => _ActionTile(
+        onTap: onTap,
+        title: 'Import from Server',
+        subtitle: '$serverPlaylistCount new available',
+        art: Icon(Icons.cloud_download_rounded,
+            size: 32, color: context.colors.textPrimary),
+      );
+}
+
+/// A tile that does something rather than opening a record: an empty,
+/// ruled sleeve with an icon, titled like the records beside it.
+class _ActionTile extends StatelessWidget {
+  const _ActionTile({
+    required this.onTap,
+    required this.title,
+    required this.art,
+    this.subtitle,
+  });
+
+  final VoidCallback onTap;
+  final String title;
+  final String? subtitle;
+  final Widget art;
+
+  @override
   Widget build(BuildContext context) {
+    final colors = context.colors;
     return GestureDetector(
       onTap: onTap,
       child: Column(
@@ -343,73 +318,35 @@ class ImportFromServerCard extends StatelessWidget {
         children: [
           AspectRatio(
             aspectRatio: 1.0,
-            child: Container(
+            child: DecoratedBox(
               decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(0),
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [
-                    Theme.of(context).colorScheme.secondary,
-                    Theme.of(context).colorScheme.primary,
-                  ],
-                ),
+                border: Border.all(color: colors.border),
+                borderRadius: BorderRadius.circular(AppTheme.coverRadius),
               ),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Icon(Icons.cloud_download_rounded,
-                      size: 40, color: Colors.white),
-                  const SizedBox(height: 8),
-                  Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.2),
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Text(
-                      '$serverPlaylistCount',
-                      style: const TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
+              child: Center(child: art),
             ),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 10),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 4.0),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Import from Server',
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: Theme.of(context).colorScheme.secondary,
-                      ),
+                  title,
+                  style: AppTheme.heading(15, color: colors.textPrimary),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  '$serverPlaylistCount new available',
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        fontSize: 12,
-                        color: Theme.of(context)
-                            .colorScheme
-                            .onSurface
-                            .withValues(alpha: 0.6),
-                      ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
+                if (subtitle != null) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle!,
+                    style: TextStyle(fontSize: 13, color: colors.textSecondary),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
               ],
             ),
           ),

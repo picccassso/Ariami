@@ -9,6 +9,7 @@ import '../../../widgets/common/song_overflow_menu.dart';
 import '../../../widgets/common/swipe_to_queue.dart';
 import 'album_art_with_badge.dart';
 import '../../../utils/song_from_model.dart';
+import '../../../widgets/player/progress_fill.dart';
 
 class SongListItem extends StatefulWidget {
   final SongModel song;
@@ -79,71 +80,74 @@ class _SongListItemState extends State<SongListItem> {
       builder: (context, constraints) {
         final itemWidth = constraints.maxWidth;
 
-        return Listener(
-          onPointerDown: (event) => _armDismissSwipe(event, itemWidth),
-          onPointerUp: (_) => _resetDismissSwipe(),
-          onPointerCancel: (_) => _resetDismissSwipe(),
-          child: SwipeToQueue(
-            itemKey:
-                ValueKey('playlist_queue_${widget.song.id}_${widget.index}'),
-            addToQueueEnabled: widget.isAvailable,
-            onAddToQueue: _addSongToQueue,
-            onRemove: _dismissSwipeArmed ? widget.onRemove : null,
-            child: Opacity(
-              opacity: opacity,
-              child: ListTile(
-                leading: AlbumArtWithBadge(
-                  song: widget.song,
-                  isDownloaded: widget.isDownloaded,
-                  connectionService: widget.connectionService,
-                ),
-                title: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Flexible(
-                      child: Text(
-                        widget.song.title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: widget.isAvailable ? null : Colors.grey,
+        return ProgressFillRow(
+          songId: widget.song.id,
+          child: Listener(
+            onPointerDown: (event) => _armDismissSwipe(event, itemWidth),
+            onPointerUp: (_) => _resetDismissSwipe(),
+            onPointerCancel: (_) => _resetDismissSwipe(),
+            child: SwipeToQueue(
+              itemKey:
+                  ValueKey('playlist_queue_${widget.song.id}_${widget.index}'),
+              addToQueueEnabled: widget.isAvailable,
+              onAddToQueue: _addSongToQueue,
+              onRemove: _dismissSwipeArmed ? widget.onRemove : null,
+              child: Opacity(
+                opacity: opacity,
+                child: ListTile(
+                  leading: AlbumArtWithBadge(
+                    song: widget.song,
+                    isDownloaded: widget.isDownloaded,
+                    connectionService: widget.connectionService,
+                  ),
+                  title: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Flexible(
+                        child: Text(
+                          widget.song.title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: widget.isAvailable ? null : Colors.grey,
+                          ),
                         ),
                       ),
-                    ),
-                    TrackBadge(
-                      hasLyrics: widget.song.hasLyrics,
-                      isInstrumental: widget.song.isInstrumental,
-                    ),
-                  ],
-                ),
-                subtitle: Text(
-                  widget.song.artist,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(color: Colors.grey[600]),
-                ),
-                trailing: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      formatMinSec(widget.song.duration),
-                      style: TextStyle(color: Colors.grey[600]),
-                    ),
-                    if (widget.isAvailable) ...[
-                      const SizedBox(width: 8),
-                      SongOverflowMenu(
-                        song: widget.song,
-                        onPlay: widget.onTap,
-                        isDownloaded: widget.isDownloaded,
-                        albumName: widget.albumName,
-                        albumArtist: widget.albumArtist,
-                        onRemoveFromPlaylist: widget.onRemove,
+                      TrackBadge(
+                        hasLyrics: widget.song.hasLyrics,
+                        isInstrumental: widget.song.isInstrumental,
                       ),
-                    ] else
-                      const SizedBox(width: 48),
-                  ],
+                    ],
+                  ),
+                  subtitle: Text(
+                    widget.song.artist,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(color: Colors.grey[600]),
+                  ),
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        formatMinSec(widget.song.duration),
+                        style: TextStyle(color: Colors.grey[600]),
+                      ),
+                      if (widget.isAvailable) ...[
+                        const SizedBox(width: 8),
+                        SongOverflowMenu(
+                          song: widget.song,
+                          onPlay: widget.onTap,
+                          isDownloaded: widget.isDownloaded,
+                          albumName: widget.albumName,
+                          albumArtist: widget.albumArtist,
+                          onRemoveFromPlaylist: widget.onRemove,
+                        ),
+                      ] else
+                        const SizedBox(width: 48),
+                    ],
+                  ),
+                  onTap: widget.isAvailable ? widget.onTap : null,
                 ),
-                onTap: widget.isAvailable ? widget.onTap : null,
               ),
             ),
           ),

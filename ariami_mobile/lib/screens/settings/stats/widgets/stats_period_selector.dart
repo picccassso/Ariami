@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../services/stats/period_stats_loader.dart';
+import '../../../../utils/constants.dart';
 
 /// stats.fm-style period selector: a ‹ label › stepper over a
 /// Day / Week / Month / Year / All granularity row. Paging is blocked
@@ -27,13 +28,12 @@ class StatsPeriodSelector extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
-    final isDark = theme.brightness == Brightness.dark;
     final granularities = <(StatsRangeKind, String)>[
-      (StatsRangeKind.day, 'DAY'),
-      (StatsRangeKind.week, 'WEEK'),
-      (StatsRangeKind.month, 'MONTH'),
-      (StatsRangeKind.year, 'YEAR'),
-      (StatsRangeKind.all, 'ALL'),
+      (StatsRangeKind.day, 'Day'),
+      (StatsRangeKind.week, 'Week'),
+      (StatsRangeKind.month, 'Month'),
+      (StatsRangeKind.year, 'Year'),
+      (StatsRangeKind.all, 'All'),
     ];
     bool isSelected(StatsRangeKind kind) => switch (kind) {
           StatsRangeKind.day => range.isSingleDay,
@@ -43,116 +43,76 @@ class StatsPeriodSelector extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16),
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(
-          color: isDark
-              ? Colors.white.withValues(alpha: 0.15)
-              : theme.dividerColor,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: isDark ? 0.5 : 0.12),
-            blurRadius: 18,
-            offset: const Offset(0, 6),
-          ),
-        ],
+        borderRadius: BorderRadius.circular(AppTheme.tileRadius),
+        border: Border.all(color: context.colors.border),
       ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(22),
-        child: Stack(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(6, 2, 6, 8),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            if (isDark)
-              Positioned(
-                top: 0,
-                left: 0,
-                right: 0,
-                height: 1,
-                child: Container(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [
-                        Colors.white.withValues(alpha: 0.25),
-                        Colors.white.withValues(alpha: 0.05),
-                      ],
+            Row(
+              children: [
+                _StepChevron(
+                  icon: Icons.chevron_left_rounded,
+                  enabled: canStepBack,
+                  colorScheme: colorScheme,
+                  onTap: () => onStep(-1),
+                ),
+                Expanded(
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    // Tapping the label jumps straight to the date picker in
+                    // day mode.
+                    onTap: range.isSingleDay ? onPickDay : null,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 10),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            range.title(),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: AppTheme.heading(16,
+                                color: colorScheme.onSurface),
+                          ),
+                          if (range.isSingleDay) ...[
+                            const SizedBox(width: 6),
+                            Icon(
+                              Icons.calendar_today_rounded,
+                              size: 13,
+                              color: colorScheme.onSurfaceVariant,
+                            ),
+                          ],
+                        ],
+                      ),
                     ),
                   ),
                 ),
-              ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(6, 2, 6, 8),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Row(
-                    children: [
-                      _StepChevron(
-                        icon: Icons.chevron_left_rounded,
-                        enabled: canStepBack,
-                        colorScheme: colorScheme,
-                        onTap: () => onStep(-1),
+                _StepChevron(
+                  icon: Icons.chevron_right_rounded,
+                  enabled: canStepForward,
+                  colorScheme: colorScheme,
+                  onTap: () => onStep(1),
+                ),
+              ],
+            ),
+            Row(
+              children: [
+                for (final entry in granularities)
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 2),
+                      child: _RangeChip(
+                        label: entry.$2,
+                        selected: isSelected(entry.$1),
+                        onTap: () => onSelectGranularity(entry.$1),
                       ),
-                      Expanded(
-                        child: GestureDetector(
-                          behavior: HitTestBehavior.opaque,
-                          // Tapping the label jumps straight to the date picker in
-                          // day mode.
-                          onTap: range.isSingleDay ? onPickDay : null,
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 10),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Text(
-                                  range.title(),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w800,
-                                    letterSpacing: 0.3,
-                                    color: colorScheme.onSurface,
-                                  ),
-                                ),
-                                if (range.isSingleDay) ...[
-                                  const SizedBox(width: 6),
-                                  Icon(
-                                    Icons.calendar_today_rounded,
-                                    size: 13,
-                                    color: colorScheme.onSurfaceVariant,
-                                  ),
-                                ],
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                      _StepChevron(
-                        icon: Icons.chevron_right_rounded,
-                        enabled: canStepForward,
-                        colorScheme: colorScheme,
-                        onTap: () => onStep(1),
-                      ),
-                    ],
+                    ),
                   ),
-                  Row(
-                    children: [
-                      for (final entry in granularities)
-                        Expanded(
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 2),
-                            child: _RangeChip(
-                              label: entry.$2,
-                              selected: isSelected(entry.$1),
-                              onTap: () => onSelectGranularity(entry.$1),
-                            ),
-                          ),
-                        ),
-                    ],
-                  ),
-                ],
-              ),
+              ],
             ),
           ],
         ),
@@ -187,16 +147,15 @@ class _RangeChip extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
         decoration: BoxDecoration(
           color: background,
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(AppTheme.tileRadius),
         ),
         child: Text(
           label,
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
           style: TextStyle(
-            fontSize: 11,
-            fontWeight: FontWeight.w800,
-            letterSpacing: 0.8,
+            fontSize: 12.5,
+            fontWeight: FontWeight.w500,
             color: foreground,
           ),
         ),

@@ -17,6 +17,7 @@ import '../../services/playlist_service.dart';
 import '../../services/profile_image_service.dart';
 import '../../widgets/settings/settings_section.dart';
 import '../../widgets/settings/settings_tile.dart';
+import '../../utils/constants.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -294,19 +295,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   children: [
                     Text(
                       username,
-                      style: TextStyle(
-                        fontSize: 24,
-                        fontWeight: FontWeight.bold,
-                        color: colorScheme.onSurface,
-                      ),
+                      style: AppTheme.heading(24,
+                          color: context.colors.textPrimary),
                     ),
-                    const SizedBox(height: 4),
+                    const SizedBox(height: 2),
                     Text(
-                      'View Profile',
+                      'View profile',
                       style: TextStyle(
                         fontSize: 14,
-                        fontWeight: FontWeight.w500,
-                        color: colorScheme.onSurface.withValues(alpha: 0.7),
+                        color: context.colors.textSecondary,
                       ),
                     ),
                   ],
@@ -314,8 +311,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
               Icon(
                 Icons.chevron_right_rounded,
-                color: colorScheme.onSurface.withValues(alpha: 0.5),
-                size: 28,
+                color: context.colors.textSecondary,
+                size: 22,
               ),
             ],
           ),
@@ -332,11 +329,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
       backgroundColor: Colors.transparent,
       appBar: AppBar(
         title: const Text('Settings'),
-        titleTextStyle: TextStyle(
-          fontSize: 20,
-          fontWeight: FontWeight.bold,
-          color: colorScheme.onSurface,
-        ),
+        titleTextStyle: AppTheme.display(36, color: context.colors.textPrimary),
+        toolbarHeight: 68,
         centerTitle: false,
         backgroundColor: Colors.transparent,
         elevation: 0,
@@ -357,7 +351,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               // General section — search settings live on their own screen
               // so this list stays scannable.
               SettingsSection(
-                title: 'GENERAL',
+                title: 'General',
                 tiles: [
                   SettingsTile(
                     icon: Icons.manage_search_rounded,
@@ -371,7 +365,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
 
               SettingsSection(
-                title: 'CONNECTION',
+                title: 'Connection',
                 tiles: [
                   SettingsTile(
                     icon: Icons.cloud_done_rounded,
@@ -420,7 +414,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               // Audio section — the individual playback controls live on
               // their own screen so this list stays scannable.
               SettingsSection(
-                title: 'AUDIO',
+                title: 'Audio',
                 tiles: [
                   SettingsTile(
                     icon: Icons.play_circle_outline_rounded,
@@ -442,7 +436,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
 
               SettingsSection(
-                title: 'DOWNLOADS',
+                title: 'Downloads',
                 tiles: [
                   SettingsTile(
                     icon: Icons.download_rounded,
@@ -470,7 +464,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
 
               SettingsSection(
-                title: 'STREAMING STATS',
+                title: 'Streaming stats',
                 tiles: [
                   SettingsTile(
                     icon: Icons.bar_chart_rounded,
@@ -503,7 +497,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               // here would be an out-of-app purchase Apple does not allow.
               if (!Platform.isIOS)
                 SettingsSection(
-                  title: 'ARIAMI TV',
+                  title: 'Ariami TV',
                   tiles: [
                     SettingsTile(
                       icon: Icons.tv_rounded,
@@ -518,7 +512,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
 
               SettingsSection(
-                title: 'ABOUT',
+                title: 'About',
                 tiles: [
                   SettingsTile(
                     icon: Icons.info_outline_rounded,
@@ -548,66 +542,28 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   void _showAboutDialog() {
-    final colorScheme = Theme.of(context).colorScheme;
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: colorScheme.surface,
-        title: Text(
-          'ABOUT ARIAMI',
-          style: TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w900,
-            letterSpacing: 1.5,
-            color: colorScheme.onSurface,
-          ),
-        ),
+        title: const Text('About Ariami'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            const Text('Ariami music streaming'),
+            const SizedBox(height: 4),
             Text(
-              'ARIAMI MUSIC STREAMING',
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w800,
-                color: colorScheme.onSurface,
-                letterSpacing: 0.5,
-              ),
+              'Version $_version',
+              style: const TextStyle(fontFeatures: AppTheme.tabular),
             ),
             const SizedBox(height: 12),
-            Text(
-              'VERSION: $_version',
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w700,
-                color: colorScheme.onSurface.withValues(alpha: 0.7),
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'A music streaming application with offline support.',
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w500,
-                color: colorScheme.onSurface.withValues(alpha: 0.5),
-              ),
-            ),
+            const Text('A music streaming application with offline support.'),
           ],
         ),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         actions: [
           TextButton(
             onPressed: Navigator.of(context).pop,
-            child: Text(
-              'CLOSE',
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w900,
-                letterSpacing: 1.0,
-                color: colorScheme.onSurface,
-              ),
-            ),
+            child: const Text('Close'),
           ),
         ],
       ),

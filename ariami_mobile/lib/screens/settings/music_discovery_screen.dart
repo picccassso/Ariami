@@ -795,19 +795,19 @@ class _MusicDiscoveryScreenState extends State<MusicDiscoveryScreen> {
           else ...[
             if (snapshot.tracks.isNotEmpty)
               _RecommendationGroup(
-                title: 'TRACKS TO FIND',
+                title: 'Tracks to find',
                 items: snapshot.tracks,
                 onFind: _showFindLinks,
               ),
             if (snapshot.artists.isNotEmpty)
               _RecommendationGroup(
-                title: 'ARTISTS TO EXPLORE',
+                title: 'Artists to explore',
                 items: snapshot.artists,
                 onFind: _showFindLinks,
               ),
             if (snapshot.albums.isNotEmpty)
               _RecommendationGroup(
-                title: 'ALBUMS TO TRY',
+                title: 'Albums to try',
                 items: snapshot.albums,
                 onFind: _showFindLinks,
               ),
@@ -961,7 +961,6 @@ class _RecommendationGroup extends StatelessWidget {
                 style: const TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.w700,
-                  letterSpacing: 0.8,
                 ),
               ),
             ),

@@ -65,11 +65,11 @@ void main() {
       expect(icon.color, equals(Colors.white));
 
       final title = tester.widget<Text>(find.text('Connect manually'));
-      expect(title.style?.color, equals(Colors.white));
+      expect(title.style?.color, equals(AppTheme.setup().colorScheme.onSurface));
 
       // Description should be white with alpha
       final desc = tester.widget<Text>(find.textContaining('Enter your server address'));
-      expect(desc.style?.color, equals(Colors.white.withValues(alpha: 0.7)));
+      expect(desc.style?.color, equals(AppTheme.setup().colorScheme.onSurface.withValues(alpha: 0.7)));
 
       final textFields = tester.widgetList<TextField>(find.byType(TextField));
       expect(textFields.isNotEmpty, isTrue);
@@ -106,7 +106,7 @@ void main() {
       await tester.pumpAndSettle();
 
       final title = tester.widget<Text>(find.text('Welcome Back'));
-      expect(title.style?.color, equals(Colors.white));
+      expect(title.style?.color, equals(AppTheme.setup().colorScheme.onSurface));
 
       final textFields = tester.widgetList<TextField>(find.byType(TextField));
       expect(textFields.length, equals(2));
@@ -143,7 +143,7 @@ void main() {
       await tester.pumpAndSettle();
 
       final title = tester.widget<Text>(find.text('Create Account').first);
-      expect(title.style?.color, equals(Colors.white));
+      expect(title.style?.color, equals(AppTheme.setup().colorScheme.onSurface));
 
       final textFields = tester.widgetList<TextField>(find.byType(TextField));
       expect(textFields.length, equals(3));
@@ -195,7 +195,7 @@ void main() {
       await tester.pumpAndSettle();
 
       final lightText = tester.widget<Text>(find.text('OFFLINE'));
-      expect(lightText.style?.color, equals(Colors.black));
+      expect(lightText.style?.color, equals(PlayerColors.light.textPrimary));
 
       await tester.pumpWidget(
         MaterialApp(
@@ -206,7 +206,7 @@ void main() {
       await tester.pumpAndSettle();
 
       final darkText = tester.widget<Text>(find.text('OFFLINE'));
-      expect(darkText.style?.color, equals(Colors.white));
+      expect(darkText.style?.color, equals(PlayerColors.dark.textPrimary));
     });
   });
 }

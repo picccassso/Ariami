@@ -7,6 +7,7 @@ import '../../services/playback_manager.dart';
 import '../common/adaptive_marquee_text.dart';
 import '../common/cached_artwork.dart';
 import 'player_output_button.dart';
+import 'progress_fill.dart';
 
 class MiniPlayer extends StatefulWidget {
   final Song? currentSong;
@@ -18,8 +19,6 @@ class MiniPlayer extends StatefulWidget {
   final VoidCallback onSkipPrevious;
   final bool hasNext;
   final bool hasPrevious;
-  final Duration position;
-  final Duration duration;
   final PlaybackManager playbackManager;
 
   const MiniPlayer({
@@ -33,8 +32,6 @@ class MiniPlayer extends StatefulWidget {
     required this.onSkipPrevious,
     required this.hasNext,
     required this.hasPrevious,
-    required this.position,
-    required this.duration,
     required this.playbackManager,
   });
 
@@ -45,27 +42,10 @@ class MiniPlayer extends StatefulWidget {
 class _MiniPlayerState extends State<MiniPlayer> {
   static const double _kHorizontalSwipeEdgeGuard = 24.0;
   static const double _kSkipSwipeMinDistance = 60.0;
-  final ColorExtractionService _colorService = ColorExtractionService();
   bool _isSkipTransitioning = false;
   double _skipOffsetX = 0.0;
   bool _horizontalSwipeArmed = false;
   double _horizontalSwipeDelta = 0.0;
-
-  @override
-  void initState() {
-    super.initState();
-    _colorService.addListener(_onColorsChanged);
-  }
-
-  @override
-  void dispose() {
-    _colorService.removeListener(_onColorsChanged);
-    super.dispose();
-  }
-
-  void _onColorsChanged() {
-    setState(() {});
-  }
 
   void _onHorizontalSwipeStart(DragStartDetails details) {
     final screenWidth = MediaQuery.sizeOf(context).width;
@@ -159,213 +139,122 @@ class _MiniPlayerState extends State<MiniPlayer> {
       return const SizedBox.shrink();
     }
 
-    final colors = _colorService.currentColors;
+    // The bar wears the playing cover's colours whatever the app theme, so
+    // it changes with every track.
+    final coverColors = ColorExtractionService();
+    final song = widget.currentSong!;
 
-    return Theme(
-      data: AppTheme.buildColorSourceTheme(
-        seedColor: colors.primary,
-        ambient: colors.ambientColors,
-      ),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 500),
-        curve: Curves.easeInOut,
-        height: 64, // Keep exact height for layout & scroll padding tests
-        decoration: BoxDecoration(
-          borderRadius: const BorderRadius.only(
-            topLeft: Radius.circular(12),
-            topRight: Radius.circular(12),
-          ),
-          color: Theme.of(context).colorScheme.surfaceContainerHighest,
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              colors.primary.withValues(alpha: 0.92),
-              colors.secondary.withValues(alpha: 0.95),
-            ],
-          ),
-          border: Border(
-            top: BorderSide(
-              color: Colors.white.withValues(alpha: 0.18),
-              width: 0.5,
-            ),
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.35),
-              blurRadius: 16,
-              offset: const Offset(0, -4),
-            ),
-          ],
-        ),
-        child: ClipRRect(
-          borderRadius: const BorderRadius.only(
-            topLeft: Radius.circular(12),
-            topRight: Radius.circular(12),
+    // The bar is the progress bar, as on Premium Desktop: a flat band whose
+    // sleeve-tone fill sweeps across it as the song plays. Seeking stays in
+    // the full player; horizontal swipes here skip.
+    return ListenableBuilder(
+      listenable: coverColors,
+      builder: (context, _) {
+        final cover = coverColors.currentColors;
+        final colors =
+            PlayerColors.fromSeed(cover.primary, ambient: cover.ambientColors);
+        return Container(
+          height: 64, // Keep exact height for layout & scroll padding tests
+          decoration: BoxDecoration(
+            color: colors.band,
+            border: Border(top: BorderSide(color: colors.border)),
           ),
           child: Stack(
             children: [
-              Positioned(
-                top: 0,
-                left: 0,
-                right: 0,
-                height: 1,
-                child: Container(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [
-                        Colors.white.withValues(alpha: 0.25),
-                        Colors.white.withValues(alpha: 0.05),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
+              Positioned.fill(child: ProgressFill(fill: colors.fill)),
               Material(
                 color: Colors.transparent,
                 child: InkWell(
                   onTap: widget.onTap,
-                  child: Column(
-                children: [
-                  Expanded(
-                    child: AnimatedSlide(
-                      offset: Offset(_skipOffsetX, 0),
-                      duration: const Duration(milliseconds: 220),
-                      curve: Curves.easeInOut,
-                      child: AnimatedOpacity(
-                        opacity: _isSkipTransitioning ? 0.94 : 1.0,
-                        duration: const Duration(milliseconds: 180),
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 12.0),
-                          child: Row(
-                            children: [
-                              Expanded(
-                                child: GestureDetector(
-                                  behavior: HitTestBehavior.opaque,
-                                  onHorizontalDragStart:
-                                      _onHorizontalSwipeStart,
-                                  onHorizontalDragUpdate:
-                                      _onHorizontalSwipeUpdate,
-                                  onHorizontalDragEnd: _onHorizontalSwipeEnd,
-                                  onHorizontalDragCancel:
-                                      _onHorizontalSwipeCancel,
-                                  child: Row(
-                                    children: [
-                                      _buildAlbumArt(context),
-
-                                      const SizedBox(width: 12),
-
-                                      Expanded(
-                                        child: Column(
-                                          mainAxisAlignment:
-                                              MainAxisAlignment.center,
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
-                                          children: [
-                                            AdaptiveMarqueeText(
-                                              key: ValueKey(
-                                                'title-${widget.currentSong!.id}-${widget.currentSong!.title}',
-                                              ),
-                                              text: widget.currentSong!.title,
-                                              style: Theme.of(context)
-                                                  .textTheme
-                                                  .titleSmall
-                                                  ?.copyWith(
-                                                    fontWeight: FontWeight.bold,
-                                                    color: Colors.white,
-                                                  ),
-                                              height: 20,
-                                              velocity: 20,
+                  child: AnimatedSlide(
+                    offset: Offset(_skipOffsetX, 0),
+                    duration: const Duration(milliseconds: 220),
+                    curve: Curves.easeInOut,
+                    child: AnimatedOpacity(
+                      opacity: _isSkipTransitioning ? 0.94 : 1.0,
+                      duration: const Duration(milliseconds: 180),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 12.0),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: GestureDetector(
+                                behavior: HitTestBehavior.opaque,
+                                onHorizontalDragStart: _onHorizontalSwipeStart,
+                                onHorizontalDragUpdate:
+                                    _onHorizontalSwipeUpdate,
+                                onHorizontalDragEnd: _onHorizontalSwipeEnd,
+                                onHorizontalDragCancel:
+                                    _onHorizontalSwipeCancel,
+                                child: Row(
+                                  children: [
+                                    _buildAlbumArt(context),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: Column(
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.center,
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          AdaptiveMarqueeText(
+                                            key: ValueKey(
+                                              'title-${song.id}-${song.title}',
                                             ),
-                                            AdaptiveMarqueeText(
-                                              key: ValueKey(
-                                                'artist-${widget.currentSong!.id}-${widget.currentSong!.artist}',
-                                              ),
-                                              text: widget.currentSong!.artist,
-                                              style: Theme.of(context)
-                                                  .textTheme
-                                                  .bodySmall
-                                                  ?.copyWith(
-                                                    color: Colors.white
-                                                        .withValues(alpha: 0.8),
-                                                  ),
-                                              height: 16,
-                                              velocity: 20,
+                                            text: song.title,
+                                            style: AppTheme.heading(16,
+                                                color: colors.textPrimary),
+                                            height: 20,
+                                            velocity: 20,
+                                          ),
+                                          AdaptiveMarqueeText(
+                                            key: ValueKey(
+                                              'artist-${song.id}-${song.artist}',
                                             ),
-                                          ],
-                                        ),
+                                            text: song.artist,
+                                            style: Theme.of(context)
+                                                .textTheme
+                                                .bodySmall
+                                                ?.copyWith(
+                                                    color:
+                                                        colors.textSecondary),
+                                            height: 16,
+                                            velocity: 20,
+                                          ),
+                                        ],
                                       ),
-                                    ],
-                                  ),
+                                    ),
+                                  ],
                                 ),
                               ),
-
-                              Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  PlayerOutputButton(
-                                    playbackManager: widget.playbackManager,
-                                    showDeviceName: false,
-                                    connectedColor: Colors.white,
-                                    disconnectedColor:
-                                        Colors.white.withValues(alpha: 0.54),
-                                    iconSize: 22,
-                                  ),
-                                  Container(
-                                    decoration: BoxDecoration(
-                                      shape: BoxShape.circle,
-                                      boxShadow: [
-                                        BoxShadow(
-                                          color: colors.primary.withValues(
-                                            alpha: widget.isPlaying
-                                                ? 0.55
-                                                : 0.18,
-                                          ),
-                                          blurRadius:
-                                              widget.isPlaying ? 18 : 8,
-                                          spreadRadius:
-                                              widget.isPlaying ? 1 : 0,
-                                        ),
-                                      ],
-                                    ),
-                                    child: IconButton(
-                                      icon: Icon(widget.isPlaying
-                                          ? Icons.pause_rounded
-                                          : Icons.play_arrow_rounded),
-                                      color: Colors.white,
-                                      onPressed: widget.onPlayPause,
-                                      iconSize: 28,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ),
+                            ),
+                            PlayerOutputButton(
+                              playbackManager: widget.playbackManager,
+                              showDeviceName: false,
+                              connectedColor: colors.textPrimary,
+                              disconnectedColor: colors.textSecondary,
+                              iconSize: 22,
+                            ),
+                            IconButton(
+                              icon: Icon(widget.isPlaying
+                                  ? Icons.pause_rounded
+                                  : Icons.play_arrow_rounded),
+                              color: colors.textPrimary,
+                              onPressed: widget.onPlayPause,
+                              iconSize: 28,
+                            ),
+                          ],
                         ),
                       ),
                     ),
                   ),
-
-                  LinearProgressIndicator(
-                    value: widget.duration.inMilliseconds > 0
-                        ? widget.position.inMilliseconds /
-                            widget.duration.inMilliseconds
-                        : 0.0,
-                    minHeight: 2.5,
-                    backgroundColor: Colors.white.withValues(alpha: 0.25),
-                    valueColor: const AlwaysStoppedAnimation<Color>(
-                      Colors.white, // Clean white progress
-                    ),
-                  ),
-                ],
+                ),
               ),
-            ),
+            ],
           ),
-        ],
-      ),
-    ),
-  ),
-);
+        );
+      },
+    );
   }
 
   Widget _buildAlbumArt(BuildContext context) {
@@ -379,9 +268,9 @@ class _MiniPlayerState extends State<MiniPlayer> {
     return CachedArtwork(
       albumId: artwork.cacheId,
       artworkUrl: artwork.url,
-      width: 45,
-      height: 45,
-      borderRadius: BorderRadius.circular(8),
+      width: 44,
+      height: 44,
+      borderRadius: BorderRadius.circular(AppTheme.coverRadius),
       fallback: _buildPlaceholder(context),
       fallbackIcon: Icons.music_note,
       fallbackIconSize: 24,
@@ -391,15 +280,15 @@ class _MiniPlayerState extends State<MiniPlayer> {
 
   Widget _buildPlaceholder(BuildContext context) {
     return Container(
-      width: 45,
-      height: 45,
+      width: 44,
+      height: 44,
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.2),
-        borderRadius: BorderRadius.circular(4),
+        color: context.colors.surfaceHigh,
+        borderRadius: BorderRadius.circular(AppTheme.coverRadius),
       ),
       child: Icon(
         Icons.music_note,
-        color: Theme.of(context).colorScheme.primary,
+        color: context.colors.textSecondary,
         size: 24,
       ),
     );

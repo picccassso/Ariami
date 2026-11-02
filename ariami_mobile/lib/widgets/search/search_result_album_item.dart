@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../models/api_models.dart';
 import '../common/cached_artwork.dart';
+import '../../utils/constants.dart';
 
 class SearchResultAlbumItem extends StatelessWidget {
   final AlbumModel album;
@@ -32,7 +33,7 @@ class SearchResultAlbumItem extends StatelessWidget {
                   artworkUrl: album.coverArt,
                   width: 60,
                   height: 60,
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(AppTheme.coverRadius),
                   fallbackIconSize: 32,
                   sizeHint: ArtworkSizeHint.thumbnail,
                 ),

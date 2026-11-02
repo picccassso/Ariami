@@ -278,11 +278,10 @@ class AriamiSheetSectionTitle extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.fromLTRB(24, 4, 24, 16),
       child: Text(
-        title.toUpperCase(),
+        title,
         style: TextStyle(
           fontSize: 12,
-          fontWeight: FontWeight.w800,
-          letterSpacing: 1.5,
+          fontWeight: FontWeight.w600,
           color: Theme.of(context).colorScheme.onSurface,
         ),
       ),

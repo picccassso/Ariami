@@ -34,7 +34,7 @@ void main() {
     await tester.tap(find.text('Download Quality'));
     await tester.pumpAndSettle();
 
-    expect(find.text('DOWNLOAD QUALITY'), findsOneWidget);
+    expect(find.text('Download quality'), findsOneWidget);
     expect(find.widgetWithText(ListTile, 'Original'), findsOneWidget);
     expect(find.widgetWithText(ListTile, 'High (192 kbps)'), findsOneWidget);
     expect(find.widgetWithText(ListTile, 'Medium (128 kbps)'), findsOneWidget);

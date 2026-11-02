@@ -88,7 +88,7 @@ class _PlaybackSettingsScreenState extends State<PlaybackSettingsScreen> {
             ),
             children: [
               SettingsSection(
-                title: 'PLAYBACK',
+                title: 'Playback',
                 tiles: [
                   SettingsTile(
                     icon: Icons.playlist_play_rounded,

@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../downloads_state.dart';
+import '../../../../utils/constants.dart';
 
 /// Top-of-screen card showing aggregate progress across the active batch.
 /// Subscribes to the controller's [OverallProgressSummary] notifier so byte
@@ -29,7 +30,7 @@ class DownloadsSummaryCard extends StatelessWidget {
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
             color: isDark ? const Color(0xFF141414) : Colors.white,
-            borderRadius: BorderRadius.circular(20),
+            borderRadius: BorderRadius.circular(AppTheme.tileRadius),
             border: Border.all(
               color: isDark ? const Color(0xFF222222) : const Color(0xFFEEEEEE),
               width: 1,
@@ -47,7 +48,7 @@ class DownloadsSummaryCard extends StatelessWidget {
                       color: isDark
                           ? const Color(0xFF1A1A1A)
                           : const Color(0xFFF5F5F5),
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(AppTheme.tileRadius),
                     ),
                     child: const Center(
                       child: SizedBox(

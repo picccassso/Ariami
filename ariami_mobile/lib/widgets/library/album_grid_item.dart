@@ -54,26 +54,23 @@ class AlbumGridItem extends StatelessWidget {
                 children: [
                   Container(
                     decoration: BoxDecoration(
-                      borderRadius:
-                          BorderRadius.circular(AppTheme.cardRadius),
+                      borderRadius: BorderRadius.circular(AppTheme.coverRadius),
                     ),
                     child: ClipRRect(
-                      borderRadius: BorderRadius.circular(AppTheme.cardRadius),
+                      borderRadius: BorderRadius.circular(AppTheme.coverRadius),
                       child: _buildAlbumArt(context),
                     ),
                   ),
-
                   if (isSelected)
                     Positioned.fill(
                       child: ClipRRect(
                         borderRadius:
-                            BorderRadius.circular(AppTheme.cardRadius),
+                            BorderRadius.circular(AppTheme.coverRadius),
                         child: Container(
                           color: Colors.black26,
                         ),
                       ),
                     ),
-
                   Positioned(
                     left: 8,
                     bottom: 8,
@@ -84,7 +81,6 @@ class AlbumGridItem extends StatelessWidget {
                       artworkBadge: true,
                     ),
                   ),
-
                   if (hasDownloadedSongs && !isSelectionMode)
                     Positioned(
                       top: 8,
@@ -168,9 +164,7 @@ class AlbumGridItem extends StatelessWidget {
                 ],
               ),
             ),
-
-            const SizedBox(height: 12), // More breathing room
-
+            const SizedBox(height: 10),
             Padding(
               padding: const EdgeInsets.symmetric(
                   horizontal: 4.0), // Slight alignment correction
@@ -181,32 +175,21 @@ class AlbumGridItem extends StatelessWidget {
                     sourceId: PlaybackManager.albumSource(album.id),
                     text: album.title,
                     enabled: isAvailable && !isSelectionMode,
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w600,
-                          fontSize: 14,
-                          letterSpacing:
-                              -0.2, // Tighter tracking for modern look
-                        ),
+                    style:
+                        AppTheme.heading(15, color: context.colors.textPrimary),
                   ),
-                  const SizedBox(height: 4),
+                  const SizedBox(height: 2),
                   Row(
                     children: [
                       Flexible(
                         child: ArtistLink(
                           name: album.artist,
                           enabled: artistLinkEnabled && !isSelectionMode,
-                          style: Theme.of(context)
-                              .textTheme
-                              .bodyMedium
-                              ?.copyWith(
-                                color: isOfflineCopy
-                                    ? Theme.of(context).colorScheme.secondary
-                                    : Theme.of(context)
-                                        .colorScheme
-                                        .onSurface
-                                        .withValues(alpha: 0.6),
-                                fontSize: 12,
-                              ),
+                          style:
+                              Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                    color: context.colors.textSecondary,
+                                    fontSize: 13,
+                                  ),
                         ),
                       ),
                       if (genre != null)
@@ -237,10 +220,8 @@ class AlbumGridItem extends StatelessWidget {
   /// Shared style for the artist/genre/offline-copy subtitle suffixes.
   TextStyle? _subtitleStyle(BuildContext context) {
     return Theme.of(context).textTheme.bodyMedium?.copyWith(
-          color: isOfflineCopy
-              ? Theme.of(context).colorScheme.secondary
-              : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
-          fontSize: 12,
+          color: context.colors.textSecondary,
+          fontSize: 13,
         );
   }
 

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../models/api_models.dart';
 import '../../screens/playlist/widgets/playlist_cover_art.dart';
+import '../../utils/constants.dart';
 
 class SearchResultPlaylistItem extends StatelessWidget {
   final PlaylistModel playlist;
@@ -25,7 +26,7 @@ class SearchResultPlaylistItem extends StatelessWidget {
               PlaylistCoverArt(
                 playlist: playlist,
                 size: 60,
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(AppTheme.coverRadius),
               ),
               const SizedBox(width: 16),
               Expanded(

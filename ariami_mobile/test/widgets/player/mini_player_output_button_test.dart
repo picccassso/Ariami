@@ -37,8 +37,6 @@ void main() {
               onSkipPrevious: () {},
               hasNext: false,
               hasPrevious: false,
-              position: const Duration(seconds: 10),
-              duration: song.duration,
               playbackManager: PlaybackManager(),
             ),
           ),

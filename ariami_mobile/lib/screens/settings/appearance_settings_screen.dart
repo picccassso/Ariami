@@ -10,6 +10,7 @@ import '../../../widgets/common/cached_artwork.dart';
 import '../../../widgets/settings/settings_section.dart';
 import '../../../widgets/settings/settings_tile.dart';
 import 'song_selection_screen.dart';
+import '../../utils/constants.dart';
 
 class AppearanceSettingsScreen extends StatefulWidget {
   const AppearanceSettingsScreen({super.key});
@@ -184,7 +185,7 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
               ),
               children: [
                 SettingsSection(
-                  title: 'Theme Source',
+                  title: 'Theme source',
                   tiles: [
                     RadioListTile<ThemeSource>(
                       title: const Text('System'),
@@ -218,7 +219,7 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
                       activeColor: Theme.of(context).colorScheme.primary,
                     ),
                     RadioListTile<ThemeSource>(
-                      title: const Text('Preset Colors'),
+                      title: const Text('Preset colors'),
                       value: ThemeSource.preset,
                       groupValue: _themeService.themeSource,
                       onChanged: (ThemeSource? value) {
@@ -246,7 +247,7 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
                                 height: 40,
                                 decoration: BoxDecoration(
                                   color: color,
-                                  shape: BoxShape.circle,
+                                  borderRadius: BorderRadius.circular(AppTheme.cardRadius),
                                   border: Border.all(
                                     color: isSelected
                                         ? Theme.of(context).colorScheme.primary
@@ -270,7 +271,7 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
                         ),
                       ),
                     RadioListTile<ThemeSource>(
-                      title: const Text('Custom Color'),
+                      title: const Text('Custom color'),
                       value: ThemeSource.custom,
                       groupValue: _themeService.themeSource,
                       onChanged: (ThemeSource? value) {
@@ -295,7 +296,7 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
                               height: 40,
                               decoration: BoxDecoration(
                                 color: _themeService.customColor,
-                                shape: BoxShape.circle,
+                                borderRadius: BorderRadius.circular(AppTheme.cardRadius),
                                 border: Border.all(
                                   color:
                                       isDark ? Colors.white24 : Colors.black12,
@@ -306,13 +307,13 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
                             const SizedBox(width: 16),
                             ElevatedButton(
                               onPressed: _showColorPicker,
-                              child: const Text('Pick Color'),
+                              child: const Text('Pick color'),
                             ),
                           ],
                         ),
                       ),
                     RadioListTile<ThemeSource>(
-                      title: const Text('Dynamic Cover Art'),
+                      title: const Text('Dynamic cover art'),
                       subtitle: const Text(
                           'Theme changes based on the currently playing song'),
                       value: ThemeSource.dynamicCoverArt,
@@ -323,7 +324,7 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
                       activeColor: Theme.of(context).colorScheme.primary,
                     ),
                     RadioListTile<ThemeSource>(
-                      title: const Text('Static Cover Art'),
+                      title: const Text('Static cover art'),
                       subtitle:
                           const Text('Use the cover art of a specific song'),
                       value: ThemeSource.staticCoverArt,
@@ -363,7 +364,7 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
                                         );
                                       }
                                     : null,
-                                child: const Text('Use Current Song'),
+                                child: const Text('Use current song'),
                               ),
                               const SizedBox(width: 12),
                               ElevatedButton(
@@ -390,7 +391,7 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
                                     );
                                   }
                                 },
-                                child: const Text('Use Different Song'),
+                                child: const Text('Use different song'),
                               ),
                             ],
                           ),
@@ -409,9 +410,9 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
                   tiles: [
                     SettingsTile(
                       icon: Icons.graphic_eq_rounded,
-                      title: 'Moving Background',
-                      subtitle: 'Drifts while music plays on this device, '
-                          'and pulses with the kick drum in the full player',
+                      title: 'Moving background',
+                      subtitle: 'Drifts behind the full player while music plays '
+                          'on this device, and pulses with the kick drum',
                       onTap: () => _themeService
                           .setMovingBackdrop(!_themeService.movingBackdrop),
                       trailing: Switch(

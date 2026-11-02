@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../models/quality_settings.dart';
 import '../common/mini_player_aware_bottom_sheet.dart';
+import '../../utils/constants.dart';
 
 /// A selectable option row used in settings bottom sheets.
 class OptionSheetTile extends StatelessWidget {
@@ -27,7 +28,7 @@ class OptionSheetTile extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       child: Material(
         color: selected ? colorScheme.primary : Colors.transparent,
-        borderRadius: BorderRadius.circular(15),
+        borderRadius: BorderRadius.circular(AppTheme.tileRadius),
         child: ListTile(
           leading: Icon(
             icon,
@@ -62,7 +63,7 @@ class OptionSheetTile extends StatelessWidget {
               : null,
           onTap: onTap,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(15),
+            borderRadius: BorderRadius.circular(AppTheme.tileRadius),
           ),
         ),
       ),
