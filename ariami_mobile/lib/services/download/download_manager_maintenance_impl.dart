@@ -21,22 +21,52 @@ extension _DownloadManagerMaintenanceImpl on DownloadManager {
     unawaited(_downloadLyricsForSong(task.songId));
   }
 
-  Future<void> _downloadLyricsForSong(String songId) async {
+  /// Returns whether a lyrics file was saved.
+  Future<bool> _downloadLyricsForSong(String songId) async {
     try {
       final client = ConnectionService().apiClient;
-      if (client == null) return;
+      if (client == null) return false;
       final song = await LibraryRepository().getSongById(songId);
-      if (song != null && !song.hasLyrics) return;
+      if (song != null && !song.hasLyrics) return false;
       final lyrics = await client.getLyrics(songId);
-      if (lyrics != null) {
-        final file = File(_getLyricsFilePath(songId));
-        await file.parent.create(recursive: true);
-        await file.writeAsString(jsonEncode(lyrics.toJson()));
-        _downloadedLyricsIds.add(songId);
-      }
+      if (lyrics == null) return false;
+      final file = File(_getLyricsFilePath(songId));
+      await file.parent.create(recursive: true);
+      await file.writeAsString(jsonEncode(lyrics.toJson()));
+      _downloadedLyricsIds.add(songId);
+      return true;
     } catch (e) {
       print('[DownloadManager] Failed to download lyrics for $songId: $e');
+      return false;
     }
+  }
+
+  Future<int> _syncDownloadedLyricsImpl({required bool refreshAll}) async {
+    await _ensureInitialized();
+    if (ConnectionService().apiClient == null) return 0;
+    final downloadedIds = _getScopedQueue()
+        .where((task) => task.status == DownloadStatus.completed)
+        .map((task) => task.songId)
+        .toSet();
+    if (downloadedIds.isEmpty) return 0;
+
+    final songIds = (await LibraryRepository().getSongs())
+        .where((song) =>
+            song.hasLyrics &&
+            downloadedIds.contains(song.id) &&
+            (refreshAll || !_downloadedLyricsIds.contains(song.id)))
+        .map((song) => song.id)
+        .toList();
+
+    // Small batches keep a full refresh quick without flooding the server.
+    const batchSize = 8;
+    var saved = 0;
+    for (var i = 0; i < songIds.length; i += batchSize) {
+      final batch = songIds.skip(i).take(batchSize);
+      final results = await Future.wait(batch.map(_downloadLyricsForSong));
+      saved += results.where((ok) => ok).length;
+    }
+    return saved;
   }
 
   String _getLyricsFilePath(String songId) {

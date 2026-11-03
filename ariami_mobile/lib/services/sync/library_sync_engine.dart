@@ -30,6 +30,7 @@ class LibrarySyncEngine {
     required ApiClient Function() apiClientProvider,
     LibraryRepository? libraryRepository,
     this.onBootstrapCompleted,
+    this.onLibraryChanged,
     this.bootstrapPageLimit = 500,
     this.changesPageLimit = 500,
     this.pollInterval = const Duration(seconds: 30),
@@ -41,6 +42,10 @@ class LibrarySyncEngine {
   final LibraryRepository _libraryRepository;
   final bool _ownsRepository;
   final Future<void> Function(int latestToken)? onBootstrapCompleted;
+
+  /// Called after the first successful sync and after any sync that wrote
+  /// library rows, so consumers can reconcile local state against them.
+  final void Function()? onLibraryChanged;
 
   final int bootstrapPageLimit;
   final int changesPageLimit;
@@ -65,6 +70,7 @@ class LibrarySyncEngine {
   int _bootstrapMinToken = 0;
   int _bootstrapPagesProcessed = 0;
   String? _bootstrapScope;
+  bool _libraryChangedInPass = false;
 
   bool get isRunning => _running;
 
@@ -220,6 +226,7 @@ class LibrarySyncEngine {
       }
 
       await _libraryRepository.completeBootstrap(lastAppliedToken: minToken);
+      _libraryChangedInPass = true;
       _clearBootstrapResume();
       final bootstrapReady = await _libraryRepository.hasCompletedBootstrap();
       debugPrint(
@@ -301,6 +308,7 @@ class LibrarySyncEngine {
 
       if (response.events.isNotEmpty) {
         await _libraryRepository.applyChangesResponse(response);
+        _libraryChangedInPass = true;
       } else {
         final nextToken = response.toToken > since ? response.toToken : since;
         await _libraryRepository.updateSyncState(
@@ -377,9 +385,12 @@ class LibrarySyncEngine {
   Future<void> _enqueueSync(Future<void> Function() action) {
     final next = _syncQueue.then((_) async {
       if (_disposed) return;
+      final isFirstSync = _lastSuccessfulSyncAt == null;
+      _libraryChangedInPass = false;
       await action();
       _lastError = null;
       _lastSuccessfulSyncAt = DateTime.now();
+      if (isFirstSync || _libraryChangedInPass) onLibraryChanged?.call();
     });
     _syncQueue = (() async {
       try {

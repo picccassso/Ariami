@@ -126,6 +126,8 @@ class ConnectionService {
       apiClientProvider: _requireApiClient,
       libraryRepository: _libraryRepository,
       onBootstrapCompleted: _onLocalBootstrapCompleted,
+      onLibraryChanged: () =>
+          unawaited(DownloadManager().syncDownloadedLyrics()),
     );
     _libraryReadFacade = LibraryReadFacade(
       apiClientProvider: () => _lifecycleManager.apiClient,

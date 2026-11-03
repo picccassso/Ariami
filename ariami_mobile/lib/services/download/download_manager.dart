@@ -87,6 +87,10 @@ class DownloadManager {
   /// so bulk downloads do not start unbounded tag parses or image requests.
   Future<void> _artworkWorkTail = Future.value();
 
+  /// Tail of the serialized lyrics sync, so overlapping passes never write the
+  /// same lyrics file concurrently.
+  Future<void> _lyricsSyncTail = Future.value();
+
   /// Fire-and-forget maintenance kicked off by [initialize].
   Future<void>? _startupWork;
   final QualitySettingsService _qualityService = QualitySettingsService();
@@ -281,6 +285,23 @@ class DownloadManager {
 
   Future<SongLyrics?> getDownloadedLyrics(String songId) =>
       _getDownloadedLyricsImpl(songId);
+
+  /// Fetch lyrics for downloaded songs the library now marks as having them.
+  ///
+  /// Lyrics are otherwise only fetched when a download completes, so lyrics
+  /// added on the server later never reached songs already on the device.
+  /// With [refreshAll], every downloaded song with lyrics is re-fetched so
+  /// edited lyrics are picked up too. Returns the number of lyrics saved.
+  Future<int> syncDownloadedLyrics({bool refreshAll = false}) {
+    final run = _lyricsSyncTail
+        .then((_) => _syncDownloadedLyricsImpl(refreshAll: refreshAll))
+        .catchError((Object e) {
+      print('[DownloadManager] Lyrics sync failed: $e');
+      return 0;
+    });
+    _lyricsSyncTail = run;
+    return run;
+  }
 
   double getTotalDownloadedSizeMB() => _getTotalDownloadedSizeMBImpl();
 

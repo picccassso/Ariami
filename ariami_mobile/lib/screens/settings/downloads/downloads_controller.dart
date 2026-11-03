@@ -883,6 +883,10 @@ class DownloadsController extends ChangeNotifier {
     await _downloadManager.clearAllDownloads();
   }
 
+  /// Re-fetches lyrics for every downloaded song; returns how many were saved.
+  Future<int> refreshDownloadedLyrics() =>
+      _downloadManager.syncDownloadedLyrics(refreshAll: true);
+
   Future<void> clearCache() async {
     await _cacheManager.clearSongCache();
     await _loadCacheStats();

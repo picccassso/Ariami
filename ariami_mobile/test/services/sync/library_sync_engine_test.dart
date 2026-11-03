@@ -263,6 +263,65 @@ void main() {
       expect(apiClient.bootstrapCallCount, 0);
     });
 
+    test('notifies library change on first sync and when rows are written',
+        () async {
+      final repository = _FakeLibraryRepository(
+        initialState: const LibrarySyncState(
+          lastAppliedToken: 10,
+          bootstrapComplete: true,
+          lastSyncEpochMs: 0,
+        ),
+      );
+      final apiClient = _FakeApiClient(
+        changesResponses: <V2ChangesResponse>[
+          V2ChangesResponse(
+            fromToken: 10,
+            toToken: 10,
+            events: const <V2ChangeEvent>[],
+            hasMore: false,
+            syncToken: 10,
+          ),
+          V2ChangesResponse(
+            fromToken: 10,
+            toToken: 11,
+            events: <V2ChangeEvent>[
+              const V2ChangeEvent(
+                token: 11,
+                op: V2ChangeOp.upsert,
+                entityType: V2EntityType.song,
+                entityId: 'song-11',
+                payload: <String, dynamic>{
+                  'id': 'song-11',
+                  'title': 'Song 11',
+                  'artist': 'Artist',
+                  'albumId': null,
+                  'duration': 123,
+                  'hasLyrics': true,
+                },
+                occurredAt: '2026-11-03T10:00:00Z',
+              ),
+            ],
+            hasMore: false,
+            syncToken: 11,
+          ),
+        ],
+      );
+      var changeCount = 0;
+
+      final engine = LibrarySyncEngine(
+        apiClientProvider: () => apiClient,
+        libraryRepository: repository,
+        onLibraryChanged: () => changeCount += 1,
+      );
+
+      await engine.syncNow(); // first sync, nothing new
+      expect(changeCount, 1);
+      await engine.syncNow(); // writes song-11
+      expect(changeCount, 2);
+      await engine.syncNow(); // nothing new
+      expect(changeCount, 2);
+    });
+
     test('bootstrap failure preserves last known good local sync state',
         () async {
       final repository = _FakeLibraryRepository(

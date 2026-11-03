@@ -26,6 +26,7 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
   StreamSubscription<bool>? _connectionSubscription;
   bool _wasConnected = false;
   bool _isReconnectPromptVisible = false;
+  bool _isRefreshingLyrics = false;
 
   @override
   void initState() {
@@ -98,6 +99,24 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
     if (confirmed == true) {
       await _controller.clearAllDownloads();
     }
+  }
+
+  Future<void> _refreshLyrics() async {
+    final messenger = ScaffoldMessenger.of(context);
+    if (!_connectionService.isConnected) {
+      messenger.showSnackBar(const SnackBar(
+          content: Text('Connect to your server to refresh lyrics.')));
+      return;
+    }
+    setState(() => _isRefreshingLyrics = true);
+    final saved = await _controller.refreshDownloadedLyrics();
+    if (!mounted) return;
+    setState(() => _isRefreshingLyrics = false);
+    messenger.showSnackBar(SnackBar(
+      content: Text(saved == 0
+          ? 'No lyrics to update.'
+          : 'Updated lyrics for $saved song${saved == 1 ? '' : 's'}.'),
+    ));
   }
 
   Future<void> _clearCache() async {
@@ -188,6 +207,13 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
         backgroundColor: Colors.transparent,
         elevation: 0,
         actions: [
+          IconButton(
+            icon: const Icon(Icons.lyrics_outlined),
+            onPressed: state.downloadedSongCount > 0 && !_isRefreshingLyrics
+                ? _refreshLyrics
+                : null,
+            tooltip: 'Refresh lyrics',
+          ),
           IconButton(
             icon: Icon(
               Icons.delete_outline,
