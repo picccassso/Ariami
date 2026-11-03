@@ -43,6 +43,7 @@ class StatsPeriodSelector extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16),
       decoration: BoxDecoration(
+        color: colorScheme.surfaceContainerHighest,
         borderRadius: BorderRadius.circular(AppTheme.tileRadius),
         border: Border.all(color: context.colors.border),
       ),
