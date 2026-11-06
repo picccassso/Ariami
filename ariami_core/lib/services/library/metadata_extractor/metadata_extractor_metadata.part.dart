@@ -321,9 +321,19 @@ extension _MetadataExtractorMetadataPart on MetadataExtractor {
         allBytes = Uint8List.fromList(tagBytes);
       }
 
-      return await _tagProcessor
-          .getTagsFromByteArray(Future.value(allBytes))
-          .timeout(_tagReadTimeout);
+      // dart_tags never forwards a parse error to the future it returns: the
+      // error escapes as an uncaught async error, which kills the isolate.
+      // A guarded zone turns it into a failure for this file only.
+      final tags = Completer<List<Tag>>();
+      runZonedGuarded(
+        () => _tagProcessor
+            .getTagsFromByteArray(Future.value(allBytes))
+            .then(tags.complete),
+        (error, _) {
+          if (!tags.isCompleted) tags.completeError(error);
+        },
+      );
+      return await tags.future.timeout(_tagReadTimeout);
     } catch (e) {
       _diagnose('dart_tags_failed format=.mp3 error=${e.runtimeType}');
       return const <Tag>[];

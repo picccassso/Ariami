@@ -6,6 +6,7 @@ import 'dart:typed_data';
 import 'package:ariami_core/services/library/metadata_extractor.dart';
 import 'package:ariami_core/services/library/mp3_duration_parser.dart';
 import 'package:dart_tags/dart_tags.dart';
+import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
 void main() {
@@ -317,6 +318,18 @@ void main() {
       if (await tempDir.exists()) {
         await tempDir.delete(recursive: true);
       }
+    });
+
+    test('a truncated ID3v2.4 header fails only that file, not the isolate',
+        () async {
+      // dart_tags throws an uncaught async error on this header; before the
+      // guard it escaped the extractor and killed the server.
+      final file = File(p.join(tempDir.path, 'truncated.mp3'));
+      await file.writeAsBytes([0x49, 0x44, 0x33, 4, 0, 0, 0, 0, 0, 0]);
+
+      final metadata = await MetadataExtractor().extractMetadata(file.path);
+
+      expect(metadata.title, 'truncated');
     });
 
     test('ID3v2 precedence is deterministic even when tags arrive first',
