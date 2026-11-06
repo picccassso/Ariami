@@ -7,6 +7,7 @@ import 'package:ariami_core/models/listening_stats_models.dart';
 import 'package:ariami_core/models/playlist_suggestion.dart';
 import 'package:ariami_core/models/websocket_models.dart';
 import 'package:ariami_core/services/transcoding/transcode_slots_policy.dart';
+import '../services/library_upload_service.dart';
 import '../services/web_api_client.dart';
 import '../services/web_auth_service.dart';
 import '../services/web_setup_service.dart';
@@ -18,6 +19,7 @@ import '../widgets/dashboard/dashboard_header.dart';
 import '../widgets/dashboard/dashboard_overview_tab.dart';
 import '../widgets/dashboard/dashboard_server_tab.dart';
 import '../widgets/dashboard/dashboard_users_tab.dart';
+import '../widgets/dashboard/library_upload_dialog.dart';
 import '../widgets/dashboard/change_password_dialog.dart';
 import '../widgets/dashboard/create_user_dialog.dart';
 import '../widgets/dashboard/delete_user_dialog.dart';
@@ -83,6 +85,8 @@ class _DashboardScreenState extends State<DashboardScreen>
   bool _isCreatingUser = false;
   bool _isChangingPassword = false;
   bool _isAdmin = false;
+  bool _isLibraryUploadOpen = false;
+  late final void Function() _stopFileDropListener;
   bool _isLoadingTranscodeSlots = false;
   bool _isSavingTranscodeSlots = false;
   String? _transcodeSlotsError;
@@ -157,6 +161,7 @@ class _DashboardScreenState extends State<DashboardScreen>
       unawaited(_loadUserActivity(showLoading: false));
     });
 
+    _stopFileDropListener = listenForDroppedFiles(_showLibraryUpload);
     _connectWebSocket();
     unawaited(_loadSetupCompleteStatus());
     unawaited(_loadSpotifyImportStatus());
@@ -171,6 +176,7 @@ class _DashboardScreenState extends State<DashboardScreen>
     _wsSubscription?.cancel();
     _wsService.dispose();
     _pulseController.dispose();
+    _stopFileDropListener();
     super.dispose();
   }
 
@@ -229,6 +235,7 @@ class _DashboardScreenState extends State<DashboardScreen>
               onImportSuggestion: _importPlaylistSuggestion,
               onIgnoreSuggestion: _ignorePlaylistSuggestion,
               onRescanLibrary: _rescanLibrary,
+              onUploadMusic: _isAdmin ? _showLibraryUpload : null,
               onImportSpotifyStats: _showSpotifyImport,
               onRemoveSpotifyStats: _showSpotifyRemove,
               spotifyImportStatus: _spotifyImportStatus,

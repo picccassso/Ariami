@@ -225,6 +225,10 @@ class LibraryManager {
 
   String? get lastScannedFolderPath => _lastScannedFolderPath;
 
+  /// The music folder the library was last asked to scan, even while that
+  /// scan is still running or the folder is unavailable.
+  String? get musicFolderPath => _configuredFolderPath;
+
   /// Latest token written to `library_changes`.
   int get latestToken => _latestCatalogToken;
 

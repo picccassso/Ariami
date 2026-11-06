@@ -31,6 +31,7 @@ class DashboardOverviewTab extends StatelessWidget {
     required this.onImportSuggestion,
     required this.onIgnoreSuggestion,
     required this.onRescanLibrary,
+    this.onUploadMusic,
     required this.onImportSpotifyStats,
     required this.onRemoveSpotifyStats,
     required this.spotifyImportStatus,
@@ -56,6 +57,7 @@ class DashboardOverviewTab extends StatelessWidget {
   final void Function(PlaylistSuggestion suggestion) onImportSuggestion;
   final void Function(PlaylistSuggestion suggestion) onIgnoreSuggestion;
   final VoidCallback onRescanLibrary;
+  final VoidCallback? onUploadMusic;
   final VoidCallback onImportSpotifyStats;
   final VoidCallback onRemoveSpotifyStats;
   final SpotifyImportStatus? spotifyImportStatus;
@@ -96,6 +98,7 @@ class DashboardOverviewTab extends StatelessWidget {
             lastScanTimeFormatted: lastScanTimeFormatted,
             isScanning: isScanning,
             onRescanLibrary: onRescanLibrary,
+            onUploadMusic: onUploadMusic,
           ),
           if (playlistSuggestions.isNotEmpty) ...[
             SizedBox(height: gap),

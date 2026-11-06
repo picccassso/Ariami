@@ -15,6 +15,7 @@ class LibraryStatsSection extends StatelessWidget {
     required this.lastScanTimeFormatted,
     required this.isScanning,
     required this.onRescanLibrary,
+    this.onUploadMusic,
   });
 
   final int songCount;
@@ -25,6 +26,9 @@ class LibraryStatsSection extends StatelessWidget {
   final String lastScanTimeFormatted;
   final bool isScanning;
   final VoidCallback onRescanLibrary;
+
+  /// Opens the upload dialog; null hides the action (owner only).
+  final VoidCallback? onUploadMusic;
 
   @override
   Widget build(BuildContext context) {
@@ -59,16 +63,27 @@ class LibraryStatsSection extends StatelessWidget {
     return Section(
       title: 'Library',
       description: 'Last scan: $lastScanTimeFormatted',
-      trailing: TextButton.icon(
-        onPressed: isScanning ? null : onRescanLibrary,
-        icon: isScanning
-            ? const SizedBox(
-                width: 14,
-                height: 14,
-                child: CircularProgressIndicator(strokeWidth: 2),
-              )
-            : const Icon(Icons.refresh_rounded, size: 17),
-        label: Text(isScanning ? 'Scanning…' : 'Rescan'),
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (onUploadMusic != null)
+            TextButton.icon(
+              onPressed: onUploadMusic,
+              icon: const Icon(Icons.upload_rounded, size: 17),
+              label: const Text('Upload'),
+            ),
+          TextButton.icon(
+            onPressed: isScanning ? null : onRescanLibrary,
+            icon: isScanning
+                ? const SizedBox(
+                    width: 14,
+                    height: 14,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.refresh_rounded, size: 17),
+            label: Text(isScanning ? 'Scanning…' : 'Rescan'),
+          ),
+        ],
       ),
       child: _StatGrid(tiles: tiles),
     );

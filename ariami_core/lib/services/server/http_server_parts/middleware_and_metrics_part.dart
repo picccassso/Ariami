@@ -496,10 +496,15 @@ extension AriamiHttpServerMiddlewareAndMetricsMethods on AriamiHttpServer {
   // Request bodies are read fully into memory by most JSON handlers, so a
   // client must not be able to send unbounded bodies. Avatar and playlist
   // cover uploads enforce their own 5 MB limit and get slack for it here.
+  // Library uploads stream straight to disk, so they only need a sanity cap.
   static const int _defaultMaxRequestBodyBytes = 2 * 1024 * 1024;
   static const int _uploadMaxRequestBodyBytes = 6 * 1024 * 1024;
+  static const int _libraryUploadMaxRequestBodyBytes = 4 * 1024 * 1024 * 1024;
 
   int _maxRequestBodyBytesForPath(String path) {
+    if (path == '/api/admin/library/upload') {
+      return _libraryUploadMaxRequestBodyBytes;
+    }
     if (path == '/api/me/avatar' ||
         (path.startsWith('/api/playlists/') && path.endsWith('/image')) ||
         (path.startsWith('/api/artists/') && path.endsWith('/image'))) {

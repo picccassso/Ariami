@@ -28,6 +28,7 @@ import 'package:ariami_core/models/connect_models.dart';
 import 'package:ariami_core/models/feature_flags.dart';
 import 'package:ariami_core/models/host_controls.dart';
 import 'package:ariami_core/services/library/library_manager.dart';
+import 'package:ariami_core/services/library/library_upload_paths.dart';
 import 'package:ariami_core/services/library/playlist_decision_store.dart';
 import 'package:ariami_core/services/catalog/catalog_repository.dart';
 import 'package:ariami_core/services/catalog/song_attribute_query.dart';
@@ -89,6 +90,7 @@ part 'http_server_parts/license_handlers_part.dart';
 part 'http_server_parts/music_discovery_config_handlers_part.dart';
 part 'http_server_parts/playlist_suggestions_handlers_part.dart';
 part 'http_server_parts/song_attributes_handlers_part.dart';
+part 'http_server_parts/library_upload_handlers_part.dart';
 
 class AriamiHttpServer {
   static final AriamiHttpServer _instance = AriamiHttpServer._internal();

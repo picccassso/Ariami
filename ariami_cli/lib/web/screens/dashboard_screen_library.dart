@@ -37,6 +37,25 @@ extension _DashboardLibrary on _DashboardScreenState {
     _setDashboardState(() => _spotifyImportStatus = status);
   }
 
+  /// Opens the upload dialog, seeded with [files] when they were dropped on
+  /// the page. Owner only; while open the dialog takes drops itself.
+  Future<void> _showLibraryUpload([
+    List<LibraryUploadFile> files = const [],
+  ]) async {
+    if (!_isAdmin || _isLibraryUploadOpen) return;
+    _isLibraryUploadOpen = true;
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => LibraryUploadDialog(
+        service: LibraryUploadService(_apiClient),
+        initialFiles: files,
+      ),
+    );
+    _isLibraryUploadOpen = false;
+    if (mounted) _loadServerStats();
+  }
+
   Future<void> _rescanLibrary() async {
     try {
       final success = await _setupService.startScan();

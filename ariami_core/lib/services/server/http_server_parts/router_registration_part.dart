@@ -309,6 +309,8 @@ extension AriamiHttpServerRouterMethods on AriamiHttpServer {
     router.get('/api/admin/host-controls', _handleAdminGetHostControls);
     router.post('/api/admin/autostart', _handleAdminPostAutostart);
     router.post('/api/admin/reset', _handleAdminPostReset);
+    router.get('/api/admin/library/folders', _handleAdminLibraryFolders);
+    router.post('/api/admin/library/upload', _handleAdminLibraryUpload);
   }
 
   void _registerLibraryAndArtworkRoutes(Router router) {
