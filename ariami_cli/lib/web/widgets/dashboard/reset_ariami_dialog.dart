@@ -108,7 +108,7 @@ class _ResetAriamiDialogState extends State<ResetAriamiDialog> {
           onPressed: _isConfirmed && !_isSubmitting ? _submit : null,
           style: ElevatedButton.styleFrom(
             backgroundColor: AppTheme.danger,
-            foregroundColor: AppTheme.pureBlack,
+            foregroundColor: AppTheme.base,
           ),
           child: Text(
             _choice == ResetChoice.factory
@@ -141,7 +141,7 @@ class _ScopeOption extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final selected = value == groupValue;
-    final accent = destructive ? AppTheme.danger : Colors.white;
+    final accent = destructive ? AppTheme.danger : AppTheme.textPrimary;
 
     return Material(
       color: Colors.transparent,
@@ -156,7 +156,7 @@ class _ScopeOption extends StatelessWidget {
             border: Border.all(
               color: selected
                   ? accent.withValues(alpha: 0.6)
-                  : AppTheme.borderGrey,
+                  : AppTheme.border,
             ),
           ),
           child: Row(

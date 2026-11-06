@@ -129,8 +129,8 @@ class _StepIndicator extends StatelessWidget {
                   child: Container(
                     height: 3,
                     decoration: BoxDecoration(
-                      color: i <= step ? Colors.white : AppTheme.borderGrey,
-                      borderRadius: BorderRadius.circular(999),
+                      color: i <= step ? AppTheme.textPrimary : AppTheme.border,
+                      borderRadius: BorderRadius.circular(2),
                     ),
                   ),
                 ),
@@ -157,9 +157,9 @@ class _StepIcon extends StatelessWidget {
         width: 52,
         height: 52,
         decoration: BoxDecoration(
-          color: AppTheme.surfaceBlack,
+          color: AppTheme.surface,
           borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
-          border: Border.all(color: AppTheme.borderGrey),
+          border: Border.all(color: AppTheme.border),
         ),
         child: Icon(icon, size: 24, color: AppTheme.textPrimary),
       ),

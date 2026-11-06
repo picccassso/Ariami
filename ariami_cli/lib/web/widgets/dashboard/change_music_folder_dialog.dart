@@ -195,7 +195,7 @@ class _SuggestionTile extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
-              border: Border.all(color: AppTheme.borderGrey),
+              border: Border.all(color: AppTheme.border),
             ),
             child: Row(
               children: [

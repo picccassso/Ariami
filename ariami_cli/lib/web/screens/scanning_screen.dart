@@ -220,12 +220,12 @@ class _ScanningScreenState extends State<ScanningScreen>
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           ClipRRect(
-            borderRadius: BorderRadius.circular(999),
+            borderRadius: BorderRadius.circular(2),
             child: LinearProgressIndicator(
               value: _progress,
               minHeight: 6,
               backgroundColor: AppTheme.surfaceRaised,
-              valueColor: const AlwaysStoppedAnimation<Color>(Colors.white),
+              valueColor: const AlwaysStoppedAnimation<Color>(AppTheme.textPrimary),
             ),
           ),
           const SizedBox(height: 10),
@@ -345,7 +345,7 @@ class _ScanningScreenState extends State<ScanningScreen>
             count,
             style: const TextStyle(
               fontSize: 26,
-              fontWeight: FontWeight.w700,
+              fontWeight: FontWeight.w600,
               color: AppTheme.textPrimary,
               letterSpacing: -1,
               height: 1.15,

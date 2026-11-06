@@ -185,7 +185,7 @@ class _RoleChip extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
       decoration: BoxDecoration(
         color: AppTheme.surfaceRaised,
-        borderRadius: BorderRadius.circular(999),
+        borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
         border: Border.all(color: AppTheme.borderStrong),
       ),
       child: const Text(

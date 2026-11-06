@@ -71,9 +71,9 @@ class AppCard extends StatelessWidget {
     return Container(
       width: double.infinity,
       decoration: BoxDecoration(
-        color: AppTheme.surfaceBlack,
+        color: AppTheme.surface,
         borderRadius: AppTheme.cardRadius,
-        border: Border.all(color: borderColor ?? AppTheme.borderGrey),
+        border: Border.all(color: borderColor ?? AppTheme.border),
       ),
       padding: padding ?? const EdgeInsets.all(20),
       child: child,
@@ -93,7 +93,7 @@ class CardDivider extends StatelessWidget {
       height: 1,
       thickness: 1,
       indent: indent,
-      color: AppTheme.borderGrey,
+      color: AppTheme.border,
     );
   }
 }

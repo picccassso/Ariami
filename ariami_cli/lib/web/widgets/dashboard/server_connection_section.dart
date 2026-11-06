@@ -55,10 +55,10 @@ class _ServerConnectionSectionState extends State<ServerConnectionSection> {
         return StatefulBuilder(
           builder: (context, setDialogState) {
             return AlertDialog(
-              backgroundColor: AppTheme.surfaceBlack,
+              backgroundColor: AppTheme.surface,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
-                side: const BorderSide(color: AppTheme.borderGrey),
+                side: const BorderSide(color: AppTheme.border),
               ),
               title: Text(
                 title,
@@ -86,23 +86,6 @@ class _ServerConnectionSectionState extends State<ServerConnectionSection> {
                       hintText: hint,
                       hintStyle: const TextStyle(color: AppTheme.textTertiary),
                       errorText: errorText,
-                      border: OutlineInputBorder(
-                        borderRadius:
-                            BorderRadius.circular(AppTheme.radiusSmall),
-                        borderSide:
-                            const BorderSide(color: AppTheme.borderGrey),
-                      ),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius:
-                            BorderRadius.circular(AppTheme.radiusSmall),
-                        borderSide:
-                            const BorderSide(color: AppTheme.borderGrey),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius:
-                            BorderRadius.circular(AppTheme.radiusSmall),
-                        borderSide: const BorderSide(color: Colors.white),
-                      ),
                     ),
                     onChanged: (text) {
                       if (errorText != null) {
@@ -141,10 +124,6 @@ class _ServerConnectionSectionState extends State<ServerConnectionSection> {
                     Navigator.of(dialogContext).pop();
                     await onSave(trimmed.isEmpty ? null : trimmed);
                   },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.white,
-                    foregroundColor: AppTheme.pureBlack,
-                  ),
                   child: const Text('Save'),
                 ),
               ],

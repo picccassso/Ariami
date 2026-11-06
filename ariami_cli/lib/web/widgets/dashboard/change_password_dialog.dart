@@ -17,10 +17,10 @@ Future<Map<String, String>?> showChangePasswordDialog(
       return StatefulBuilder(
         builder: (context, setDialogState) {
           return AlertDialog(
-            backgroundColor: AppTheme.surfaceBlack,
+            backgroundColor: AppTheme.surface,
             title: const Text(
               'Change User Password',
-              style: TextStyle(color: Colors.white),
+              style: TextStyle(color: AppTheme.textPrimary),
             ),
             content: SizedBox(
               width: MediaQuery.of(context).size.width < 480
@@ -31,7 +31,7 @@ Future<Map<String, String>?> showChangePasswordDialog(
                 children: [
                   TextField(
                     controller: usernameController,
-                    style: const TextStyle(color: Colors.white),
+                    style: const TextStyle(color: AppTheme.textPrimary),
                     decoration: const InputDecoration(
                       labelText: 'Username',
                       labelStyle: TextStyle(color: AppTheme.textSecondary),
@@ -41,7 +41,7 @@ Future<Map<String, String>?> showChangePasswordDialog(
                   TextField(
                     controller: passwordController,
                     obscureText: true,
-                    style: const TextStyle(color: Colors.white),
+                    style: const TextStyle(color: AppTheme.textPrimary),
                     decoration: const InputDecoration(
                       labelText: 'New Password',
                       labelStyle: TextStyle(color: AppTheme.textSecondary),

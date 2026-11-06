@@ -66,7 +66,7 @@ extension _DashboardLibrary on _DashboardScreenState {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Library rescan started'),
-            backgroundColor: AppTheme.surfaceBlack,
+            backgroundColor: AppTheme.surface,
             behavior: SnackBarBehavior.floating,
           ),
         );
@@ -145,7 +145,7 @@ extension _DashboardLibrary on _DashboardScreenState {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(successMessage),
-            backgroundColor: AppTheme.surfaceBlack,
+            backgroundColor: AppTheme.surface,
             behavior: SnackBarBehavior.floating,
           ),
         );

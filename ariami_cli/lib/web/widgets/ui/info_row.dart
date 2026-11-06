@@ -96,7 +96,7 @@ class _IconChip extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppTheme.surfaceRaised,
         borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
-        border: Border.all(color: AppTheme.borderGrey),
+        border: Border.all(color: AppTheme.border),
       ),
       child: Icon(
         icon,

@@ -83,7 +83,7 @@ class _SuggestionRow extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppTheme.surfaceRaised,
         borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
-        border: Border.all(color: AppTheme.borderGrey),
+        border: Border.all(color: AppTheme.border),
       ),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       child: Row(
@@ -143,7 +143,7 @@ class _SuggestionRow extends StatelessWidget {
                 height: 20,
                 child: CircularProgressIndicator(
                   strokeWidth: 2,
-                  color: Colors.white,
+                  color: AppTheme.textPrimary,
                 ),
               ),
             )
@@ -176,7 +176,7 @@ class _MissingTagsBadge extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
       decoration: BoxDecoration(
         color: AppTheme.warning.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(999),
+        borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
         border: Border.all(color: AppTheme.warning.withValues(alpha: 0.45)),
       ),
       child: const Text(

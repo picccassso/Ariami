@@ -52,7 +52,7 @@ class PageShell extends StatelessWidget {
     );
 
     return DecoratedBox(
-      decoration: BoxDecoration(gradient: AppTheme.backgroundGradient),
+      decoration: const BoxDecoration(color: AppTheme.base),
       child: scrollable
           // A bare Align inside a scroll view shrink-wraps its child, so
           // `centerVertically` would centre within the content's own height

@@ -12,7 +12,7 @@ Future<bool> showDeleteUserDialog(
     barrierDismissible: false,
     builder: (dialogContext) {
       return AlertDialog(
-        backgroundColor: AppTheme.surfaceBlack,
+        backgroundColor: AppTheme.surface,
         title: const Text('Delete User'),
         content: Text(
           'Delete "${user.username}" from this server?\n\n'
@@ -27,7 +27,7 @@ Future<bool> showDeleteUserDialog(
           ElevatedButton(
             style: ElevatedButton.styleFrom(
               backgroundColor: AppTheme.danger,
-              foregroundColor: Colors.white,
+              foregroundColor: AppTheme.textPrimary,
             ),
             onPressed: () => Navigator.of(dialogContext).pop(true),
             child: const Text('Delete User'),

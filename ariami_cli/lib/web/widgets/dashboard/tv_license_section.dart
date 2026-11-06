@@ -124,7 +124,7 @@ class _TvLicenseSectionState extends State<TvLicenseSection> {
                   decoration: BoxDecoration(
                     color: AppTheme.surfaceRaised,
                     borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
-                    border: Border.all(color: AppTheme.borderGrey),
+                    border: Border.all(color: AppTheme.border),
                   ),
                   child: const Icon(Icons.tv_rounded,
                       size: 19, color: AppTheme.textPrimary),

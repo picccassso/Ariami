@@ -48,7 +48,7 @@ class _SpotifyRemoveDialogState extends State<SpotifyRemoveDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      backgroundColor: AppTheme.surfaceBlack,
+      backgroundColor: AppTheme.surface,
       title: const Text('Remove Spotify listening stats'),
       content: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 520),

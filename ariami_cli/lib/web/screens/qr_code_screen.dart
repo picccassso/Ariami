@@ -364,9 +364,7 @@ class _QRCodeScreenState extends State<QRCodeScreen>
   Widget build(BuildContext context) {
     return Scaffold(
       body: Container(
-        decoration: BoxDecoration(
-          gradient: AppTheme.backgroundGradient,
-        ),
+        color: AppTheme.base,
         child: Column(
           children: [
             AppBar(
@@ -389,7 +387,7 @@ class _QRCodeScreenState extends State<QRCodeScreen>
                           height: 20,
                           child: CircularProgressIndicator(
                             strokeWidth: 2,
-                            color: Colors.white,
+                            color: AppTheme.textPrimary,
                           ),
                         )
                       : const Icon(Icons.refresh_rounded),
@@ -449,7 +447,7 @@ class _QRCodeScreenState extends State<QRCodeScreen>
                               else if (_isLoading || _qrData == null)
                                 const Center(
                                   child: CircularProgressIndicator(
-                                    color: Colors.white,
+                                    color: AppTheme.textPrimary,
                                   ),
                                 )
                               else
@@ -534,7 +532,7 @@ class _QRCodeScreenState extends State<QRCodeScreen>
           _buildInfoRow(
               'Sign-in', _authRequired ? 'Required' : 'Not required'),
           const SizedBox(height: 22),
-          const Divider(color: AppTheme.borderGrey),
+          const Divider(color: AppTheme.border),
           const SizedBox(height: 22),
           const Text('How to connect', style: AppTheme.sectionTitle),
           const SizedBox(height: 12),
@@ -546,7 +544,7 @@ class _QRCodeScreenState extends State<QRCodeScreen>
             style: AppTheme.meta.copyWith(fontSize: 14, height: 1.7),
           ),
           const SizedBox(height: 22),
-          const Divider(color: AppTheme.borderGrey),
+          const Divider(color: AppTheme.border),
           const SizedBox(height: 22),
           ..._buildManualEntrySection(),
         ],
@@ -561,15 +559,9 @@ class _QRCodeScreenState extends State<QRCodeScreen>
         Container(
           padding: const EdgeInsets.all(24),
           decoration: BoxDecoration(
+            // Pure white, not the ink: scanners want maximum contrast.
             color: Colors.white,
-            borderRadius: BorderRadius.circular(24),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.white.withValues(alpha: 0.1),
-                blurRadius: 30,
-                spreadRadius: 5,
-              ),
-            ],
+            borderRadius: BorderRadius.circular(AppTheme.radiusLarge),
           ),
           child: QrImageView(
             data: _qrData!,
@@ -590,7 +582,7 @@ class _QRCodeScreenState extends State<QRCodeScreen>
                   width: 8,
                   height: 8,
                   decoration: const BoxDecoration(
-                    color: Colors.white,
+                    color: AppTheme.textPrimary,
                     shape: BoxShape.circle,
                   ),
                 ),
@@ -600,7 +592,7 @@ class _QRCodeScreenState extends State<QRCodeScreen>
                 'Waiting…',
                 style: TextStyle(
                   fontSize: 10,
-                  fontWeight: FontWeight.w900,
+                  fontWeight: FontWeight.w600,
                   color: AppTheme.textSecondary,
                   letterSpacing: 2.0,
                 ),
@@ -621,9 +613,9 @@ class _QRCodeScreenState extends State<QRCodeScreen>
           navigateToDashboard(context);
         },
         style: ElevatedButton.styleFrom(
-          backgroundColor: AppTheme.surfaceBlack,
-          foregroundColor: Colors.white,
-          side: const BorderSide(color: AppTheme.borderGrey),
+          backgroundColor: AppTheme.surface,
+          foregroundColor: AppTheme.textPrimary,
+          side: const BorderSide(color: AppTheme.border),
         ),
         child: const Text('Go to dashboard'),
       ),
@@ -699,9 +691,9 @@ class _QRCodeScreenState extends State<QRCodeScreen>
           child: ElevatedButton.icon(
             onPressed: _isGeneratingInvite ? null : _generateInviteCode,
             style: ElevatedButton.styleFrom(
-              backgroundColor: AppTheme.surfaceBlack,
-              foregroundColor: Colors.white,
-              side: const BorderSide(color: AppTheme.borderGrey),
+              backgroundColor: AppTheme.surface,
+              foregroundColor: AppTheme.textPrimary,
+              side: const BorderSide(color: AppTheme.border),
             ),
             icon: _isGeneratingInvite
                 ? const SizedBox(
@@ -709,7 +701,7 @@ class _QRCodeScreenState extends State<QRCodeScreen>
                     height: 16,
                     child: CircularProgressIndicator(
                       strokeWidth: 2,
-                      color: Colors.white,
+                      color: AppTheme.textPrimary,
                     ),
                   )
                 : const Icon(Icons.vpn_key_rounded, size: 18),
@@ -721,14 +713,14 @@ class _QRCodeScreenState extends State<QRCodeScreen>
         // so a manual long-press → copy works on any mobile browser.
         InkWell(
           onTap: _copyInviteCode,
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
           child: Container(
             width: double.infinity,
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
             decoration: BoxDecoration(
-              color: AppTheme.surfaceBlack,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AppTheme.borderGrey),
+              color: AppTheme.surface,
+              borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
+              border: Border.all(color: AppTheme.border),
             ),
             child: Row(
               children: [
@@ -736,9 +728,9 @@ class _QRCodeScreenState extends State<QRCodeScreen>
                   child: SelectableText(
                     _formatInviteCode(code),
                     style: const TextStyle(
-                      color: Colors.white,
+                      color: AppTheme.textPrimary,
                       fontSize: 26,
-                      fontWeight: FontWeight.w900,
+                      fontWeight: FontWeight.w600,
                       letterSpacing: 3.0,
                       fontFamily: 'monospace',
                     ),

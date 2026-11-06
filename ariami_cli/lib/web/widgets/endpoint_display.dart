@@ -56,8 +56,8 @@ class _EndpointDisplayState extends State<EndpointDisplay> {
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
               decoration: BoxDecoration(
                 color: AppTheme.surfaceRaised,
-                borderRadius: BorderRadius.circular(999),
-                border: Border.all(color: AppTheme.borderGrey),
+                borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
+                border: Border.all(color: AppTheme.border),
               ),
               child: Text(
                 widget.badgeLabel,

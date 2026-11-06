@@ -126,7 +126,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> with RouteAware {
               content: Text(_portFallbackMessage!),
               leading: const Icon(Icons.info_outline_rounded),
               backgroundColor: AppTheme.surfaceRaised,
-              dividerColor: AppTheme.borderGrey,
+              dividerColor: AppTheme.border,
               contentTextStyle: const TextStyle(
                 color: AppTheme.textPrimary,
                 fontSize: 13.5,
@@ -221,13 +221,13 @@ class _WelcomeMark extends StatelessWidget {
           width: 30,
           height: 30,
           decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(8),
+            color: AppTheme.textPrimary,
+            borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
           ),
           child: const Icon(
             Icons.music_note_rounded,
             size: 18,
-            color: AppTheme.pureBlack,
+            color: AppTheme.base,
           ),
         ),
         const SizedBox(width: 11),
@@ -235,7 +235,7 @@ class _WelcomeMark extends StatelessWidget {
           'Ariami',
           style: TextStyle(
             fontSize: 18,
-            fontWeight: FontWeight.w700,
+            fontWeight: FontWeight.w600,
             letterSpacing: -0.4,
             color: AppTheme.textPrimary,
           ),

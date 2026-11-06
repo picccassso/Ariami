@@ -34,10 +34,10 @@ Future<TranscodeSlotsEditResult?> showTranscodeSlotsDialog(
       return StatefulBuilder(
         builder: (context, setDialogState) {
           return AlertDialog(
-            backgroundColor: AppTheme.surfaceBlack,
+            backgroundColor: AppTheme.surface,
             title: const Text(
               'Edit Transcode Slots',
-              style: TextStyle(color: Colors.white),
+              style: TextStyle(color: AppTheme.textPrimary),
             ),
             content: SizedBox(
               width: MediaQuery.of(context).size.width < 480
@@ -50,7 +50,7 @@ Future<TranscodeSlotsEditResult?> showTranscodeSlotsDialog(
                   Text(
                     'Controls how many Sonic transcodes can run at once.',
                     style: TextStyle(
-                      color: Colors.white.withValues(alpha: 0.7),
+                      color: AppTheme.textPrimary.withValues(alpha: 0.7),
                       fontSize: 13,
                     ),
                   ),
@@ -59,11 +59,11 @@ Future<TranscodeSlotsEditResult?> showTranscodeSlotsDialog(
                     controller: controller,
                     keyboardType: TextInputType.number,
                     inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                    style: const TextStyle(color: Colors.white),
+                    style: const TextStyle(color: AppTheme.textPrimary),
                     decoration: InputDecoration(
                       labelText: 'Transcode slots',
                       labelStyle: TextStyle(
-                        color: Colors.white.withValues(alpha: 0.7),
+                        color: AppTheme.textPrimary.withValues(alpha: 0.7),
                       ),
                       helperText:
                           'Default for this device: ${snapshot.defaultSlots}',

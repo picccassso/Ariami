@@ -42,8 +42,8 @@ class DashboardHeader extends StatelessWidget implements PreferredSizeWidget {
 
     return DecoratedBox(
       decoration: const BoxDecoration(
-        color: AppTheme.pureBlack,
-        border: Border(bottom: BorderSide(color: AppTheme.borderGrey)),
+        color: AppTheme.base,
+        border: Border(bottom: BorderSide(color: AppTheme.border)),
       ),
       child: SafeArea(
         bottom: false,
@@ -107,7 +107,7 @@ class DashboardHeader extends StatelessWidget implements PreferredSizeWidget {
                           AppTheme.radiusSmall,
                         ),
                         overlayColor: WidgetStateProperty.all(
-                          Colors.white.withValues(alpha: 0.05),
+                          AppTheme.textPrimary.withValues(alpha: 0.05),
                         ),
                         tabs: [for (final tab in tabs) Tab(text: tab)],
                       ),
@@ -135,13 +135,13 @@ class _Wordmark extends StatelessWidget {
           width: 26,
           height: 26,
           decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(7),
+            color: AppTheme.textPrimary,
+            borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
           ),
           child: const Icon(
             Icons.music_note_rounded,
             size: 16,
-            color: AppTheme.pureBlack,
+            color: AppTheme.base,
           ),
         ),
         const SizedBox(width: 10),
@@ -149,7 +149,7 @@ class _Wordmark extends StatelessWidget {
           'Ariami',
           style: TextStyle(
             fontSize: 16.5,
-            fontWeight: FontWeight.w700,
+            fontWeight: FontWeight.w600,
             letterSpacing: -0.4,
             color: AppTheme.textPrimary,
           ),
@@ -202,9 +202,9 @@ class _AccountMenu extends StatelessWidget {
             bottom: 5,
           ),
           decoration: BoxDecoration(
-            color: AppTheme.surfaceBlack,
-            borderRadius: BorderRadius.circular(999),
-            border: Border.all(color: AppTheme.borderGrey),
+            color: AppTheme.surface,
+            borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
+            border: Border.all(color: AppTheme.border),
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
@@ -221,7 +221,7 @@ class _AccountMenu extends StatelessWidget {
                   initial,
                   style: const TextStyle(
                     fontSize: 12,
-                    fontWeight: FontWeight.w700,
+                    fontWeight: FontWeight.w600,
                     color: AppTheme.textPrimary,
                   ),
                 ),

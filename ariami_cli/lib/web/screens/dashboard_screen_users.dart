@@ -171,7 +171,7 @@ extension _DashboardUsers on _DashboardScreenState {
         SnackBar(
           content: Text(
               'Disconnected ${client.deviceName}${client.username == null ? '' : ' (${client.username})'}'),
-          backgroundColor: AppTheme.surfaceBlack,
+          backgroundColor: AppTheme.surface,
           behavior: SnackBarBehavior.floating,
         ),
       );
@@ -229,7 +229,7 @@ extension _DashboardUsers on _DashboardScreenState {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Password updated for ${payload['username']}'),
-          backgroundColor: AppTheme.surfaceBlack,
+          backgroundColor: AppTheme.surface,
           behavior: SnackBarBehavior.floating,
         ),
       );
@@ -283,7 +283,7 @@ extension _DashboardUsers on _DashboardScreenState {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Created user ${payload.username}'),
-          backgroundColor: AppTheme.surfaceBlack,
+          backgroundColor: AppTheme.surface,
           behavior: SnackBarBehavior.floating,
         ),
       );
@@ -335,7 +335,7 @@ extension _DashboardUsers on _DashboardScreenState {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Deleted user ${row.username}'),
-          backgroundColor: AppTheme.surfaceBlack,
+          backgroundColor: AppTheme.surface,
           behavior: SnackBarBehavior.floating,
         ),
       );

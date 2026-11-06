@@ -81,7 +81,7 @@ class _LibraryUploadDialogState extends State<LibraryUploadDialog> {
     final name = await showDialog<String>(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: AppTheme.surfaceBlack,
+        backgroundColor: AppTheme.surface,
         title:
             Text('New folder in ${_folder.isEmpty ? 'Library root' : _folder}'),
         content: TextField(
@@ -141,7 +141,7 @@ class _LibraryUploadDialogState extends State<LibraryUploadDialog> {
   Widget build(BuildContext context) {
     final files = _files;
     return AlertDialog(
-      backgroundColor: AppTheme.surfaceBlack,
+      backgroundColor: AppTheme.surface,
       title: const Text('Upload music'),
       // A fixed width: AlertDialog sizes content by intrinsic width, which
       // the folder tree and file list cannot report.

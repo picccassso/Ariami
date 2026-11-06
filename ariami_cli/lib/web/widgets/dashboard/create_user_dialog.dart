@@ -25,7 +25,7 @@ Future<CreateUserPayload?> showCreateUserDialog(BuildContext context) async {
       return StatefulBuilder(
         builder: (context, setDialogState) {
           return AlertDialog(
-            backgroundColor: AppTheme.surfaceBlack,
+            backgroundColor: AppTheme.surface,
             title: const Text('Create User'),
             content: SizedBox(
               width: MediaQuery.of(context).size.width < 480

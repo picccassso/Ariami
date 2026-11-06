@@ -205,7 +205,7 @@ class _DashboardScreenState extends State<DashboardScreen>
     return PopScope(
       canPop: !_setupComplete,
       child: Scaffold(
-        backgroundColor: AppTheme.pureBlack,
+        backgroundColor: AppTheme.base,
         appBar: DashboardHeader(
           tabController: _tabController,
           tabs: _dashboardTabs,

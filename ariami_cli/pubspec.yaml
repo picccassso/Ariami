@@ -50,6 +50,24 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  # Archivo (SIL OFL, assets/fonts/OFL.txt), the same cuts Ariami Desktop
+  # Premium ships; see AppTheme for which width does what.
+  fonts:
+    - family: Archivo
+      fonts:
+        - asset: assets/fonts/Archivo-Regular.ttf
+        - asset: assets/fonts/Archivo-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/Archivo-SemiBold.ttf
+          weight: 600
+    - family: Archivo Condensed
+      fonts:
+        - asset: assets/fonts/ArchivoCondensed-SemiBold.ttf
+          weight: 600
+    - family: Archivo Extra Condensed
+      fonts:
+        - asset: assets/fonts/ArchivoExtraCondensed-SemiBold.ttf
+          weight: 600
 
 executables:
   ariami_cli:

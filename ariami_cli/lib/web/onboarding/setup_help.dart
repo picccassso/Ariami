@@ -167,7 +167,7 @@ Future<void> showSetupHelp(BuildContext context, SetupHelpTopic topic) {
   return showDialog<void>(
     context: context,
     builder: (context) => AlertDialog(
-      backgroundColor: AppTheme.surfaceBlack,
+      backgroundColor: AppTheme.surface,
       title: Row(
         children: [
           const Icon(Icons.info_outline_rounded),
@@ -185,7 +185,7 @@ Future<void> showSetupHelp(BuildContext context, SetupHelpTopic topic) {
               for (final section in topic.sections) ...[
                 Text(
                   section.heading,
-                  style: const TextStyle(fontWeight: FontWeight.w700),
+                  style: const TextStyle(fontWeight: FontWeight.w600),
                 ),
                 const SizedBox(height: 4),
                 Text(

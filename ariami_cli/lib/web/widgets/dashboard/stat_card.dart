@@ -31,7 +31,7 @@ class StatCard extends StatelessWidget {
             decoration: BoxDecoration(
               color: AppTheme.surfaceRaised,
               borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
-              border: Border.all(color: AppTheme.borderGrey),
+              border: Border.all(color: AppTheme.border),
             ),
             child: Icon(icon, size: 18, color: AppTheme.textPrimary),
           ),
@@ -45,7 +45,7 @@ class StatCard extends StatelessWidget {
                   count,
                   style: const TextStyle(
                     fontSize: 26,
-                    fontWeight: FontWeight.w700,
+                    fontWeight: FontWeight.w600,
                     color: AppTheme.textPrimary,
                     letterSpacing: -1,
                     height: 1.15,

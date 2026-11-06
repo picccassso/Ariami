@@ -2,62 +2,70 @@ import 'package:flutter/material.dart';
 
 /// Design tokens and the single theme for the Ariami web dashboard.
 ///
-/// The palette stays black-and-white to match Ariami Desktop; colour is
-/// reserved for status (running, warning, destructive) so it always carries
-/// meaning. Type is sentence case at a small number of sizes — the dashboard
-/// is read at a glance, not shouted at.
+/// Mirrors Ariami Desktop Premium's neutral dark theme (`PlayerTheme`): a
+/// flat graphite ground divided by hairline rules, Archivo in three widths,
+/// crisp corners and no accent colour — active states invert ink and ground.
+/// Colour is reserved for status (running, warning, destructive) so it always
+/// carries meaning.
 class AppTheme {
-  static const Color pureBlack = Color(0xFF050505);
+  /// The page's ground.
+  static const Color base = Color(0xFF1C1D20);
 
-  /// Default card / panel fill.
-  static const Color surfaceBlack = Color(0xFF121212);
+  /// Default card / panel fill, a step up from [base].
+  static const Color surface = Color(0xFF27292D);
 
   /// Raised fill for elements sitting on top of a card (icon chips, inputs).
-  static const Color surfaceRaised = Color(0xFF1B1B1B);
+  static const Color surfaceRaised = Color(0xFF2E3034);
 
   /// Fill for a hovered card or row.
-  static const Color surfaceHover = Color(0xFF1F1F1F);
+  static const Color surfaceHover = Color(0xFF2C2E32);
 
-  static const Color borderGrey = Color(0xFF262626);
-  static const Color borderStrong = Color(0xFF3A3A3A);
+  /// Opaque, elevated fill for dialogs, menus and snack bars.
+  static const Color popover = Color(0xFF2A2C30);
 
-  static const Color textPrimary = Color(0xFFFAFAFA);
+  static const Color border = Color(0xFF34363B);
+  static const Color borderStrong = Color(0xFF45474D);
 
-  /// Labels and supporting copy. Deliberately lighter than the old
-  /// `white54` so 12–13px meta text stays legible on near-black.
-  static const Color textSecondary = Color(0xFFA3A3A3);
+  /// The ink: primary text and icons, and the fill of primary controls.
+  static const Color textPrimary = Color(0xFFE8E8E4);
+
+  /// Labels and supporting copy.
+  static const Color textSecondary = Color(0xFF8D8F95);
 
   /// Lowest-emphasis text: placeholders, disabled values.
-  static const Color textTertiary = Color(0xFF6F6F6F);
+  static const Color textTertiary = Color(0xFF6B6D73);
 
   static const Color success = Color(0xFF4ADE80);
   static const Color warning = Color(0xFFFBBF24);
-  static const Color danger = Color(0xFFF87171);
+  static const Color danger = Color(0xFFFF6B6B);
 
-  static const double radiusSmall = 10;
-  static const double radiusMedium = 14;
-  static const double radiusLarge = 18;
+  /// Archivo in three widths: regular for reading, condensed for headings
+  /// and extra condensed for display titles.
+  static const String bodyFamily = 'Archivo';
+  static const String headingFamily = 'Archivo Condensed';
+  static const String displayFamily = 'Archivo Extra Condensed';
 
-  static final BorderRadius cardRadius = BorderRadius.circular(radiusLarge);
+  /// Corner radii by hierarchy: badges crisp, controls and cards slightly
+  /// softened, floating surfaces (dialogs) a little more.
+  static const double radiusSmall = 4;
+  static const double radiusMedium = 6;
+  static const double radiusLarge = 10;
+
+  static final BorderRadius cardRadius = BorderRadius.circular(radiusMedium);
 
   static BoxDecoration cardDecoration({bool hovered = false}) => BoxDecoration(
-        color: hovered ? surfaceHover : surfaceBlack,
+        color: hovered ? surfaceHover : surface,
         borderRadius: cardRadius,
-        border: Border.all(color: hovered ? borderStrong : borderGrey),
+        border: Border.all(color: hovered ? borderStrong : border),
       );
-
-  static LinearGradient backgroundGradient = const LinearGradient(
-    begin: Alignment.topCenter,
-    end: Alignment.bottomCenter,
-    colors: [pureBlack, Color(0xFF0D0D0D)],
-  );
 
   /// Sentence-case section heading, matching Ariami Desktop's dashboard.
   static const TextStyle sectionTitle = TextStyle(
+    fontFamily: headingFamily,
     fontSize: 20,
-    fontWeight: FontWeight.w700,
+    fontWeight: FontWeight.w600,
     color: textPrimary,
-    letterSpacing: -0.4,
+    height: 1.15,
   );
 
   /// Small supporting label above or beside a value.
@@ -76,60 +84,73 @@ class AppTheme {
     height: 1.45,
   );
 
-  static ThemeData lightTheme = darkTheme; // Enforce dark theme
+  static const RoundedRectangleBorder _controlShape = RoundedRectangleBorder(
+    borderRadius: BorderRadius.all(Radius.circular(radiusMedium)),
+  );
+
+  static const TextStyle _buttonText = TextStyle(
+    fontFamily: bodyFamily,
+    fontSize: 14,
+    fontWeight: FontWeight.w600,
+  );
 
   static ThemeData darkTheme = ThemeData(
     brightness: Brightness.dark,
     useMaterial3: true,
-    scaffoldBackgroundColor: pureBlack,
-    primaryColor: Colors.white,
-    fontFamily: 'Inter', // Prefer Inter if available
+    fontFamily: bodyFamily,
+    scaffoldBackgroundColor: base,
+    canvasColor: base,
+    primaryColor: textPrimary,
     colorScheme: const ColorScheme.dark(
-      primary: Colors.white,
-      secondary: Colors.white,
-      surface: surfaceBlack,
+      primary: textPrimary,
+      secondary: textPrimary,
+      surface: surface,
       surfaceContainer: surfaceRaised,
-      onPrimary: pureBlack,
-      onSecondary: pureBlack,
+      surfaceContainerHighest: popover,
+      onPrimary: base,
+      onSecondary: base,
       onSurface: textPrimary,
-      outline: borderGrey,
+      outline: border,
       error: danger,
     ),
+    splashFactory: NoSplash.splashFactory,
+    hoverColor: const Color(0x10E8E8E4),
+    highlightColor: const Color(0x10E8E8E4),
     appBarTheme: const AppBarTheme(
-      backgroundColor: pureBlack,
+      backgroundColor: base,
       foregroundColor: textPrimary,
       elevation: 0,
       scrolledUnderElevation: 0,
       surfaceTintColor: Colors.transparent,
       centerTitle: false,
       titleTextStyle: TextStyle(
+        fontFamily: headingFamily,
         fontSize: 17,
         fontWeight: FontWeight.w600,
         color: textPrimary,
-        letterSpacing: -0.3,
       ),
     ),
     textTheme: const TextTheme(
       headlineLarge: TextStyle(
+        fontFamily: displayFamily,
         fontSize: 44,
-        fontWeight: FontWeight.w700,
+        fontWeight: FontWeight.w600,
         color: textPrimary,
-        letterSpacing: -1.6,
-        height: 1.1,
+        letterSpacing: -0.4,
+        height: 0.95,
       ),
       headlineMedium: TextStyle(
+        fontFamily: headingFamily,
         fontSize: 28,
-        fontWeight: FontWeight.w700,
+        fontWeight: FontWeight.w600,
         color: textPrimary,
-        letterSpacing: -0.8,
-        height: 1.2,
+        height: 1.15,
       ),
       titleLarge: sectionTitle,
       titleMedium: TextStyle(
         fontSize: 15,
         fontWeight: FontWeight.w600,
         color: textPrimary,
-        letterSpacing: -0.1,
       ),
       bodyLarge: TextStyle(
         fontSize: 15,
@@ -144,15 +165,14 @@ class AppTheme {
       labelLarge: TextStyle(
         fontSize: 14,
         fontWeight: FontWeight.w600,
-        letterSpacing: -0.1,
       ),
     ),
     cardTheme: CardThemeData(
-      color: surfaceBlack,
+      color: surface,
       elevation: 0,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(radiusLarge),
-        side: const BorderSide(color: borderGrey, width: 1),
+        borderRadius: BorderRadius.circular(radiusMedium),
+        side: const BorderSide(color: border),
       ),
       margin: EdgeInsets.zero,
     ),
@@ -161,18 +181,14 @@ class AppTheme {
     // inert text. Mirrors the same change in Ariami Desktop.
     elevatedButtonTheme: ElevatedButtonThemeData(
       style: ElevatedButton.styleFrom(
-        backgroundColor: Colors.white,
-        foregroundColor: pureBlack,
+        backgroundColor: textPrimary,
+        foregroundColor: base,
         disabledBackgroundColor: surfaceRaised,
         disabledForegroundColor: textTertiary,
         elevation: 0,
-        padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 16),
-        shape: const StadiumBorder(),
-        textStyle: const TextStyle(
-          fontSize: 14.5,
-          fontWeight: FontWeight.w600,
-          letterSpacing: -0.1,
-        ),
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+        shape: _controlShape,
+        textStyle: _buttonText,
         enabledMouseCursor: SystemMouseCursors.click,
         disabledMouseCursor: SystemMouseCursors.basic,
       ),
@@ -181,21 +197,20 @@ class AppTheme {
       style: OutlinedButton.styleFrom(
         foregroundColor: textPrimary,
         disabledForegroundColor: textTertiary,
-        side: const BorderSide(color: borderStrong),
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-        shape: const StadiumBorder(),
-        textStyle: const TextStyle(
-          fontSize: 14.5,
-          fontWeight: FontWeight.w600,
-          letterSpacing: -0.1,
-        ),
+        side: const BorderSide(color: border),
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+        shape: _controlShape,
+        textStyle: _buttonText,
         enabledMouseCursor: SystemMouseCursors.click,
         disabledMouseCursor: SystemMouseCursors.basic,
       ),
     ),
     filledButtonTheme: FilledButtonThemeData(
       style: FilledButton.styleFrom(
-        shape: const StadiumBorder(),
+        backgroundColor: textPrimary,
+        foregroundColor: base,
+        shape: _controlShape,
+        textStyle: _buttonText,
         enabledMouseCursor: SystemMouseCursors.click,
         disabledMouseCursor: SystemMouseCursors.basic,
       ),
@@ -204,13 +219,9 @@ class AppTheme {
       style: TextButton.styleFrom(
         foregroundColor: textPrimary,
         disabledForegroundColor: textTertiary,
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-        shape: const StadiumBorder(),
-        textStyle: const TextStyle(
-          fontSize: 14,
-          fontWeight: FontWeight.w600,
-          letterSpacing: -0.1,
-        ),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        shape: _controlShape,
+        textStyle: _buttonText,
         enabledMouseCursor: SystemMouseCursors.click,
         disabledMouseCursor: SystemMouseCursors.basic,
       ),
@@ -218,7 +229,7 @@ class AppTheme {
     iconButtonTheme: IconButtonThemeData(
       style: IconButton.styleFrom(
         foregroundColor: textPrimary,
-        hoverColor: Colors.white.withValues(alpha: 0.08),
+        shape: _controlShape,
         enabledMouseCursor: SystemMouseCursors.click,
         disabledMouseCursor: SystemMouseCursors.basic,
       ),
@@ -226,54 +237,54 @@ class AppTheme {
     switchTheme: SwitchThemeData(
       mouseCursor: WidgetStateMouseCursor.clickable,
       thumbColor: WidgetStateProperty.resolveWith((states) =>
-          states.contains(WidgetState.selected) ? pureBlack : textSecondary),
+          states.contains(WidgetState.selected) ? base : textSecondary),
       trackColor: WidgetStateProperty.resolveWith((states) =>
-          states.contains(WidgetState.selected) ? Colors.white : surfaceRaised),
-      trackOutlineColor:
-          WidgetStateProperty.all(borderStrong),
+          states.contains(WidgetState.selected) ? textPrimary : surfaceRaised),
+      trackOutlineColor: WidgetStateProperty.resolveWith((states) =>
+          states.contains(WidgetState.selected)
+              ? Colors.transparent
+              : border),
+    ),
+    progressIndicatorTheme: ProgressIndicatorThemeData(
+      color: textPrimary,
+      linearTrackColor: border,
+      circularTrackColor: Colors.transparent,
+      linearMinHeight: 3,
+      borderRadius: BorderRadius.circular(2),
+    ),
+    scrollbarTheme: ScrollbarThemeData(
+      radius: const Radius.circular(3),
+      thickness: const WidgetStatePropertyAll(6),
+      thumbColor:
+          WidgetStatePropertyAll(textPrimary.withValues(alpha: 0.18)),
     ),
     tabBarTheme: const TabBarThemeData(
       labelColor: textPrimary,
       unselectedLabelColor: textSecondary,
-      indicatorColor: Colors.white,
+      indicatorColor: textPrimary,
       indicatorSize: TabBarIndicatorSize.label,
       dividerColor: Colors.transparent,
       labelStyle: TextStyle(
+        fontFamily: bodyFamily,
         fontSize: 14,
         fontWeight: FontWeight.w600,
-        letterSpacing: -0.1,
       ),
       unselectedLabelStyle: TextStyle(
+        fontFamily: bodyFamily,
         fontSize: 14,
         fontWeight: FontWeight.w500,
-        letterSpacing: -0.1,
       ),
       mouseCursor: WidgetStateMouseCursor.clickable,
     ),
+    // Underline (not outline), as in Desktop Premium, so a floating label
+    // lands inside the filled field; the underline marks focus and errors.
     inputDecorationTheme: InputDecorationTheme(
       filled: true,
       fillColor: surfaceRaised,
-      border: OutlineInputBorder(
+      border: UnderlineInputBorder(
         borderRadius: BorderRadius.circular(radiusMedium),
-        borderSide: const BorderSide(color: borderGrey),
+        borderSide: BorderSide.none,
       ),
-      enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(radiusMedium),
-        borderSide: const BorderSide(color: borderGrey),
-      ),
-      focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(radiusMedium),
-        borderSide: const BorderSide(color: Colors.white, width: 1.5),
-      ),
-      errorBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(radiusMedium),
-        borderSide: const BorderSide(color: danger),
-      ),
-      focusedErrorBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(radiusMedium),
-        borderSide: const BorderSide(color: danger, width: 1.5),
-      ),
-      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
       labelStyle: const TextStyle(color: textSecondary),
       hintStyle: const TextStyle(color: textTertiary),
       floatingLabelStyle: const TextStyle(color: textPrimary),
@@ -286,16 +297,32 @@ class AppTheme {
       errorStyle: const TextStyle(color: danger, fontSize: 12.5),
     ),
     dialogTheme: DialogThemeData(
-      backgroundColor: surfaceBlack,
+      backgroundColor: popover,
       surfaceTintColor: Colors.transparent,
+      elevation: 16,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(radiusLarge),
-        side: const BorderSide(color: borderGrey),
+        side: const BorderSide(color: border),
       ),
       titleTextStyle: sectionTitle,
     ),
+    popupMenuTheme: PopupMenuThemeData(
+      color: popover,
+      surfaceTintColor: Colors.transparent,
+      elevation: 8,
+      shadowColor: Colors.black.withValues(alpha: 0.4),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(8),
+        side: const BorderSide(color: border),
+      ),
+      textStyle: const TextStyle(
+        fontFamily: bodyFamily,
+        color: textPrimary,
+        fontSize: 13.5,
+      ),
+    ),
     dividerTheme: const DividerThemeData(
-      color: borderGrey,
+      color: border,
       thickness: 1,
       space: 1,
     ),
@@ -305,30 +332,33 @@ class AppTheme {
     ),
     tooltipTheme: TooltipThemeData(
       decoration: BoxDecoration(
-        color: surfaceRaised,
+        color: border,
         borderRadius: BorderRadius.circular(radiusSmall),
-        border: Border.all(color: borderGrey),
       ),
-      textStyle: const TextStyle(color: textPrimary, fontSize: 12.5),
-      waitDuration: const Duration(milliseconds: 400),
-    ),
-    // Snackbars float above a near-black background, so give them a clear
-    // outline, shadow and readable text so they're always visible.
-    snackBarTheme: SnackBarThemeData(
-      behavior: SnackBarBehavior.floating,
-      backgroundColor: surfaceRaised,
-      contentTextStyle: const TextStyle(
-        color: textPrimary,
-        fontSize: 14,
+      textStyle: const TextStyle(
+        fontFamily: bodyFamily,
+        color: Colors.white,
+        fontSize: 12,
         fontWeight: FontWeight.w500,
       ),
-      actionTextColor: Colors.white,
-      elevation: 10,
+      waitDuration: const Duration(milliseconds: 350),
+    ),
+    snackBarTheme: SnackBarThemeData(
+      behavior: SnackBarBehavior.floating,
+      backgroundColor: popover,
+      contentTextStyle: const TextStyle(
+        fontFamily: bodyFamily,
+        color: textPrimary,
+        fontSize: 13.5,
+        fontWeight: FontWeight.w500,
+      ),
+      actionTextColor: textPrimary,
+      elevation: 8,
       width: 460,
       insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(radiusMedium),
-        side: const BorderSide(color: borderStrong),
+        side: const BorderSide(color: border),
       ),
     ),
     pageTransitionsTheme: const PageTransitionsTheme(

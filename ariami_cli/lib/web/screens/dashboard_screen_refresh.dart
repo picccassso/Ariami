@@ -293,7 +293,7 @@ extension _DashboardRefresh on _DashboardScreenState {
           content: Text(
             'Saved. Restart the Ariami server for changes to take effect.',
           ),
-          backgroundColor: AppTheme.surfaceBlack,
+          backgroundColor: AppTheme.surface,
           behavior: SnackBarBehavior.floating,
         ),
       );

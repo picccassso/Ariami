@@ -157,7 +157,7 @@ class _FolderSelectionScreenState extends State<FolderSelectionScreen> {
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: Material(
-        color: isSelected ? AppTheme.surfaceHover : AppTheme.surfaceBlack,
+        color: isSelected ? AppTheme.surfaceHover : AppTheme.surface,
         borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
         child: InkWell(
           borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
@@ -168,7 +168,7 @@ class _FolderSelectionScreenState extends State<FolderSelectionScreen> {
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
               border: Border.all(
-                color: isSelected ? Colors.white : AppTheme.borderGrey,
+                color: isSelected ? AppTheme.textPrimary : AppTheme.border,
               ),
             ),
             child: Row(
