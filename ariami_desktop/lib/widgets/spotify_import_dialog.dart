@@ -143,7 +143,7 @@ class _SpotifyImportDialogState extends State<SpotifyImportDialog> {
         return Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Icon(Icons.error_outline_rounded, color: Colors.redAccent),
+            const Icon(Icons.error_outline_rounded, color: AppColors.danger),
             const SizedBox(width: 12),
             Expanded(child: Text(_message)),
           ],
@@ -178,7 +178,7 @@ class _SpotifyImportDialogState extends State<SpotifyImportDialog> {
           children: [
             const Row(
               children: [
-                Icon(Icons.check_circle_rounded, color: Colors.greenAccent),
+                Icon(Icons.check_circle_rounded, color: AppColors.success),
                 SizedBox(width: 12),
                 Text('Spotify listening stats imported.'),
               ],

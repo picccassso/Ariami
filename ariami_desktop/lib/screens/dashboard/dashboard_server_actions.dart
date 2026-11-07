@@ -165,7 +165,7 @@ extension _DashboardServerActions on _DashboardScreenState {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Failed to refresh addresses: $e'),
-          backgroundColor: Colors.redAccent,
+          backgroundColor: AppColors.danger,
         ),
       );
     } finally {
@@ -260,7 +260,7 @@ extension _DashboardServerActions on _DashboardScreenState {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Failed to update transcode slots: $e'),
-          backgroundColor: Colors.redAccent,
+          backgroundColor: AppColors.danger,
           duration: const Duration(seconds: 3),
         ),
       );

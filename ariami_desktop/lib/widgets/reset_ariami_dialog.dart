@@ -1,5 +1,6 @@
 import 'package:ariami_core/ariami_core.dart';
 import 'package:flutter/material.dart';
+import '../utils/constants.dart';
 
 /// Shows the "Reset Ariami" dialog. Returns the chosen [ResetScope], or null if
 /// the user cancelled.
@@ -114,8 +115,8 @@ class _ResetAriamiDialogState extends State<_ResetAriamiDialog> {
         ),
         ElevatedButton(
           style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.redAccent,
-            foregroundColor: Colors.white,
+            backgroundColor: AppColors.danger,
+            foregroundColor: AppColors.textPrimary,
           ),
           onPressed: _confirmed ? () => Navigator.of(context).pop(_scope) : null,
           child: const Text('Reset'),
@@ -143,11 +144,11 @@ class _ResetOptionCard extends StatelessWidget {
     final colorScheme = Theme.of(context).colorScheme;
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
+      borderRadius: BorderRadius.circular(AppTheme.tileRadius),
       child: Container(
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(AppTheme.tileRadius),
           border: Border.all(
             color: selected
                 ? colorScheme.primary

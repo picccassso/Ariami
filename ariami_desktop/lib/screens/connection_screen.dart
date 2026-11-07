@@ -329,7 +329,7 @@ class _ConnectionScreenState extends State<ConnectionScreen> {
                   style: const TextStyle(
                     fontSize: 28,
                     fontWeight: FontWeight.w900,
-                    color: Colors.white,
+                    color: AppColors.textPrimary,
                     letterSpacing: 4.0,
                     fontFamily: 'monospace',
                   ),
@@ -337,7 +337,7 @@ class _ConnectionScreenState extends State<ConnectionScreen> {
                 const SizedBox(width: 8),
                 IconButton(
                   tooltip: 'Copy code',
-                  icon: const Icon(Icons.copy_rounded, color: Colors.white),
+                  icon: const Icon(Icons.copy_rounded, color: AppColors.textPrimary),
                   onPressed: _copyInviteCode,
                 ),
               ],
@@ -380,7 +380,7 @@ class _ConnectionScreenState extends State<ConnectionScreen> {
                 const Icon(
                   Icons.qr_code_2_rounded,
                   size: 64,
-                  color: Colors.white,
+                  color: AppColors.textPrimary,
                 ),
                 const SizedBox(height: 16),
                 const Text(
@@ -398,23 +398,23 @@ class _ConnectionScreenState extends State<ConnectionScreen> {
                     margin: const EdgeInsets.only(bottom: 16),
                     padding: const EdgeInsets.all(14),
                     decoration: BoxDecoration(
-                      color: Colors.orange.withValues(alpha: 0.15),
-                      borderRadius: BorderRadius.circular(12),
+                      color: AppColors.warning.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(AppTheme.tileRadius),
                       border: Border.all(
-                          color: Colors.orange.withValues(alpha: 0.3)),
+                          color: AppColors.warning.withValues(alpha: 0.3)),
                     ),
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Icon(Icons.warning_amber_rounded,
-                            color: Colors.orange.shade300),
+                            color: AppColors.warning),
                         const SizedBox(width: 10),
                         const Expanded(
                           child: Text(
                             'Owner setup is still pending. Owner-only actions in Dashboard remain locked until you create the first account.',
                             style: TextStyle(
                               fontSize: 13,
-                              color: Colors.white,
+                              color: AppColors.textPrimary,
                               height: 1.4,
                             ),
                           ),
@@ -433,7 +433,7 @@ class _ConnectionScreenState extends State<ConnectionScreen> {
                 if (_isLoading)
                   Column(
                     children: [
-                      const CircularProgressIndicator(color: Colors.white),
+                      const CircularProgressIndicator(color: AppColors.textPrimary),
                       const SizedBox(height: 16),
                       const Text(
                         'Starting server...',
@@ -450,7 +450,7 @@ class _ConnectionScreenState extends State<ConnectionScreen> {
                         textAlign: TextAlign.center,
                         style: const TextStyle(
                           fontSize: 16,
-                          color: Colors.red,
+                          color: AppColors.danger,
                         ),
                       ),
                       const SizedBox(height: 16),
@@ -475,7 +475,7 @@ class _ConnectionScreenState extends State<ConnectionScreen> {
                                   horizontal: 24, vertical: 32),
                               decoration: BoxDecoration(
                                 color: AppColors.surfaceHigh,
-                                borderRadius: BorderRadius.circular(24),
+                                borderRadius: BorderRadius.circular(AppTheme.panelRadius),
                                 border: Border.all(color: AppColors.border),
                               ),
                               child: Column(
@@ -523,14 +523,14 @@ class _ConnectionScreenState extends State<ConnectionScreen> {
                                         horizontal: 12, vertical: 6),
                                     decoration: BoxDecoration(
                                       color: _httpServer.authRequired
-                                          ? Colors.orange.withValues(alpha: 0.2)
-                                          : Colors.green.withValues(alpha: 0.2),
-                                      borderRadius: BorderRadius.circular(12),
+                                          ? AppColors.warning.withValues(alpha: 0.2)
+                                          : AppColors.success.withValues(alpha: 0.2),
+                                      borderRadius: BorderRadius.circular(AppTheme.tileRadius),
                                       border: Border.all(
                                         color: _httpServer.authRequired
-                                            ? Colors.orange
+                                            ? AppColors.warning
                                                 .withValues(alpha: 0.5)
-                                            : Colors.green
+                                            : AppColors.success
                                                 .withValues(alpha: 0.5),
                                       ),
                                     ),
@@ -542,8 +542,8 @@ class _ConnectionScreenState extends State<ConnectionScreen> {
                                         fontSize: 11,
                                         fontWeight: FontWeight.w600,
                                         color: _httpServer.authRequired
-                                            ? Colors.orange
-                                            : Colors.green,
+                                            ? AppColors.warning
+                                            : AppColors.success,
                                         letterSpacing: 0.5,
                                       ),
                                     ),
@@ -563,8 +563,11 @@ class _ConnectionScreenState extends State<ConnectionScreen> {
                             Container(
                               padding: const EdgeInsets.all(20),
                               decoration: BoxDecoration(
+                                // The QR ground stays light: the modules must
+                                // keep their contrast to scan.
                                 color: Colors.white,
-                                borderRadius: BorderRadius.circular(24),
+                                borderRadius:
+                                    BorderRadius.circular(AppTheme.panelRadius),
                               ),
                               child: QrImageView(
                                 data: _generateQRData(),
@@ -616,13 +619,12 @@ class _ConnectionScreenState extends State<ConnectionScreen> {
                       Navigator.pushReplacementNamed(context, '/dashboard');
                     },
                     style: OutlinedButton.styleFrom(
-                      foregroundColor: Colors.white,
+                      foregroundColor: AppColors.textPrimary,
                       side: const BorderSide(color: AppColors.border),
                       padding: const EdgeInsets.symmetric(
                         horizontal: 48,
                         vertical: 20,
                       ),
-                      shape: const StadiumBorder(),
                     ),
                     child: const Text(
                       'Continue to Dashboard',
@@ -694,7 +696,7 @@ class _EndpointDisplay extends StatelessWidget {
           style: const TextStyle(
             fontSize: 20,
             fontWeight: FontWeight.bold,
-            color: Colors.white,
+            color: AppColors.textPrimary,
             letterSpacing: -0.5,
           ),
         ),

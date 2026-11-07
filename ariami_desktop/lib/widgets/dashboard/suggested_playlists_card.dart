@@ -1,5 +1,6 @@
 import 'package:ariami_core/models/playlist_suggestion.dart';
 import 'package:flutter/material.dart';
+import '../../utils/constants.dart';
 
 /// Likely-playlist folders found by the last library scan.
 ///
@@ -168,16 +169,16 @@ class _MissingTagsBadge extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
       decoration: BoxDecoration(
-        color: Colors.orange.withValues(alpha: 0.12),
+        color: AppColors.warning.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: Colors.orange.withValues(alpha: 0.45)),
+        border: Border.all(color: AppColors.warning.withValues(alpha: 0.45)),
       ),
       child: Text(
         'Tags missing — review before importing',
         style: TextStyle(
           fontSize: 11,
           fontWeight: FontWeight.w600,
-          color: Colors.orange.shade300,
+          color: AppColors.warning,
         ),
       ),
     );

@@ -68,7 +68,7 @@ Future<AdminCredentials?> showAdminCredentialsDialog(
                       child: Text(
                         dialogError!,
                         style: const TextStyle(
-                          color: Colors.redAccent,
+                          color: AppColors.danger,
                           fontSize: 12,
                         ),
                       ),

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../utils/constants.dart';
 
 /// Result of [showChangePasswordDialog].
 class ChangePasswordPayload {
@@ -51,7 +52,7 @@ Future<ChangePasswordPayload?> showChangePasswordDialog(
                       child: Text(
                         dialogError!,
                         style: const TextStyle(
-                          color: Colors.redAccent,
+                          color: AppColors.danger,
                           fontSize: 12,
                         ),
                       ),

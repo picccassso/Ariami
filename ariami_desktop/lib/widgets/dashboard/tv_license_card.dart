@@ -1,5 +1,6 @@
 import 'package:ariami_core/ariami_core.dart';
 import 'package:flutter/material.dart';
+import '../../utils/constants.dart';
 
 /// Dashboard card that activates an Ariami TV license key on the TVs'
 /// behalf: the key is exchanged for a signed license file and stored on
@@ -107,7 +108,7 @@ class _TvLicenseCardState extends State<TvLicenseCard> {
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.35),
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(AppTheme.panelRadius),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

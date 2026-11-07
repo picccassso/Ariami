@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../utils/constants.dart';
 
 import '../services/spotify_import_service.dart';
 
@@ -95,7 +96,7 @@ class _SpotifyRemoveDialogState extends State<SpotifyRemoveDialog> {
         return Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Icon(Icons.error_outline_rounded, color: Colors.redAccent),
+            const Icon(Icons.error_outline_rounded, color: AppColors.danger),
             const SizedBox(width: 12),
             Expanded(child: Text(_message)),
           ],
@@ -104,7 +105,7 @@ class _SpotifyRemoveDialogState extends State<SpotifyRemoveDialog> {
         return Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Icon(Icons.check_circle_rounded, color: Colors.greenAccent),
+            const Icon(Icons.check_circle_rounded, color: AppColors.success),
             const SizedBox(width: 12),
             Expanded(
               child: Text(

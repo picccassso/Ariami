@@ -114,7 +114,7 @@ class _TailscaleCheckScreenState extends State<TailscaleCheckScreen> {
                   height: 60,
                   child: CircularProgressIndicator(
                     strokeWidth: 4,
-                    color: Colors.white,
+                    color: AppColors.textPrimary,
                   ),
                 )
               else
@@ -123,7 +123,7 @@ class _TailscaleCheckScreenState extends State<TailscaleCheckScreen> {
                       ? Icons.check_circle_rounded
                       : Icons.warning_rounded,
                   size: 80,
-                  color: Colors.white,
+                  color: AppColors.textPrimary,
                 ),
               const SizedBox(height: 32),
               Text(
@@ -136,7 +136,7 @@ class _TailscaleCheckScreenState extends State<TailscaleCheckScreen> {
                   fontSize: 24,
                   fontWeight: FontWeight.bold,
                   letterSpacing: -0.5,
-                  color: Colors.white,
+                  color: AppColors.textPrimary,
                 ),
               ),
               const SizedBox(height: 16),
@@ -155,13 +155,12 @@ class _TailscaleCheckScreenState extends State<TailscaleCheckScreen> {
                 OutlinedButton(
                   onPressed: _checkTailscale,
                   style: OutlinedButton.styleFrom(
-                    foregroundColor: Colors.white,
+                    foregroundColor: AppColors.textPrimary,
                     side: const BorderSide(color: AppColors.border),
                     padding: const EdgeInsets.symmetric(
                       horizontal: 48,
                       vertical: 20,
                     ),
-                    shape: const StadiumBorder(),
                   ),
                   child: const Text(
                     'Check Again',
@@ -175,13 +174,12 @@ class _TailscaleCheckScreenState extends State<TailscaleCheckScreen> {
                         context, '/folder-selection');
                   },
                   style: OutlinedButton.styleFrom(
-                    foregroundColor: Colors.white,
+                    foregroundColor: AppColors.textPrimary,
                     side: const BorderSide(color: AppColors.border),
                     padding: const EdgeInsets.symmetric(
                       horizontal: 48,
                       vertical: 20,
                     ),
-                    shape: const StadiumBorder(),
                   ),
                   child: Text(
                     _isInstalled ? 'Continue' : 'Continue with Local Setup',

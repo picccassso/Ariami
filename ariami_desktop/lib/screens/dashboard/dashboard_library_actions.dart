@@ -130,7 +130,7 @@ extension _DashboardLibraryActions on _DashboardScreenState {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(message),
-        backgroundColor: isError ? Colors.redAccent : null,
+        backgroundColor: isError ? AppColors.danger : null,
         duration: const Duration(seconds: 3),
       ),
     );

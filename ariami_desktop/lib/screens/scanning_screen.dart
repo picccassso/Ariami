@@ -102,7 +102,7 @@ class _ScanningScreenState extends State<ScanningScreen> {
                 const Icon(
                   Icons.error_outline_rounded,
                   size: 80,
-                  color: Colors.redAccent,
+                  color: AppColors.danger,
                 ),
               ] else if (!_isComplete) ...[
                 const SizedBox(
@@ -110,14 +110,14 @@ class _ScanningScreenState extends State<ScanningScreen> {
                   height: 60,
                   child: CircularProgressIndicator(
                     strokeWidth: 4,
-                    color: Colors.white,
+                    color: AppColors.textPrimary,
                   ),
                 ),
               ] else ...[
                 const Icon(
                   Icons.check_circle_rounded,
                   size: 80,
-                  color: Colors.white,
+                  color: AppColors.textPrimary,
                 ),
               ],
               const SizedBox(height: 32),
@@ -129,7 +129,7 @@ class _ScanningScreenState extends State<ScanningScreen> {
                   fontSize: 24,
                   fontWeight: FontWeight.bold,
                   letterSpacing: -0.5,
-                  color: Colors.white,
+                  color: AppColors.textPrimary,
                 ),
               ),
               if (_hasFailed) ...[
@@ -138,7 +138,7 @@ class _ScanningScreenState extends State<ScanningScreen> {
                   _status,
                   style: const TextStyle(
                     fontSize: 15,
-                    color: Colors.redAccent,
+                    color: AppColors.danger,
                   ),
                   textAlign: TextAlign.center,
                 ),
@@ -184,7 +184,7 @@ class _ScanningScreenState extends State<ScanningScreen> {
                         style: const TextStyle(
                           fontSize: 32,
                           fontWeight: FontWeight.w800,
-                          color: Colors.white,
+                          color: AppColors.textPrimary,
                         ),
                       ),
                       const Text(
@@ -202,7 +202,7 @@ class _ScanningScreenState extends State<ScanningScreen> {
                         style: const TextStyle(
                           fontSize: 15,
                           fontWeight: FontWeight.w600,
-                          color: Colors.white,
+                          color: AppColors.textPrimary,
                         ),
                         textAlign: TextAlign.center,
                       ),
@@ -217,10 +217,10 @@ class _ScanningScreenState extends State<ScanningScreen> {
                       vertical: 12,
                     ),
                     decoration: BoxDecoration(
-                      color: const Color(0xFF2A1F0A),
-                      borderRadius: BorderRadius.circular(12),
+                      color: AppColors.warning.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(AppTheme.tileRadius),
                       border: Border.all(
-                        color: Colors.amber.withValues(alpha: 0.4),
+                        color: AppColors.warning.withValues(alpha: 0.4),
                       ),
                     ),
                     child: Row(
@@ -228,7 +228,7 @@ class _ScanningScreenState extends State<ScanningScreen> {
                       children: [
                         Icon(
                           Icons.warning_amber_rounded,
-                          color: Colors.amber.shade300,
+                          color: AppColors.warning,
                           size: 20,
                         ),
                         const SizedBox(width: 10),
@@ -237,7 +237,7 @@ class _ScanningScreenState extends State<ScanningScreen> {
                             '$_skippedFileCount file(s) could not be read and were skipped',
                             style: TextStyle(
                               fontSize: 13,
-                              color: Colors.amber.shade100,
+                              color: AppColors.warning,
                             ),
                             textAlign: TextAlign.center,
                           ),

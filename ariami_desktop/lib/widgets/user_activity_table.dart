@@ -20,7 +20,7 @@ class UserActivityTable extends StatelessWidget {
     if (isLoading) {
       return const Padding(
         padding: EdgeInsets.symmetric(vertical: 16),
-        child: Center(child: CircularProgressIndicator(color: Colors.white)),
+        child: Center(child: CircularProgressIndicator(color: AppColors.textPrimary)),
       );
     }
 
@@ -29,13 +29,13 @@ class UserActivityTable extends StatelessWidget {
         width: double.infinity,
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: Colors.red.withValues(alpha: 0.15),
+          color: AppColors.danger.withValues(alpha: 0.15),
           borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: Colors.red.withValues(alpha: 0.3)),
+          border: Border.all(color: AppColors.danger.withValues(alpha: 0.3)),
         ),
         child: Text(
           errorMessage!,
-          style: const TextStyle(color: Colors.redAccent),
+          style: const TextStyle(color: AppColors.danger),
         ),
       );
     }
@@ -79,7 +79,7 @@ class UserActivityTable extends StatelessWidget {
                             '${row.activeDownloads}',
                             style: TextStyle(
                               color: row.isDownloading
-                                  ? Colors.greenAccent
+                                  ? AppColors.success
                                   : AppColors.textSecondary,
                               fontWeight: FontWeight.w600,
                             ),
@@ -91,7 +91,7 @@ class UserActivityTable extends StatelessWidget {
                             '${row.inFlightDownloadTranscodes}',
                             style: TextStyle(
                               color: row.isTranscoding
-                                  ? Colors.orangeAccent
+                                  ? AppColors.warning
                                   : AppColors.textSecondary,
                               fontWeight: FontWeight.w600,
                             ),

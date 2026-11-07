@@ -71,10 +71,10 @@ class DashboardOverviewTab extends StatelessWidget {
               margin: const EdgeInsets.only(bottom: 24),
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: Colors.lightBlue.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(12),
+                color: AppColors.warning.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(AppTheme.tileRadius),
                 border:
-                    Border.all(color: Colors.lightBlue.withValues(alpha: 0.3)),
+                    Border.all(color: AppColors.warning.withValues(alpha: 0.3)),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -82,14 +82,14 @@ class DashboardOverviewTab extends StatelessWidget {
                   Row(
                     children: [
                       Icon(Icons.system_update_alt_rounded,
-                          color: Colors.lightBlue.shade200, size: 20),
+                          color: AppColors.warning, size: 20),
                       const SizedBox(width: 12),
                       Expanded(
                         child: Text(
                           'Update available: v${availableUpdate!.latestVersion} '
                           '(you have v$kAriamiVersion)',
                           style: TextStyle(
-                            color: Colors.lightBlue.shade100,
+                            color: AppColors.warning,
                             fontSize: 13,
                             fontWeight: FontWeight.w600,
                           ),
@@ -103,8 +103,8 @@ class DashboardOverviewTab extends StatelessWidget {
                     icon: const Icon(Icons.open_in_new_rounded, size: 18),
                     label: const Text('View Release on GitHub'),
                     style: OutlinedButton.styleFrom(
-                      foregroundColor: Colors.lightBlue.shade100,
-                      side: BorderSide(color: Colors.lightBlue.shade300),
+                      foregroundColor: AppColors.warning,
+                      side: BorderSide(color: AppColors.warning),
                     ),
                   ),
                 ],
@@ -156,12 +156,12 @@ class DashboardOverviewTab extends StatelessWidget {
               style: ElevatedButton.styleFrom(
                 padding: const EdgeInsets.symmetric(vertical: 20),
                 backgroundColor:
-                    isRunning ? AppColors.surfaceHigh : Colors.white,
-                foregroundColor: isRunning ? Colors.redAccent : Colors.black,
+                    isRunning ? Colors.transparent : AppColors.textPrimary,
+                foregroundColor: isRunning ? AppColors.danger : AppColors.base,
                 side: isRunning
-                    ? const BorderSide(color: Colors.redAccent, width: 2)
+                    ? const BorderSide(color: AppColors.danger, width: 2)
                     : null,
-                elevation: isRunning ? 0 : 2,
+                elevation: 0,
               ),
             ),
           ),
@@ -172,9 +172,9 @@ class DashboardOverviewTab extends StatelessWidget {
               margin: const EdgeInsets.only(bottom: 8),
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: Colors.orange.withValues(alpha: 0.15),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.orange.withValues(alpha: 0.3)),
+                color: AppColors.warning.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(AppTheme.tileRadius),
+                border: Border.all(color: AppColors.warning.withValues(alpha: 0.3)),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -182,13 +182,13 @@ class DashboardOverviewTab extends StatelessWidget {
                   Row(
                     children: [
                       Icon(Icons.person_add_alt_1_rounded,
-                          color: Colors.orange.shade300, size: 20),
+                          color: AppColors.warning, size: 20),
                       const SizedBox(width: 12),
                       Expanded(
                         child: Text(
                           'Owner setup is pending. Owner is the first account created on this server.',
                           style: TextStyle(
-                            color: Colors.orange.shade200,
+                            color: AppColors.warning,
                             fontSize: 13,
                             fontWeight: FontWeight.w600,
                           ),
@@ -202,8 +202,8 @@ class DashboardOverviewTab extends StatelessWidget {
                     icon: const Icon(Icons.person_add_rounded, size: 18),
                     label: const Text('Set Up Owner Account'),
                     style: OutlinedButton.styleFrom(
-                      foregroundColor: Colors.orange.shade100,
-                      side: BorderSide(color: Colors.orange.shade400),
+                      foregroundColor: AppColors.warning,
+                      side: BorderSide(color: AppColors.warning),
                     ),
                   ),
                 ],
@@ -215,20 +215,20 @@ class DashboardOverviewTab extends StatelessWidget {
               margin: const EdgeInsets.only(bottom: 8),
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: Colors.orange.withValues(alpha: 0.15),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.orange.withValues(alpha: 0.3)),
+                color: AppColors.warning.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(AppTheme.tileRadius),
+                border: Border.all(color: AppColors.warning.withValues(alpha: 0.3)),
               ),
               child: Row(
                 children: [
                   Icon(Icons.lock_rounded,
-                      color: Colors.orange.shade300, size: 20),
+                      color: AppColors.warning, size: 20),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Text(
                       'Owner authentication is enabled. Users must sign in to access this server.',
                       style: TextStyle(
-                        color: Colors.orange.shade200,
+                        color: AppColors.warning,
                         fontSize: 13,
                         fontWeight: FontWeight.w500,
                       ),
@@ -324,15 +324,15 @@ class _MusicAvailabilityBanner extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 24),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.orange.withValues(alpha: 0.15),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.orange.withValues(alpha: 0.3)),
+        color: AppColors.warning.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(AppTheme.tileRadius),
+        border: Border.all(color: AppColors.warning.withValues(alpha: 0.3)),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Icon(Icons.warning_amber_rounded,
-              color: Colors.orange.shade300, size: 20),
+              color: AppColors.warning, size: 20),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
@@ -341,7 +341,7 @@ class _MusicAvailabilityBanner extends StatelessWidget {
                 Text(
                   availability.title,
                   style: TextStyle(
-                    color: Colors.orange.shade200,
+                    color: AppColors.warning,
                     fontSize: 13,
                     fontWeight: FontWeight.w700,
                   ),
@@ -350,7 +350,7 @@ class _MusicAvailabilityBanner extends StatelessWidget {
                 Text(
                   availability.message,
                   style: TextStyle(
-                    color: Colors.orange.shade200,
+                    color: AppColors.warning,
                     fontSize: 13,
                     fontWeight: FontWeight.w500,
                   ),

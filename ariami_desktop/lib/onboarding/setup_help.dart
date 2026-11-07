@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../utils/constants.dart';
 
 /// One titled block of plain-language help text inside a [SetupHelpTopic].
 class SetupHelpSection {
@@ -65,7 +66,7 @@ class _SetupHelpDialog extends StatelessWidget {
     return Dialog(
       backgroundColor: scheme.surface,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(AppTheme.panelRadius),
         side: BorderSide(color: scheme.outline),
       ),
       child: ConstrainedBox(

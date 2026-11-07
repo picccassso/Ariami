@@ -1,5 +1,6 @@
 import 'package:ariami_core/services/transcoding/transcode_slots_policy.dart';
 import 'package:flutter/material.dart';
+import '../utils/constants.dart';
 import 'package:flutter/services.dart';
 
 String formatTranscodeSlotsDisplay(TranscodeSlotsSnapshot snapshot) {
@@ -67,7 +68,7 @@ Future<TranscodeSlotsEditResult?> showTranscodeSlotsDialog(
                       child: Text(
                         dialogError!,
                         style: const TextStyle(
-                          color: Colors.redAccent,
+                          color: AppColors.danger,
                           fontSize: 12,
                         ),
                       ),

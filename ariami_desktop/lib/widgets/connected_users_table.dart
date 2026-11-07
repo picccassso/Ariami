@@ -30,7 +30,7 @@ class ConnectedUsersTable extends StatelessWidget {
     if (isLoading) {
       return const Padding(
         padding: EdgeInsets.symmetric(vertical: 16),
-        child: Center(child: CircularProgressIndicator(color: Colors.white)),
+        child: Center(child: CircularProgressIndicator(color: AppColors.textPrimary)),
       );
     }
 
@@ -39,13 +39,13 @@ class ConnectedUsersTable extends StatelessWidget {
         width: double.infinity,
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: Colors.red.withValues(alpha: 0.15),
+          color: AppColors.danger.withValues(alpha: 0.15),
           borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: Colors.red.withValues(alpha: 0.3)),
+          border: Border.all(color: AppColors.danger.withValues(alpha: 0.3)),
         ),
         child: Text(
           errorMessage!,
-          style: const TextStyle(color: Colors.redAccent),
+          style: const TextStyle(color: AppColors.danger),
         ),
       );
     }

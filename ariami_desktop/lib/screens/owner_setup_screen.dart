@@ -154,7 +154,7 @@ class _OwnerSetupScreenState extends State<OwnerSetupScreen> {
             padding: const EdgeInsets.all(24),
             child: _isInitializing
                 ? const Center(
-                    child: CircularProgressIndicator(color: Colors.white),
+                    child: CircularProgressIndicator(color: AppColors.textPrimary),
                   )
                 : Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -185,7 +185,7 @@ class _OwnerSetupScreenState extends State<OwnerSetupScreen> {
                         padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
                           color: AppColors.surfaceHigh,
-                          borderRadius: BorderRadius.circular(12),
+                          borderRadius: BorderRadius.circular(AppTheme.tileRadius),
                           border: Border.all(color: AppColors.border),
                         ),
                         child: _hasOwner
@@ -195,7 +195,7 @@ class _OwnerSetupScreenState extends State<OwnerSetupScreen> {
                                   const Row(
                                     children: [
                                       Icon(Icons.check_circle_rounded,
-                                          color: Colors.greenAccent),
+                                          color: AppColors.success),
                                       SizedBox(width: 10),
                                       Text(
                                         'Owner Account Already Configured',
@@ -278,7 +278,7 @@ class _OwnerSetupScreenState extends State<OwnerSetupScreen> {
                         const SizedBox(height: 12),
                         Text(
                           _inlineError!,
-                          style: const TextStyle(color: Colors.redAccent),
+                          style: const TextStyle(color: AppColors.danger),
                           textAlign: TextAlign.center,
                         ),
                       ],

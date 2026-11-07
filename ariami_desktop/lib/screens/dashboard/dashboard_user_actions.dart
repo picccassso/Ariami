@@ -35,7 +35,7 @@ extension _DashboardUserActions on _DashboardScreenState {
             SnackBar(
               content:
                   Text(response.errorMessage ?? 'Failed to disconnect device'),
-              backgroundColor: Colors.redAccent,
+              backgroundColor: AppColors.danger,
             ),
           );
         }
@@ -96,7 +96,7 @@ extension _DashboardUserActions on _DashboardScreenState {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(response.errorMessage ?? 'Failed to create user'),
-              backgroundColor: Colors.redAccent,
+              backgroundColor: AppColors.danger,
             ),
           );
         }
@@ -165,7 +165,7 @@ extension _DashboardUserActions on _DashboardScreenState {
             SnackBar(
               content:
                   Text(response.errorMessage ?? 'Failed to change password'),
-              backgroundColor: Colors.redAccent,
+              backgroundColor: AppColors.danger,
             ),
           );
         }
@@ -229,7 +229,7 @@ extension _DashboardUserActions on _DashboardScreenState {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(response.errorMessage ?? 'Failed to delete user'),
-              backgroundColor: Colors.redAccent,
+              backgroundColor: AppColors.danger,
             ),
           );
         }

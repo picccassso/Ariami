@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../utils/constants.dart';
 
 /// Validated values returned by [showCreateUserDialog].
 class CreateUserPayload {
@@ -61,7 +62,7 @@ Future<CreateUserPayload?> showCreateUserDialog(BuildContext context) async {
                       child: Text(
                         dialogError!,
                         style: const TextStyle(
-                          color: Colors.redAccent,
+                          color: AppColors.danger,
                           fontSize: 12,
                         ),
                       ),

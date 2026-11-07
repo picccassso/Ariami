@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../utils/constants.dart';
 
 import '../models/server_user_row.dart';
 
@@ -25,8 +26,8 @@ Future<bool> showDeleteUserDialog(
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.redAccent,
-              foregroundColor: Colors.white,
+              backgroundColor: AppColors.danger,
+              foregroundColor: AppColors.textPrimary,
             ),
             onPressed: () => Navigator.of(dialogContext).pop(true),
             child: const Text('Delete User'),

@@ -39,7 +39,7 @@ class ServerUsersTable extends StatelessWidget {
     if (isLoading) {
       return const Padding(
         padding: EdgeInsets.symmetric(vertical: 16),
-        child: Center(child: CircularProgressIndicator(color: Colors.white)),
+        child: Center(child: CircularProgressIndicator(color: AppColors.textPrimary)),
       );
     }
 
@@ -48,13 +48,13 @@ class ServerUsersTable extends StatelessWidget {
         width: double.infinity,
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: Colors.red.withValues(alpha: 0.15),
+          color: AppColors.danger.withValues(alpha: 0.15),
           borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: Colors.red.withValues(alpha: 0.3)),
+          border: Border.all(color: AppColors.danger.withValues(alpha: 0.3)),
         ),
         child: Text(
           errorMessage!,
-          style: const TextStyle(color: Colors.redAccent),
+          style: const TextStyle(color: AppColors.danger),
         ),
       );
     }
@@ -98,7 +98,7 @@ class ServerUsersTable extends StatelessWidget {
                     Text(
                       row.isAdmin ? 'Admin' : 'User',
                       style: TextStyle(
-                        color: row.isAdmin ? Colors.orange.shade200 : null,
+                        color: row.isAdmin ? AppColors.warning : null,
                         fontWeight:
                             row.isAdmin ? FontWeight.w700 : FontWeight.w500,
                       ),
@@ -181,7 +181,7 @@ class _UserActionsButtonState extends State<_UserActionsButton> {
 
   @override
   Widget build(BuildContext context) {
-    final foreground = _isEnabled ? Colors.white : Colors.white38;
+    final foreground = _isEnabled ? AppColors.textPrimary : AppColors.textSecondary.withValues(alpha: 0.5);
     return PopupMenuButton<_UserActionMenuItem>(
       key: _menuKey,
       enabled: _isEnabled,
@@ -199,7 +199,7 @@ class _UserActionsButtonState extends State<_UserActionsButton> {
           child: Text(
             'Delete User',
             style: TextStyle(
-              color: _canDeleteUser ? Colors.redAccent : Colors.white38,
+              color: _canDeleteUser ? AppColors.danger : AppColors.textSecondary.withValues(alpha: 0.5),
             ),
           ),
         ),

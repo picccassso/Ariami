@@ -5,6 +5,7 @@ import 'package:ariami_core/ariami_core.dart';
 import 'package:ariami_core/models/playlist_suggestion.dart';
 import 'package:ariami_core/services/library/playlist_decision_store.dart';
 import 'package:flutter/material.dart';
+import '../utils/constants.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -122,7 +123,7 @@ class _DashboardScreenState extends State<DashboardScreen>
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(message),
-            backgroundColor: isError ? Colors.redAccent : null,
+            backgroundColor: isError ? AppColors.danger : null,
           ),
         );
       },

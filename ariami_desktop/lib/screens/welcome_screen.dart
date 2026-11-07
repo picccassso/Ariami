@@ -27,7 +27,7 @@ class WelcomeScreen extends StatelessWidget {
                     errorBuilder: (context, error, stack) => const Icon(
                       Icons.library_music_rounded,
                       size: 72,
-                      color: Colors.white,
+                      color: AppColors.textPrimary,
                     ),
                   ),
                   const SizedBox(height: 28),

@@ -97,7 +97,7 @@ class _FolderSelectionScreenState extends State<FolderSelectionScreen> {
               const Icon(
                 Icons.folder_open_rounded,
                 size: 80,
-                color: Colors.white,
+                color: AppColors.textPrimary,
               ),
               const SizedBox(height: 24),
               const Text(
@@ -106,7 +106,7 @@ class _FolderSelectionScreenState extends State<FolderSelectionScreen> {
                   fontSize: 24,
                   fontWeight: FontWeight.bold,
                   letterSpacing: -0.5,
-                  color: Colors.white,
+                  color: AppColors.textPrimary,
                 ),
               ),
               const SizedBox(height: 16),
@@ -126,7 +126,7 @@ class _FolderSelectionScreenState extends State<FolderSelectionScreen> {
                       const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
                   decoration: BoxDecoration(
                     color: AppColors.surfaceHigh,
-                    borderRadius: BorderRadius.circular(16),
+                    borderRadius: BorderRadius.circular(AppTheme.panelRadius),
                     border: Border.all(color: AppColors.border),
                   ),
                   child: Row(
@@ -141,7 +141,7 @@ class _FolderSelectionScreenState extends State<FolderSelectionScreen> {
                           style: const TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.w500,
-                            color: Colors.white,
+                            color: AppColors.textPrimary,
                           ),
                         ),
                       ),
@@ -158,7 +158,7 @@ class _FolderSelectionScreenState extends State<FolderSelectionScreen> {
                         height: 20,
                         child: CircularProgressIndicator(
                           strokeWidth: 2,
-                          color: Colors.white,
+                          color: AppColors.textPrimary,
                         ),
                       )
                     : const Icon(Icons.folder_open_rounded, size: 20),
@@ -166,9 +166,8 @@ class _FolderSelectionScreenState extends State<FolderSelectionScreen> {
                     ? 'Select Folder'
                     : 'Change Folder'),
                 style: OutlinedButton.styleFrom(
-                  foregroundColor: Colors.white,
+                  foregroundColor: AppColors.textPrimary,
                   side: const BorderSide(color: AppColors.border),
-                  shape: const StadiumBorder(),
                   padding: const EdgeInsets.symmetric(
                     horizontal: 48,
                     vertical: 20,
@@ -193,9 +192,8 @@ class _FolderSelectionScreenState extends State<FolderSelectionScreen> {
                     );
                   },
                   style: OutlinedButton.styleFrom(
-                    foregroundColor: Colors.white,
+                    foregroundColor: AppColors.textPrimary,
                     side: const BorderSide(color: AppColors.border),
-                    shape: const StadiumBorder(),
                     padding: const EdgeInsets.symmetric(
                       horizontal: 48,
                       vertical: 20,

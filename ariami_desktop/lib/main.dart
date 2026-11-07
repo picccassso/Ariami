@@ -23,7 +23,7 @@ void main() async {
     // Solid: Flutter paints every pixel anyway, and a clear window background
     // makes macOS WindowServer composite the window at a heavy GPU cost on
     // every screen update, even while the app sits idle.
-    backgroundColor: Colors.black,
+    backgroundColor: AppColors.base,
     skipTaskbar: false,
     titleBarStyle: TitleBarStyle.normal,
   );
@@ -139,7 +139,7 @@ class _MyAppState extends State<MyApp> with WindowListener {
             TextButton(
               onPressed: () => Navigator.of(dialogContext).pop('quit'),
               style: TextButton.styleFrom(
-                foregroundColor: Colors.red,
+                foregroundColor: AppColors.danger,
               ),
               child: const Text('Quit'),
             ),
