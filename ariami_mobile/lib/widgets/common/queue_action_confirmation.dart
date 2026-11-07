@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../../services/playback_manager.dart';
 import 'mini_player_aware_bottom_sheet.dart';
 import '../../utils/constants.dart';
 
@@ -26,6 +27,8 @@ void showQueueActionConfirmation(
   String message = 'Added to end of queue',
   String? actionLabel,
   VoidCallback? onAction,
+  String? secondaryActionLabel,
+  VoidCallback? onSecondaryAction,
   Duration duration = const Duration(seconds: 3),
 }) {
   final now = DateTime.now();
@@ -66,6 +69,13 @@ void showQueueActionConfirmation(
               _dismissQueueConfirmation();
               onAction();
             },
+      secondaryActionLabel: secondaryActionLabel,
+      onSecondaryAction: onSecondaryAction == null
+          ? null
+          : () {
+              _dismissQueueConfirmation();
+              onSecondaryAction();
+            },
     ),
   );
   overlay.insert(_queueConfirmationEntry!);
@@ -89,17 +99,57 @@ void showUndoToast(
   );
 }
 
+/// Standard toast for songs just added to the playback queue. Shows an Undo
+/// action that removes the added range again; [firstIndex] and [count] are
+/// the insertion point and number of songs, as returned by
+/// [PlaybackManager.addToQueue], [PlaybackManager.playNext] or
+/// [PlaybackManager.addAllToQueue].
+void showQueueAdditionToast(
+  BuildContext context, {
+  required String message,
+  required int firstIndex,
+  int count = 1,
+  String? secondaryActionLabel,
+  VoidCallback? onSecondaryAction,
+}) {
+  if (firstIndex < 0 || count <= 0) {
+    showQueueActionConfirmation(context, message: message);
+    return;
+  }
+  showQueueActionConfirmation(
+    context,
+    message: message,
+    actionLabel: 'Undo',
+    onAction: () => unawaited(_undoQueueAddition(firstIndex, count)),
+    duration: const Duration(seconds: 5),
+    secondaryActionLabel: secondaryActionLabel,
+    onSecondaryAction: onSecondaryAction,
+  );
+}
+
+Future<void> _undoQueueAddition(int firstIndex, int count) async {
+  final manager = PlaybackManager();
+  // Remove tail-first so the indices of the remaining additions stay valid.
+  for (var i = count - 1; i >= 0; i--) {
+    await manager.removeQueueItem(firstIndex + i);
+  }
+}
+
 class _QueueActionConfirmation extends StatefulWidget {
   final double bottomOffset;
   final String message;
   final String? actionLabel;
   final VoidCallback? onAction;
+  final String? secondaryActionLabel;
+  final VoidCallback? onSecondaryAction;
 
   const _QueueActionConfirmation({
     required this.bottomOffset,
     required this.message,
     this.actionLabel,
     this.onAction,
+    this.secondaryActionLabel,
+    this.onSecondaryAction,
   });
 
   @override
@@ -107,8 +157,24 @@ class _QueueActionConfirmation extends StatefulWidget {
       _QueueActionConfirmationState();
 }
 
-class _QueueActionConfirmationState extends State<_QueueActionConfirmation> {
+class _QueueActionConfirmationState extends State<_QueueActionConfirmation>
+    with SingleTickerProviderStateMixin {
   bool _isVisible = false;
+
+  // Swipe-to-dismiss tracking. The drag follows the finger 1:1; past the
+  // threshold (or on a fling) the toast animates the rest of the way out and
+  // removes itself from the overlay.
+  double _dragDx = 0;
+  double _width = 0;
+  int _dragSign = 1;
+  late final AnimationController _leaveController = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 200),
+  )..addStatusListener((status) {
+      if (status == AnimationStatus.completed) {
+        _dismissQueueConfirmation();
+      }
+    });
 
   @override
   void initState() {
@@ -122,10 +188,39 @@ class _QueueActionConfirmationState extends State<_QueueActionConfirmation> {
   }
 
   @override
+  void dispose() {
+    _leaveController.dispose();
+    super.dispose();
+  }
+
+  void _onDragUpdate(DragUpdateDetails details) {
+    if (_leaveController.isAnimating) return;
+    setState(() {
+      _dragDx += details.delta.dx;
+      _dragSign = _dragDx < 0 ? -1 : 1;
+    });
+  }
+
+  void _onDragEnd(DragEndDetails details) {
+    if (_leaveController.isAnimating) return;
+    final pastThreshold = _width > 0 && _dragDx.abs() > _width * 0.25;
+    final flung = details.velocity.pixelsPerSecond.dx.abs() > 600;
+    if (pastThreshold || flung) {
+      _leaveController.forward();
+    } else {
+      setState(() {
+        _dragDx = 0;
+      });
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final hasAction =
         widget.actionLabel != null && widget.onAction != null;
+    final hasSecondaryAction = widget.secondaryActionLabel != null &&
+        widget.onSecondaryAction != null;
 
     final bar = Material(
       color: colorScheme.surfaceContainerHigh.withValues(alpha: 0.97),
@@ -176,6 +271,25 @@ class _QueueActionConfirmationState extends State<_QueueActionConfirmation> {
                   ),
                 ),
               ),
+            if (hasSecondaryAction)
+              InkWell(
+                onTap: widget.onSecondaryAction,
+                child: Padding(
+                  padding: const EdgeInsets.only(
+                    left: 8,
+                    right: 16,
+                    top: 12,
+                    bottom: 12,
+                  ),
+                  child: Text(
+                    widget.secondaryActionLabel!,
+                    style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                          color: colorScheme.onSurface.withValues(alpha: 0.6),
+                          fontWeight: FontWeight.w600,
+                        ),
+                  ),
+                ),
+              ),
           ],
         ),
       ),
@@ -183,7 +297,9 @@ class _QueueActionConfirmationState extends State<_QueueActionConfirmation> {
 
     // Fixed position for the toast's lifetime (snapshotted at show-time). Only
     // the entrance slide/fade animates; the anchor never moves, so live UI
-    // changes around it can never make it bounce.
+    // changes around it can never make it bounce. Dragging sideways past the
+    // threshold (or flinging) slides the toast the rest of the way out and
+    // removes it, cancelling its auto-dismiss timer.
     return Positioned(
       left: 20,
       right: 20,
@@ -195,7 +311,33 @@ class _QueueActionConfirmationState extends State<_QueueActionConfirmation> {
         child: AnimatedOpacity(
           opacity: _isVisible ? 1 : 0,
           duration: const Duration(milliseconds: 180),
-          child: hasAction ? bar : IgnorePointer(child: bar),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              _width = constraints.maxWidth;
+              return GestureDetector(
+                onHorizontalDragUpdate: _onDragUpdate,
+                onHorizontalDragEnd: _onDragEnd,
+                child: AnimatedBuilder(
+                  animation: _leaveController,
+                  builder: (context, child) {
+                    final leave = _leaveController.value;
+                    final dx =
+                        (_dragDx + _dragSign * leave * _width) / _width;
+                    return FractionalTranslation(
+                      translation: Offset(dx, 0),
+                      child: Opacity(
+                        opacity: 1 - leave,
+                        child: child,
+                      ),
+                    );
+                  },
+                  child: (hasAction || hasSecondaryAction)
+                      ? bar
+                      : IgnorePointer(child: bar),
+                ),
+              );
+            },
+          ),
         ),
       ),
     );

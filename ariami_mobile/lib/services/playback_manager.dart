@@ -492,34 +492,36 @@ class PlaybackManager extends ChangeNotifier {
     return _playShuffledImpl(songs);
   }
 
-  void addToQueue(Song song) {
+  /// Adds [song] to the end of the queue. Returns the index it landed at
+  /// (-1 if nothing was added) so callers can offer an undo toast.
+  int addToQueue(Song song) {
     final remote = _connectRemote;
     if (remote != null) {
-      _appendConnectQueue(remote, <Song>[song]);
-      return;
+      return _appendConnectQueue(remote, <Song>[song]);
     }
-    _addToQueueImpl(song);
+    return _addToQueueImpl(song);
   }
 
-  void addAllToQueue(List<Song> songs) {
-    if (songs.isEmpty) return;
+  /// Adds [songs] to the end of the queue. Returns the index of the first
+  /// added song (-1 if [songs] is empty) for undo toasts.
+  int addAllToQueue(List<Song> songs) {
+    if (songs.isEmpty) return -1;
     final remote = _connectRemote;
     if (remote != null) {
-      _appendConnectQueue(remote, songs);
-      return;
+      return _appendConnectQueue(remote, songs);
     }
-    _addAllToQueueImpl(songs);
+    return _addAllToQueueImpl(songs);
   }
 
   /// Insert song to play next — or, with "Stack Play Next" on, after the
-  /// earlier Play Next picks still waiting.
-  void playNext(Song song) {
+  /// earlier Play Next picks still waiting. Returns the index it landed at
+  /// for undo toasts.
+  int playNext(Song song) {
     final remote = _connectRemote;
     if (remote != null) {
-      _playNextConnectQueue(remote, song);
-      return;
+      return _playNextConnectQueue(remote, song);
     }
-    _playNextImpl(song);
+    return _playNextImpl(song);
   }
 
   Future<void> togglePlayPause() async {

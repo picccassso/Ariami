@@ -7,6 +7,7 @@ import '../../services/playback_manager.dart';
 import '../common/cached_artwork.dart';
 import '../common/track_badge.dart';
 import '../common/song_overflow_menu.dart';
+import '../common/queue_action_confirmation.dart';
 import '../common/swipe_to_queue.dart';
 import '../player/progress_fill.dart';
 
@@ -41,7 +42,7 @@ class TrackListItem extends StatelessWidget {
       child: SwipeToQueue(
         itemKey: ValueKey('album_queue_${track.id}'),
         addToQueueEnabled: isAvailable,
-        onAddToQueue: _addTrackToQueue,
+        onAddToQueue: () => _addTrackToQueue(context),
         child: Opacity(
           opacity: opacity,
           child: Material(
@@ -219,8 +220,8 @@ class TrackListItem extends StatelessWidget {
     );
   }
 
-  void _addTrackToQueue() {
-    PlaybackManager().addToQueue(
+  void _addTrackToQueue(BuildContext context) {
+    final index = PlaybackManager().addToQueue(
       Song(
         id: track.id,
         title: track.title,
@@ -233,6 +234,11 @@ class TrackListItem extends StatelessWidget {
         modifiedTime: DateTime.now(),
         trackNumber: track.trackNumber,
       ),
+    );
+    showQueueAdditionToast(
+      context,
+      message: 'Added to end of queue',
+      firstIndex: index,
     );
   }
 }

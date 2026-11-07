@@ -115,7 +115,7 @@ extension _PlaybackManagerQueueImpl on PlaybackManager {
     }
   }
 
-  void _addToQueueImpl(Song song) {
+  int _addToQueueImpl(Song song) {
     final queuedSong = song.copyWith();
     _queue.addSong(queuedSong);
     _syncShuffleQueueAfterEdit();
@@ -125,9 +125,11 @@ extension _PlaybackManagerQueueImpl on PlaybackManager {
     unawaited(_refreshGaplessQueue());
     _notifyStateChanged();
     unawaited(_saveState());
+    return _queue.length - 1;
   }
 
-  void _addAllToQueueImpl(List<Song> songs) {
+  int _addAllToQueueImpl(List<Song> songs) {
+    final firstIndex = _queue.length;
     for (final song in songs) {
       final queuedSong = song.copyWith();
       _queue.addSong(queuedSong);
@@ -139,20 +141,19 @@ extension _PlaybackManagerQueueImpl on PlaybackManager {
     unawaited(_refreshGaplessQueue());
     _notifyStateChanged();
     unawaited(_saveState());
+    return firstIndex;
   }
 
-  void _playNextImpl(Song song) {
+  int _playNextImpl(Song song) {
     final queuedSong = song.copyWith();
     final songs = _queue.songs;
-    _queue.insertSong(
-      playNextPosition(
-        current: _queue.currentIndex,
-        length: songs.length,
-        stack: StackPlayNextService().isEnabled,
-        isTail: (i) => identical(songs[i], _playNextTail),
-      ),
-      queuedSong,
+    final index = playNextPosition(
+      current: _queue.currentIndex,
+      length: songs.length,
+      stack: StackPlayNextService().isEnabled,
+      isTail: (i) => identical(songs[i], _playNextTail),
     );
+    _queue.insertSong(index, queuedSong);
     _playNextTail = queuedSong;
     _syncShuffleQueueAfterEdit();
     _oneShotQueuedSongs.add(queuedSong);
@@ -161,6 +162,7 @@ extension _PlaybackManagerQueueImpl on PlaybackManager {
     unawaited(_refreshGaplessQueue());
     _notifyStateChanged();
     unawaited(_saveState());
+    return index;
   }
 
   Future<void> _togglePlayPauseImpl() async {

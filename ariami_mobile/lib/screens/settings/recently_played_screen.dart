@@ -138,14 +138,12 @@ class _RecentlyPlayedScreenState extends State<RecentlyPlayedScreen> {
     final song = entry.song;
     if (song == null) return;
     if (!mounted) return;
-    if (next) {
-      _playback.playNext(song);
-    } else {
-      _playback.addToQueue(song);
-    }
-    showQueueActionConfirmation(
+    final index =
+        next ? _playback.playNext(song) : _playback.addToQueue(song);
+    showQueueAdditionToast(
       context,
       message: next ? 'Playing next' : 'Added to end of queue',
+      firstIndex: index,
     );
   }
 
@@ -244,11 +242,13 @@ class _RecentlyPlayedScreenState extends State<RecentlyPlayedScreen> {
         .whereType<Song>()
         .toList(growable: false);
     if (songs.isEmpty) return;
-    _playback.addAllToQueue(songs);
+    final firstIndex = _playback.addAllToQueue(songs);
     final label = songs.length == 1 ? 'track' : 'tracks';
-    showQueueActionConfirmation(
+    showQueueAdditionToast(
       context,
       message: 'Added ${songs.length} $label to end of queue',
+      firstIndex: firstIndex,
+      count: songs.length,
     );
   }
 

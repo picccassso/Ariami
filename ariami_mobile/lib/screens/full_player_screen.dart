@@ -199,24 +199,25 @@ class _FullPlayerScreenState extends State<FullPlayerScreen> {
     final song = _playbackManager.currentSong;
     if (song == null) return;
 
-    _playbackManager.addToQueue(song);
-    _showQueueActionConfirmation('Added to end of queue');
+    final index = _playbackManager.addToQueue(song);
+    _showQueueAdditionToast('Added to end of queue', index);
   }
 
   void _playCurrentSongNext() {
     final song = _playbackManager.currentSong;
     if (song == null) return;
 
-    _playbackManager.playNext(song);
-    _showQueueActionConfirmation('Playing next');
+    final index = _playbackManager.playNext(song);
+    _showQueueAdditionToast('Playing next', index);
   }
 
-  void _showQueueActionConfirmation(String message) {
-    showQueueActionConfirmation(
+  void _showQueueAdditionToast(String message, int firstIndex) {
+    showQueueAdditionToast(
       context,
       message: message,
-      actionLabel: 'Open',
-      onAction: _openQueue,
+      firstIndex: firstIndex,
+      secondaryActionLabel: 'Open',
+      onSecondaryAction: _openQueue,
     );
   }
 

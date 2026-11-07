@@ -80,7 +80,7 @@ class SongOverflowMenu extends StatelessWidget {
           title: const Text('Play Next'),
           onTap: () {
             Navigator.pop(context);
-            _handlePlayNext();
+            _handlePlayNext(context);
           },
         ),
         ListTile(
@@ -88,7 +88,7 @@ class SongOverflowMenu extends StatelessWidget {
           title: const Text('Add to End of Queue'),
           onTap: () {
             Navigator.pop(context);
-            _handleAddToQueue();
+            _handleAddToQueue(context);
           },
         ),
         ListTile(
@@ -135,12 +135,18 @@ class SongOverflowMenu extends StatelessWidget {
     );
   }
 
-  void _handlePlayNext() {
-    PlaybackManager().playNext(_toSong());
+  void _handlePlayNext(BuildContext context) {
+    final index = PlaybackManager().playNext(_toSong());
+    showQueueAdditionToast(context, message: 'Playing next', firstIndex: index);
   }
 
-  void _handleAddToQueue() {
-    PlaybackManager().addToQueue(_toSong());
+  void _handleAddToQueue(BuildContext context) {
+    final index = PlaybackManager().addToQueue(_toSong());
+    showQueueAdditionToast(
+      context,
+      message: 'Added to end of queue',
+      firstIndex: index,
+    );
   }
 
   Song _toSong() => songFromModel(song);

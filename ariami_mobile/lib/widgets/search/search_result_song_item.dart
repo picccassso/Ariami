@@ -12,6 +12,7 @@ import '../common/mini_player_aware_bottom_sheet.dart';
 import '../common/playing_bars.dart';
 import '../common/song_artwork.dart';
 import '../common/song_overflow_menu.dart';
+import '../common/queue_action_confirmation.dart';
 import '../common/swipe_to_queue.dart';
 import '../player/progress_fill.dart';
 
@@ -210,7 +211,7 @@ class _SearchResultSongItemState extends State<SearchResultSongItem> {
                   child: SwipeToQueue(
                     itemKey: ValueKey('search_queue_${widget.song.id}'),
                     addToQueueEnabled: widget.isAvailable,
-                    onAddToQueue: _handleAddToQueue,
+                    onAddToQueue: () => _handleAddToQueue(context),
                     onRemove: _dismissSwipeArmed ? widget.onRemove : null,
                     child: content,
                   ),
@@ -222,7 +223,7 @@ class _SearchResultSongItemState extends State<SearchResultSongItem> {
           return SwipeToQueue(
             itemKey: ValueKey('search_queue_${widget.song.id}'),
             addToQueueEnabled: widget.isAvailable,
-            onAddToQueue: _handleAddToQueue,
+            onAddToQueue: () => _handleAddToQueue(context),
             child: content,
           );
         },
@@ -253,7 +254,7 @@ class _SearchResultSongItemState extends State<SearchResultSongItem> {
           title: const Text('Play Next'),
           onTap: () {
             Navigator.pop(context);
-            _handlePlayNext();
+            _handlePlayNext(context);
           },
         ),
         ListTile(
@@ -261,7 +262,7 @@ class _SearchResultSongItemState extends State<SearchResultSongItem> {
           title: const Text('Add to End of Queue'),
           onTap: () {
             Navigator.pop(context);
-            _handleAddToQueue();
+            _handleAddToQueue(context);
           },
         ),
         ListTile(
@@ -313,14 +314,18 @@ class _SearchResultSongItemState extends State<SearchResultSongItem> {
 
   Song _toSong() => songFromModel(widget.song);
 
-  void _handlePlayNext() {
-    final playbackManager = PlaybackManager();
-    playbackManager.playNext(_toSong());
+  void _handlePlayNext(BuildContext context) {
+    final index = PlaybackManager().playNext(_toSong());
+    showQueueAdditionToast(context, message: 'Playing next', firstIndex: index);
   }
 
-  void _handleAddToQueue() {
-    final playbackManager = PlaybackManager();
-    playbackManager.addToQueue(_toSong());
+  void _handleAddToQueue(BuildContext context) {
+    final index = PlaybackManager().addToQueue(_toSong());
+    showQueueAdditionToast(
+      context,
+      message: 'Added to end of queue',
+      firstIndex: index,
+    );
   }
 
   Widget _buildLeading(BuildContext context) {

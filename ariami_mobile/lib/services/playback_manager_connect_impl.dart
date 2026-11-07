@@ -403,13 +403,15 @@ extension _PlaybackManagerConnectImpl on PlaybackManager {
 
   /// Appends songs to the active device's mirrored queue and reflects the
   /// change immediately while that device processes the insert commands.
-  void _appendConnectQueue(
+  /// Returns the index of the first appended song (-1 if [songs] is empty).
+  int _appendConnectQueue(
     AriamiRemotePlayback remote,
     List<Song> songs,
   ) {
-    if (songs.isEmpty) return;
+    if (songs.isEmpty) return -1;
     final snapshot = remote.snapshot;
     final queue = List<Map<String, dynamic>>.from(snapshot.queue);
+    final firstIndex = queue.length;
     for (final song in songs) {
       final index = queue.length;
       final track = song.toJson();
@@ -430,12 +432,13 @@ extension _PlaybackManagerConnectImpl on PlaybackManager {
       volume: snapshot.volume,
       sourceId: snapshot.sourceId,
     )));
+    return firstIndex;
   }
 
   /// Inserts [song] right after the active device's current track — a
   /// controller's "play next", stacked by this device's own setting — and
-  /// mirrors the result optimistically.
-  void _playNextConnectQueue(
+  /// mirrors the result optimistically. Returns the index it landed at.
+  int _playNextConnectQueue(
     AriamiRemotePlayback remote,
     Song song,
   ) {
@@ -467,6 +470,7 @@ extension _PlaybackManagerConnectImpl on PlaybackManager {
       volume: snapshot.volume,
       sourceId: snapshot.sourceId,
     )));
+    return index;
   }
 
   /// Atomically clears every item except Now Playing on the active device.

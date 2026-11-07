@@ -227,9 +227,14 @@ class _LibraryScreenState extends State<LibraryScreen> {
         for (final track in albumSongs)
           songFromModel(track, album: album.title),
       ];
-      _playbackManager.addAllToQueue(songs);
+      final firstIndex = _playbackManager.addAllToQueue(songs);
       if (mounted) {
-        showQueueActionConfirmation(context, message: 'Added to end of queue');
+        showQueueAdditionToast(
+          context,
+          message: 'Added to end of queue',
+          firstIndex: firstIndex,
+          count: songs.length,
+        );
       }
     } catch (e) {
       // Best-effort; the failure is not surfaced to the user.
@@ -249,9 +254,14 @@ class _LibraryScreenState extends State<LibraryScreen> {
         );
         songs.add(songFromModel(song));
       }
-      _playbackManager.addAllToQueue(songs);
+      final firstIndex = _playbackManager.addAllToQueue(songs);
       if (mounted) {
-        showQueueActionConfirmation(context, message: 'Added to end of queue');
+        showQueueAdditionToast(
+          context,
+          message: 'Added to end of queue',
+          firstIndex: firstIndex,
+          count: songs.length,
+        );
       }
     } catch (e) {
       // Best-effort; the failure is not surfaced to the user.
@@ -301,12 +311,14 @@ class _LibraryScreenState extends State<LibraryScreen> {
       return;
     }
 
-    _playbackManager.addAllToQueue(songs);
+    final firstIndex = _playbackManager.addAllToQueue(songs);
     _controller.exitSelectionMode();
-    showQueueActionConfirmation(
+    showQueueAdditionToast(
       context,
       message:
           'Added ${songs.length} song${songs.length == 1 ? '' : 's'} to end of queue',
+      firstIndex: firstIndex,
+      count: songs.length,
     );
   }
 

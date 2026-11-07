@@ -522,8 +522,13 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
         .toList();
 
     try {
-      _playbackManager.addAllToQueue(allSongs);
-      showQueueActionConfirmation(context, message: 'Added to end of queue');
+      final firstIndex = _playbackManager.addAllToQueue(allSongs);
+      showQueueAdditionToast(
+        context,
+        message: 'Added to end of queue',
+        firstIndex: firstIndex,
+        count: allSongs.length,
+      );
     } catch (e) {
       print('[AlbumDetailScreen] Error adding to queue: $e');
     }

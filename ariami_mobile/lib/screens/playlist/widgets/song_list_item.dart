@@ -157,9 +157,13 @@ class _SongListItemState extends State<SongListItem> {
   }
 
   void _addSongToQueue() {
-    PlaybackManager().addToQueue(songFromModel(widget.song));
+    final index = PlaybackManager().addToQueue(songFromModel(widget.song));
     if (mounted) {
-      showQueueActionConfirmation(context, message: 'Added to end of queue');
+      showQueueAdditionToast(
+        context,
+        message: 'Added to end of queue',
+        firstIndex: index,
+      );
     }
   }
 }

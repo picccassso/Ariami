@@ -13,6 +13,7 @@ import '../common/cached_artwork.dart';
 import '../common/track_badge.dart';
 import '../common/song_artwork.dart';
 import '../common/song_overflow_menu.dart';
+import '../common/queue_action_confirmation.dart';
 import '../common/swipe_to_queue.dart';
 import '../player/progress_fill.dart';
 
@@ -398,15 +399,17 @@ class SongListItem extends StatelessWidget {
   }
 
   void _handlePlayNext(BuildContext context) {
-    final playbackManager = PlaybackManager();
-
-    playbackManager.playNext(songFromModel(song));
+    final index = PlaybackManager().playNext(songFromModel(song));
+    showQueueAdditionToast(context, message: 'Playing next', firstIndex: index);
   }
 
   void _handleAddToQueue(BuildContext context) {
-    final playbackManager = PlaybackManager();
-
-    playbackManager.addToQueue(songFromModel(song));
+    final index = PlaybackManager().addToQueue(songFromModel(song));
+    showQueueAdditionToast(
+      context,
+      message: 'Added to end of queue',
+      firstIndex: index,
+    );
   }
 
   void _handleDownload(BuildContext context) {
