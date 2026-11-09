@@ -56,10 +56,19 @@ extension AriamiHttpServerMediaTicketHandlersMethods on AriamiHttpServer {
         quality: quality,
       );
 
+      // Describe the source file alongside the ticket (cached values only)
+      // so clients can show the real streamed bitrate/format, e.g. in a
+      // debug overlay. Null when the library hasn't indexed them.
+      final sourcePath = _libraryManager.getSongFilePath(songId);
+      final sourceFormat =
+          sourcePath == null ? null : p.extension(sourcePath).replaceFirst('.', '').toLowerCase();
+
       return Response.ok(
         jsonEncode(StreamTicketResponse(
           streamToken: ticket.token,
           expiresAt: ticket.expiresAt.toIso8601String(),
+          sourceBitrateKbps: _libraryManager.getKnownSongBitrate(songId),
+          sourceFormat: sourceFormat,
         ).toJson()),
         headers: {'Content-Type': 'application/json; charset=utf-8'},
       );

@@ -196,15 +196,27 @@ class StreamTicketResponse {
   final String streamToken;
   final String expiresAt;
 
+  /// Bitrate in kbps of the source file the stream serves, when known.
+  /// Lets clients show the actual streamed quality (e.g. in a debug
+  /// overlay); null on older servers or when the library hasn't indexed it.
+  final int? sourceBitrateKbps;
+
+  /// Format (file extension, e.g. "flac") of the source file, when known.
+  final String? sourceFormat;
+
   StreamTicketResponse({
     required this.streamToken,
     required this.expiresAt,
+    this.sourceBitrateKbps,
+    this.sourceFormat,
   });
 
   factory StreamTicketResponse.fromJson(Map<String, dynamic> json) {
     return StreamTicketResponse(
       streamToken: json['streamToken'] as String,
       expiresAt: json['expiresAt'] as String,
+      sourceBitrateKbps: json['sourceBitrateKbps'] as int?,
+      sourceFormat: json['sourceFormat'] as String?,
     );
   }
 
@@ -212,6 +224,8 @@ class StreamTicketResponse {
     return {
       'streamToken': streamToken,
       'expiresAt': expiresAt,
+      if (sourceBitrateKbps != null) 'sourceBitrateKbps': sourceBitrateKbps,
+      if (sourceFormat != null) 'sourceFormat': sourceFormat,
     };
   }
 }

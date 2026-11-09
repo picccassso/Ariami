@@ -338,6 +338,71 @@ void main() {
     );
 
     test(
+      'P10-3: stream ticket response reports the source file bitrate and format',
+      () async {
+        await server.initializeAuth(
+          usersFilePath: p.join(testDir.path, 'users_p10_ticket_info.json'),
+          sessionsFilePath: p.join(testDir.path, 'sessions_p10_ticket_info.json'),
+          forceReinitialize: true,
+        );
+
+        final repository = server.libraryManager.createCatalogRepository();
+        expect(repository, isNotNull);
+        _seedCatalog(repository!);
+
+        final port = await startHttpTestServer(server);
+
+        final registerResponse = await _sendJsonRequest(
+          method: 'POST',
+          url: Uri.parse('http://127.0.0.1:$port/api/auth/register'),
+          jsonBody: <String, dynamic>{
+            'username': 'phase10-info-user',
+            'password': 'phase10-info-pass',
+          },
+        );
+        expect(registerResponse.statusCode, 200);
+
+        final loginResponse = await _sendJsonRequest(
+          method: 'POST',
+          url: Uri.parse('http://127.0.0.1:$port/api/auth/login'),
+          jsonBody: <String, dynamic>{
+            'username': 'phase10-info-user',
+            'password': 'phase10-info-pass',
+            'deviceId': 'phase10-info-device',
+            'deviceName': 'Phase 10 Info Device',
+          },
+        );
+        expect(loginResponse.statusCode, 200);
+        final sessionToken = loginResponse.jsonBody['sessionToken'] as String?;
+        expect(sessionToken, isNotNull);
+
+        // song-a is seeded with a known bitrate: both fields come back.
+        final ticketA = await _sendJsonRequest(
+          method: 'POST',
+          url: Uri.parse('http://127.0.0.1:$port/api/stream-ticket'),
+          headers: <String, String>{'Authorization': 'Bearer $sessionToken'},
+          jsonBody: <String, dynamic>{'songId': 'song-a'},
+        );
+        expect(ticketA.statusCode, 200);
+        expect(ticketA.jsonBody['streamToken'], isNotNull);
+        expect(ticketA.jsonBody['sourceBitrateKbps'], 320);
+        expect(ticketA.jsonBody['sourceFormat'], 'mp3');
+
+        // song-b has no indexed bitrate: the format still comes back, the
+        // bitrate stays absent (older clients ignore unknown/missing fields).
+        final ticketB = await _sendJsonRequest(
+          method: 'POST',
+          url: Uri.parse('http://127.0.0.1:$port/api/stream-ticket'),
+          headers: <String, String>{'Authorization': 'Bearer $sessionToken'},
+          jsonBody: <String, dynamic>{'songId': 'song-b'},
+        );
+        expect(ticketB.statusCode, 200);
+        expect(ticketB.jsonBody['sourceBitrateKbps'], isNull);
+        expect(ticketB.jsonBody['sourceFormat'], 'mp3');
+      },
+    );
+
+    test(
       'P12-1: lower-quality streams remain file-backed and support range requests',
       () async {
         await server.initializeAuth(
@@ -908,6 +973,7 @@ void _seedCatalog(CatalogRepository repository) {
       trackNumber: 1,
       fileSizeBytes: 1000,
       modifiedEpochMs: 100,
+      bitrateKbps: 320,
       artworkKey: 'album-a',
       updatedToken: 4,
     ),
