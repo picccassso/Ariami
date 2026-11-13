@@ -2,8 +2,10 @@ import 'package:ariami_core/models/library_curation.dart';
 import 'package:ariami_mobile/models/api_models.dart';
 import 'package:ariami_mobile/screens/curation/curate_library_screen.dart';
 import 'package:ariami_mobile/screens/main/library/library_controller.dart';
+import 'package:ariami_mobile/services/artist_image_service.dart';
 import 'package:ariami_mobile/services/curation/library_curation_service.dart';
 import 'package:ariami_mobile/utils/constants.dart';
+import 'package:ariami_mobile/widgets/common/cached_artwork.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -29,14 +31,21 @@ void main() {
 
   tearDown(() {
     LibraryCurationService().saveHandlerForTest = null;
+    ArtistImageService().clear();
   });
 
-  AlbumModel makeAlbum(String id, String title, String artist,
-          {int songCount = 2}) =>
+  AlbumModel makeAlbum(
+    String id,
+    String title,
+    String artist, {
+    int songCount = 2,
+    String? coverArt,
+  }) =>
       AlbumModel(
         id: id,
         title: title,
         artist: artist,
+        coverArt: coverArt,
         songCount: songCount,
         duration: 360,
       );
@@ -324,6 +333,65 @@ void main() {
         ),
         isTrue,
       );
+    });
+
+    testWidgets(
+        'resolves artist thumbnails from album coverArt, credited songs, and standalone singles',
+        (tester) async {
+      seedCatalog(
+        albums: [
+          // First album alphabetically for Daft Punk has no coverArt; second has it.
+          makeAlbum('a1', 'Alive 1997', 'Daft Punk'),
+          makeAlbum(
+            'a2',
+            'Discovery',
+            'Daft Punk',
+            coverArt: '/api/artwork/a2',
+          ),
+          // Compilation album whose primary artist is Various Artists.
+          makeAlbum(
+            'a_comp',
+            'Club Hits',
+            'Various Artists',
+            coverArt: '/api/artwork/a_comp',
+          ),
+        ],
+        songs: [
+          makeSong('s1', 'One More Time', 'Daft Punk', albumId: 'a2'),
+          // Kavinsky has a standalone single and is also credited on a compilation with art.
+          makeSong('s_kav_solo', 'Testarossa', 'Kavinsky'),
+          makeSong(
+            's_feat',
+            'Nightcall',
+            'Kavinsky',
+            albumId: 'a_comp',
+          ),
+          // Standalone single with no album.
+          makeSong('s_solo', 'Midnight', 'Solo Artist'),
+        ],
+        mode: LibraryCurationMode.curated,
+      );
+
+      await pumpCurateScreen(tester);
+
+      final daftPunkArt = tester.widget<CachedArtwork>(
+        find.byKey(const ValueKey('curation-artist-album-a2')),
+      );
+      expect(daftPunkArt.albumId, 'a2');
+      expect(daftPunkArt.artworkUrl, '/api/artwork/a2');
+
+      // Various Artists + Kavinsky both resolve to a_comp.
+      final compArts = tester.widgetList<CachedArtwork>(
+        find.byKey(const ValueKey('curation-artist-album-a_comp')),
+      );
+      expect(compArts.length, 2);
+      expect(compArts.first.artworkUrl, '/api/artwork/a_comp');
+
+      final soloArt = tester.widget<CachedArtwork>(
+        find.byKey(const ValueKey('curation-artist-song-s_solo')),
+      );
+      expect(soloArt.albumId, 'song_s_solo');
+      expect(soloArt.artworkUrl, '/api/song-artwork/s_solo');
     });
   });
 }

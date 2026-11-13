@@ -4,9 +4,12 @@ import 'package:ariami_core/models/library_curation.dart';
 import 'package:ariami_core/models/library_curation_picker.dart';
 import 'package:ariami_core/services/playlists/created_playlist_id.dart';
 import 'package:ariami_core/services/search/search.dart';
+import 'package:ariami_core/services/stats/credited_artist_splitter.dart';
 import 'package:flutter/material.dart';
 
 import '../../models/api_models.dart';
+import '../../services/api/connection_service.dart';
+import '../../services/artist_image_service.dart';
 import '../../services/curation/library_curation_service.dart';
 import '../../utils/constants.dart';
 import '../../widgets/common/mini_player_aware_bottom_sheet.dart';
@@ -213,7 +216,10 @@ class _CurateLibraryScreenState extends State<CurateLibraryScreen>
   Map<String, List<CurationCatalogSong>> _songsByAlbum = const {};
   Map<String, String> _albumArtistById = const {};
   Map<String, String> _albumTitleById = const {};
+  Map<String, String> _albumCoverArtById = const {};
   Map<String, List<String>> _playlistAlbumIdsById = const {};
+  Map<String, String> _artistFallbackAlbumIdByKey = const {};
+  Map<String, String> _artistFallbackSongIdByKey = const {};
 
   _CurateTab _tab = _CurateTab.artists;
   _CurationStatusFilter _statusFilter = _CurationStatusFilter.all;
@@ -258,14 +264,22 @@ class _CurateLibraryScreenState extends State<CurateLibraryScreen>
       if (!_library.hasRawCatalog) {
         await _library.refreshLibrary();
       }
+      if (ConnectionService().isConnected) {
+        unawaited(ArtistImageService().loadArtistImages());
+      }
 
       final rawAlbums = _library.rawAlbums;
       final albumTitleById = <String, String>{};
       final albumArtistById = <String, String>{};
+      final albumCoverArtById = <String, String>{};
       final catalogAlbums = <CurationCatalogAlbum>[];
       for (final a in rawAlbums) {
         albumTitleById[a.id] = a.title;
         albumArtistById[a.id] = a.artist;
+        final coverArt = a.coverArt?.trim();
+        if (coverArt != null && coverArt.isNotEmpty) {
+          albumCoverArtById[a.id] = coverArt;
+        }
         catalogAlbums.add(
           CurationCatalogAlbum(
             id: a.id,
@@ -337,6 +351,62 @@ class _CurateLibraryScreenState extends State<CurateLibraryScreen>
         standaloneSongs: standalone,
       );
 
+      final splitter = CreditedArtistSplitter();
+      final songIdByArtistKey = <String, String>{};
+      final songAlbumIdByArtistKey = <String, String>{};
+      final songAlbumWithArtByArtistKey = <String, String>{};
+      void indexSongArtist(String key, SongModel song) {
+        if (key.isEmpty) return;
+        songIdByArtistKey.putIfAbsent(key, () => song.id);
+        final albumId = song.albumId?.trim();
+        if (albumId != null && albumId.isNotEmpty) {
+          songAlbumIdByArtistKey.putIfAbsent(key, () => albumId);
+          if (albumCoverArtById.containsKey(albumId)) {
+            songAlbumWithArtByArtistKey.putIfAbsent(key, () => albumId);
+          }
+        }
+      }
+
+      for (final song in allSongsSorted) {
+        indexSongArtist(normalizeArtistKey(song.artist), song);
+        for (final credit in splitter.split(song.artist)) {
+          indexSongArtist(credit.key, song);
+        }
+      }
+
+      final fallbackAlbumIdByKey = <String, String>{};
+      final fallbackSongIdByKey = <String, String>{};
+      for (final group in groups) {
+        String? albumId;
+        for (final album in group.albums) {
+          if (albumCoverArtById.containsKey(album.id)) {
+            albumId = album.id;
+            break;
+          }
+        }
+        albumId ??= songAlbumWithArtByArtistKey[group.key];
+        albumId ??= group.albums.firstOrNull?.id;
+        albumId ??= songAlbumIdByArtistKey[group.key];
+        if (albumId != null && albumId.isNotEmpty) {
+          fallbackAlbumIdByKey[group.key] = albumId;
+        }
+
+        String? songId = group.standaloneSongs.firstOrNull?.id;
+        if (songId == null) {
+          for (final album in group.albums) {
+            final firstTrackId = groupedSongs[album.id]?.firstOrNull?.id;
+            if (firstTrackId != null && firstTrackId.isNotEmpty) {
+              songId = firstTrackId;
+              break;
+            }
+          }
+        }
+        songId ??= songIdByArtistKey[group.key];
+        if (songId != null && songId.isNotEmpty) {
+          fallbackSongIdByKey[group.key] = songId;
+        }
+      }
+
       if (!mounted) return;
       setState(() {
         _draft = draft;
@@ -348,7 +418,10 @@ class _CurateLibraryScreenState extends State<CurateLibraryScreen>
         _songsByAlbum = groupedSongs;
         _albumArtistById = albumArtistById;
         _albumTitleById = albumTitleById;
+        _albumCoverArtById = albumCoverArtById;
         _playlistAlbumIdsById = playlistAlbumIdsById;
+        _artistFallbackAlbumIdByKey = fallbackAlbumIdByKey;
+        _artistFallbackSongIdByKey = fallbackSongIdByKey;
         _selectedArtistKey = groups.isNotEmpty ? groups.first.key : null;
         _isLoading = false;
       });
@@ -1078,6 +1151,7 @@ class _CurateLibraryScreenState extends State<CurateLibraryScreen>
                 group: selectedGroup,
                 draft: _draft,
                 songsByAlbum: _songsByAlbum,
+                albumCoverArtById: _albumCoverArtById,
                 onChanged: () => setState(() {}),
               ),
             ),
@@ -1092,10 +1166,15 @@ class _CurateLibraryScreenState extends State<CurateLibraryScreen>
     required bool isWide,
     bool selected = false,
   }) {
+    final fallbackAlbumId = _artistFallbackAlbumIdByKey[group.key];
     return CurationArtistTile(
       group: group,
       selectionState: _draft.artistCheckboxState(group),
       includedCount: _draft.includedItemCountForArtist(group),
+      fallbackAlbumId: fallbackAlbumId,
+      fallbackAlbumCoverArt:
+          fallbackAlbumId != null ? _albumCoverArtById[fallbackAlbumId] : null,
+      fallbackSongId: _artistFallbackSongIdByKey[group.key],
       isWideSelected: selected,
       showChevron: !isWide,
       onToggleWhole: () => setState(() => _draft.toggleArtistWhole(group)),
@@ -1110,6 +1189,7 @@ class _CurateLibraryScreenState extends State<CurateLibraryScreen>
   }
 
   Future<void> _openArtistSheet(CurationArtistGroup group) async {
+    final fallbackAlbumId = _artistFallbackAlbumIdByKey[group.key];
     await showAriamiSheet<void>(
       context: context,
       backgroundColor: Theme.of(context).colorScheme.surface,
@@ -1118,6 +1198,11 @@ class _CurateLibraryScreenState extends State<CurateLibraryScreen>
         leading: CurationArtistArtwork(
           artistName: group.displayName,
           fallbackAlbum: group.albums.firstOrNull,
+          fallbackAlbumId: fallbackAlbumId,
+          fallbackAlbumCoverArt: fallbackAlbumId != null
+              ? _albumCoverArtById[fallbackAlbumId]
+              : null,
+          fallbackSongId: _artistFallbackSongIdByKey[group.key],
           size: 36,
         ),
       ),
@@ -1131,6 +1216,7 @@ class _CurateLibraryScreenState extends State<CurateLibraryScreen>
               group: group,
               draft: _draft,
               songsByAlbum: _songsByAlbum,
+              albumCoverArtById: _albumCoverArtById,
               onChanged: () {
                 setSheetState(() {});
                 if (mounted) setState(() {});

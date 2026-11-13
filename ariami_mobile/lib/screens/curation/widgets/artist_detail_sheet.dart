@@ -130,12 +130,14 @@ class ArtistCurationDetailPane extends StatefulWidget {
     required this.draft,
     required this.songsByAlbum,
     required this.onChanged,
+    this.albumCoverArtById = const <String, String>{},
   });
 
   final CurationArtistGroup group;
   final CurationDraft draft;
   final Map<String, List<CurationCatalogSong>> songsByAlbum;
   final VoidCallback onChanged;
+  final Map<String, String> albumCoverArtById;
 
   @override
   State<ArtistCurationDetailPane> createState() =>
@@ -254,7 +256,11 @@ class _ArtistCurationDetailPaneState extends State<ArtistCurationDetailPane> {
         ),
         child: Row(
           children: [
-            CurationAlbumArtwork(albumId: album.id, size: 40),
+            CurationAlbumArtwork(
+              albumId: album.id,
+              coverArt: widget.albumCoverArtById[album.id],
+              size: 40,
+            ),
             const SizedBox(width: 12),
             Expanded(
               child: Column(

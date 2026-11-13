@@ -86,24 +86,31 @@ class CurationCheckCircle extends StatelessWidget {
 }
 
 /// Circular 44×44 artist thumbnail: prefers custom artist image, falls back to
-/// the artist's first album cover, then an initial monogram.
+/// the artist's album cover, then a credited song cover, then an initial monogram.
 class CurationArtistArtwork extends StatelessWidget {
   const CurationArtistArtwork({
     super.key,
     required this.artistName,
     this.fallbackAlbum,
+    this.fallbackAlbumId,
+    this.fallbackAlbumCoverArt,
+    this.fallbackSongId,
     this.size = 44,
   });
 
   final String artistName;
   final CurationCatalogAlbum? fallbackAlbum;
+  final String? fallbackAlbumId;
+  final String? fallbackAlbumCoverArt;
+  final String? fallbackSongId;
   final double size;
 
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
     final apiClient = ConnectionService().apiClient;
-    final customVersion = ArtistImageService().artistImageVersion(artistName);
+    final trimmed = artistName.trim();
+    final initial = trimmed.isNotEmpty ? trimmed.substring(0, 1).toUpperCase() : '?';
 
     final monogram = Container(
       width: size,
@@ -111,43 +118,74 @@ class CurationArtistArtwork extends StatelessWidget {
       color: colors.surfaceHigh,
       alignment: Alignment.center,
       child: Text(
-        artistName.trim().isNotEmpty
-            ? artistName.trim().substring(0, 1).toUpperCase()
-            : '?',
+        initial,
         style: AppTheme.heading(size * 0.4, color: colors.textSecondary),
       ),
     );
 
-    final albumFallback = fallbackAlbum == null
-        ? monogram
-        : CachedArtwork(
-            albumId: fallbackAlbum!.id,
-            artworkUrl: resolveAlbumArtworkUrl(albumId: fallbackAlbum!.id),
+    final resolvedSongId = fallbackSongId?.trim();
+    final songFallback = (resolvedSongId != null && resolvedSongId.isNotEmpty)
+        ? CachedArtwork(
+            key: ValueKey('curation-artist-song-$resolvedSongId'),
+            albumId: 'song_$resolvedSongId',
+            artworkUrl: '/api/song-artwork/${Uri.encodeComponent(resolvedSongId)}',
             width: size,
             height: size,
             fit: BoxFit.cover,
             sizeHint: ArtworkSizeHint.thumbnail,
             fallback: monogram,
-          );
+          )
+        : monogram;
 
-    final child = (customVersion != null && apiClient != null)
+    final resolvedAlbumId = (fallbackAlbumId ?? fallbackAlbum?.id)?.trim();
+    final albumFallback = (resolvedAlbumId != null && resolvedAlbumId.isNotEmpty)
         ? CachedArtwork(
-            albumId:
-                'artist_${normalizeArtistKey(artistName)}_v$customVersion',
-            artworkUrl: apiClient.artistImageUrl(
-              artistName,
-              version: customVersion,
+            key: ValueKey('curation-artist-album-$resolvedAlbumId'),
+            albumId: resolvedAlbumId,
+            artworkUrl: resolveAlbumArtworkUrl(
+              albumId: resolvedAlbumId,
+              coverArt: fallbackAlbumCoverArt,
             ),
             width: size,
             height: size,
             fit: BoxFit.cover,
             sizeHint: ArtworkSizeHint.thumbnail,
-            fallback: albumFallback,
+            fallback: songFallback,
           )
-        : albumFallback;
+        : songFallback;
 
     return ClipOval(
-      child: SizedBox(width: size, height: size, child: child),
+      child: SizedBox(
+        width: size,
+        height: size,
+        child: ListenableBuilder(
+          listenable: ArtistImageService(),
+          builder: (context, _) {
+            final customVersion =
+                ArtistImageService().artistImageVersion(artistName);
+            if (customVersion != null && apiClient != null) {
+              final safeKey =
+                  Uri.encodeComponent(normalizeArtistKey(artistName));
+              return CachedArtwork(
+                key: ValueKey(
+                  'curation-artist-custom-${safeKey}_v$customVersion',
+                ),
+                albumId: 'artist_${safeKey}_v$customVersion',
+                artworkUrl: apiClient.artistImageUrl(
+                  artistName,
+                  version: customVersion,
+                ),
+                width: size,
+                height: size,
+                fit: BoxFit.cover,
+                sizeHint: ArtworkSizeHint.thumbnail,
+                fallback: albumFallback,
+              );
+            }
+            return albumFallback;
+          },
+        ),
+      ),
     );
   }
 }
@@ -199,6 +237,9 @@ class CurationArtistTile extends StatelessWidget {
     required this.includedCount,
     required this.onTap,
     required this.onToggleWhole,
+    this.fallbackAlbumId,
+    this.fallbackAlbumCoverArt,
+    this.fallbackSongId,
     this.isWideSelected = false,
     this.showChevron = true,
   });
@@ -208,6 +249,9 @@ class CurationArtistTile extends StatelessWidget {
   final int includedCount;
   final VoidCallback onTap;
   final VoidCallback onToggleWhole;
+  final String? fallbackAlbumId;
+  final String? fallbackAlbumCoverArt;
+  final String? fallbackSongId;
   final bool isWideSelected;
   final bool showChevron;
 
@@ -229,6 +273,10 @@ class CurationArtistTile extends StatelessWidget {
       leading: CurationArtistArtwork(
         artistName: group.displayName,
         fallbackAlbum: group.albums.firstOrNull,
+        fallbackAlbumId: fallbackAlbumId,
+        fallbackAlbumCoverArt: fallbackAlbumCoverArt,
+        fallbackSongId:
+            fallbackSongId ?? group.standaloneSongs.firstOrNull?.id,
       ),
       title: group.displayName,
       subtitle: parts.join(' · '),
