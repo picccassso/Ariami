@@ -133,11 +133,7 @@ class LibraryBody extends StatelessWidget {
                   alignment: WrapAlignment.center,
                   children: [
                     FilledButton.icon(
-                      onPressed: () => Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) => const CurateLibraryScreen(),
-                        ),
-                      ),
+                      onPressed: () => CurateLibraryScreen.open(context),
                       icon: const Icon(Icons.tune_rounded),
                       label: const Text('Curate My Library…'),
                     ),

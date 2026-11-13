@@ -373,13 +373,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ),
                     onTap: _isOfflineModeEnabled
                         ? null
-                        : () {
-                            Navigator.of(context).push(
-                              MaterialPageRoute(
-                                builder: (_) => const CurateLibraryScreen(),
-                              ),
-                            );
-                          },
+                        : () => CurateLibraryScreen.open(context),
                   ),
                 ],
               ),

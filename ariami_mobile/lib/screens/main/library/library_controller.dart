@@ -331,6 +331,18 @@ class LibraryController extends ChangeNotifier {
   }
 
   @visibleForTesting
+  void setRawCatalogForTest({
+    List<AlbumModel> albums = const <AlbumModel>[],
+    List<SongModel> songs = const <SongModel>[],
+    List<ServerPlaylist> serverPlaylists = const <ServerPlaylist>[],
+  }) {
+    _rawOnlineAlbums = albums;
+    _rawOnlineSongs = songs;
+    _rawOnlineServerPlaylists = serverPlaylists;
+    notifyListeners();
+  }
+
+  @visibleForTesting
   void setSelectionForTest({
     bool selectionMode = true,
     Set<String>? songIds,

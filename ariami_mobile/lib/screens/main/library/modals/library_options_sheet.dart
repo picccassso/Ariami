@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:ariami_core/models/library_curation.dart';
 import 'package:flutter/material.dart';
 
@@ -58,10 +60,14 @@ class LibraryOptionsSheet extends StatelessWidget {
               onTap: isOffline
                   ? null
                   : () {
+                      final rootNav =
+                          Navigator.of(context, rootNavigator: true);
                       Navigator.pop(context);
-                      Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) => const CurateLibraryScreen(),
+                      unawaited(
+                        rootNav.push<bool>(
+                          MaterialPageRoute(
+                            builder: (_) => const CurateLibraryScreen(),
+                          ),
                         ),
                       );
                     },

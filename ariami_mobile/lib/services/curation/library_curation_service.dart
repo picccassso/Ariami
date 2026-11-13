@@ -24,6 +24,13 @@ class LibraryCurationService extends ChangeNotifier {
   bool _initialized = false;
   bool _loadedFromServer = false;
 
+  @visibleForTesting
+  Future<UserLibraryCuration> Function(
+    LibraryCurationMode mode,
+    List<CurationRuleEntry> rules,
+    bool onboardingCompleted,
+  )? saveHandlerForTest;
+
   UserLibraryCuration get curation => _curation;
   LibraryCurationFilter get filter => _filter;
   bool get isLoaded => _loadedFromServer;
@@ -66,6 +73,13 @@ class LibraryCurationService extends ChangeNotifier {
     required List<CurationRuleEntry> rules,
     bool onboardingCompleted = true,
   }) async {
+    final testHandler = saveHandlerForTest;
+    if (testHandler != null) {
+      final saved = await testHandler(mode, rules, onboardingCompleted);
+      _loadedFromServer = true;
+      _apply(saved);
+      return saved;
+    }
     final client = ConnectionService().apiClient;
     if (client == null) {
       throw StateError('Connect to your server to save library curation');
@@ -137,6 +151,15 @@ class LibraryCurationService extends ChangeNotifier {
       rules: nextRules,
       onboardingCompleted: true,
     );
+  }
+
+  @visibleForTesting
+  void setCurationForTest(
+    UserLibraryCuration next, {
+    bool loadedFromServer = true,
+  }) {
+    _loadedFromServer = loadedFromServer;
+    _apply(next);
   }
 
   void _apply(UserLibraryCuration next, {bool notify = true}) {
