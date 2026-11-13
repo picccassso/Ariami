@@ -434,20 +434,22 @@ extension AriamiHttpServerWebSocketAndStaticMethods on AriamiHttpServer {
       listDirectories: false,
     );
 
-    return (Request request) {
+    return (Request request) async {
       final path = '/${request.url.path}';
-      if (_webAppRoutes.contains(path)) {
-        // Rewrite to the app shell; the SPA router takes it from there.
-        return staticHandler(
-          Request(
-            request.method,
-            request.requestedUri.replace(path: '/'),
-            headers: request.headers,
-            context: request.context,
-          ),
-        );
-      }
-      return staticHandler(request);
+      final response = await staticHandler(
+        _webAppRoutes.contains(path)
+            // Rewrite to the app shell; the SPA router takes it from there.
+            ? Request(
+                request.method,
+                request.requestedUri.replace(path: '/'),
+                headers: request.headers,
+                context: request.context,
+              )
+            : request,
+      );
+      // Revalidate on every load (a cheap 304 when unchanged) so browsers
+      // pick up a new web UI build without a hard refresh.
+      return response.change(headers: {'cache-control': 'no-cache'});
     };
   }
 

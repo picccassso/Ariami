@@ -78,6 +78,33 @@ void main() {
       );
     });
 
+    test('web UI files are revalidated so a new build shows without a hard '
+        'refresh', () async {
+      server.setFeatureFlags(
+        const AriamiFeatureFlags(enableApiScopedAuthForCliWeb: true),
+      );
+      final port = await startHttpTestServer(server);
+      final url = Uri.parse('http://127.0.0.1:$port/main.dart.js');
+
+      final first = await _sendRawRequest(url: url);
+      expect(first.statusCode, 200);
+      expect(first.headers!.value('cache-control'), 'no-cache');
+
+      final dashboard = await _sendRawRequest(
+        url: Uri.parse('http://127.0.0.1:$port/dashboard'),
+      );
+      expect(dashboard.body, contains('cli web'));
+      expect(dashboard.headers!.value('cache-control'), 'no-cache');
+
+      final revalidated = await _sendRawRequest(
+        url: url,
+        headers: {
+          'if-modified-since': first.headers!.value('last-modified')!,
+        },
+      );
+      expect(revalidated.statusCode, 304);
+    });
+
     test('with flag, root is static while protected APIs still require auth',
         () async {
       server.setFeatureFlags(
@@ -1984,10 +2011,12 @@ class _RawResponse {
   const _RawResponse({
     required this.statusCode,
     required this.body,
+    this.headers,
   });
 
   final int statusCode;
   final String body;
+  final HttpHeaders? headers;
 }
 
 class _JsonResponse {
@@ -2038,7 +2067,11 @@ Future<_RawResponse> _sendRawRequest({
     headers?.forEach(request.headers.set);
     final response = await request.close();
     final body = await response.transform(utf8.decoder).join();
-    return _RawResponse(statusCode: response.statusCode, body: body);
+    return _RawResponse(
+      statusCode: response.statusCode,
+      body: body,
+      headers: response.headers,
+    );
   } finally {
     client.close(force: true);
   }
