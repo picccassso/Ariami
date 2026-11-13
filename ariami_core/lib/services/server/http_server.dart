@@ -55,8 +55,11 @@ import 'package:ariami_core/services/reset/reset_service.dart' show ResetScope;
 import 'package:ariami_core/models/listening_stats_models.dart';
 import 'package:ariami_core/services/stats/listening_stats_store.dart';
 import 'package:ariami_core/models/hidden_item.dart';
+import 'package:ariami_core/models/library_curation.dart';
 import 'package:ariami_core/models/pinned_item.dart';
+import 'package:ariami_core/services/curation/user_library_curation_store.dart';
 import 'package:ariami_core/services/hidden/hidden_item_store.dart';
+import 'package:ariami_core/services/server/server_data_layout.dart';
 import 'package:ariami_core/services/pins/pinned_item_store.dart';
 import 'package:ariami_core/services/playlists/created_playlist_id.dart';
 import 'package:ariami_core/services/playlists/playlist_edit_reconcile.dart';
@@ -83,6 +86,7 @@ part 'http_server_parts/websocket_and_static_part.dart';
 part 'http_server_parts/listening_stats_handlers_part.dart';
 part 'http_server_parts/pins_handlers_part.dart';
 part 'http_server_parts/hidden_handlers_part.dart';
+part 'http_server_parts/curation_handlers_part.dart';
 part 'http_server_parts/playlist_edits_handlers_part.dart';
 part 'http_server_parts/artist_images_handlers_part.dart';
 part 'http_server_parts/image_normalization_part.dart';
@@ -157,6 +161,15 @@ class AriamiHttpServer {
   /// Account-scoped "keep this out of my library lists" choices. Separate from
   /// the catalog for the same reason as the pins above.
   HiddenItemStore? _hiddenItemStore;
+
+  /// Account-scoped library curation rules and mode (superset of legacy hidden
+  /// items). Exposed so local server dashboards can read summaries in-process.
+  UserLibraryCurationStore? _curationStore;
+
+  UserLibraryCurationStore? get curationStore =>
+      (_curationStore != null && _curationStore!.isInitialized)
+          ? _curationStore
+          : null;
 
   /// Account-scoped server playlist edits. This database is deliberately
   /// separate from the catalog so a library rescan cannot remove user data.

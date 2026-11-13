@@ -130,6 +130,16 @@ class HiddenItemStore extends SqliteStore {
     return rows.isEmpty ? null : _fromRow(rows.first);
   }
 
+  /// Returns all hidden items across all users (used for one-time migration).
+  List<HiddenItem> listAll() {
+    final rows = db.select('''
+      SELECT id, user_id, type, target_id, hidden_at, source_device_id
+      FROM hidden_items
+      ORDER BY hidden_at ASC, id ASC
+    ''');
+    return rows.map(_fromRow).toList(growable: false);
+  }
+
   void _validate(String type, String targetId) {
     if (!HiddenItem.supportedTypes.contains(type)) {
       throw ArgumentError.value(type, 'type', 'Unsupported hidden item type');

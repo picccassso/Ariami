@@ -1,6 +1,18 @@
 part of 'library_controller.dart';
 
 extension _LibraryControllerSync on LibraryController {
+  void _onCurationServiceChanged() {
+    if (_offlineService.isOfflineModeEnabled) {
+      notifyListeners();
+      return;
+    }
+    if (hasRawCatalog) {
+      _applyFilteredOnlineState();
+    } else {
+      notifyListeners();
+    }
+  }
+
   void _setupStreamListeners() {
     _offlineSubscription = _offlineService.offlineModeStream.listen((_) {
       unawaited(_loadLibrary(background: true));
@@ -9,6 +21,7 @@ extension _LibraryControllerSync on LibraryController {
     _connectionSubscription =
         _connectionService.connectionStateStream.listen((isConnected) {
       if (isConnected) {
+        unawaited(LibraryCurationService().loadFromServer());
         unawaited(_loadLibrary(background: true));
         unawaited(_loadDownloadedSongs());
         unawaited(_loadServerPlaylistEditsIfConnected());
@@ -41,6 +54,11 @@ extension _LibraryControllerSync on LibraryController {
     }
     if (message.type == WsMessageType.artistImagesChanged) {
       unawaited(ArtistImageService().loadArtistImages());
+      return;
+    }
+    if (message.type == WsMessageType.curationChanged ||
+        message.type == WsMessageType.hiddenChanged) {
+      unawaited(LibraryCurationService().loadFromServer());
       return;
     }
     if (message.type == WsMessageType.syncTokenAdvanced) {

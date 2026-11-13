@@ -8,6 +8,7 @@ import '../../models/api_models.dart';
 import '../../models/download_task.dart';
 import '../../models/websocket_models.dart';
 import '../../services/api/connection_service.dart';
+import '../../services/curation/library_curation_service.dart';
 import '../../services/search_service.dart';
 import '../../services/playback_manager.dart';
 import '../../services/download/download_manager.dart';
@@ -63,11 +64,15 @@ class _SearchScreenState extends State<SearchScreen> {
   final OfflinePlaybackService _offlineService = OfflinePlaybackService();
   final DownloadManager _downloadManager = DownloadManager();
   final PlaylistService _playlistService = PlaylistService();
+  final LibraryCurationService _curationService = LibraryCurationService();
   final SearchSettingsService _searchSettingsService = SearchSettingsService();
   final DebouncedSearch _debouncer = DebouncedSearch();
   final TextEditingController _searchController = TextEditingController();
   final FocusNode _searchFocusNode = FocusNode();
 
+  List<SongModel> _rawSongs = [];
+  List<AlbumModel> _rawAlbums = [];
+  Map<String, AlbumModel> _rawAlbumsById = {};
   List<SongModel> _allSongs = [];
   List<AlbumModel> _allAlbums = [];
   Map<String, AlbumModel> _albumsById = {};
@@ -76,6 +81,7 @@ class _SearchScreenState extends State<SearchScreen> {
   Set<String> _recentSongIds = {};
   Set<String> _downloadedSongIds = {};
 
+  bool _searchFullCatalog = false;
   bool _isLoading = false;
   bool _isSearching = false;
   bool _isOffline = false;
@@ -101,6 +107,7 @@ class _SearchScreenState extends State<SearchScreen> {
     // offline alike. loadPlaylists is a no-op when already loaded.
     unawaited(_playlistService.loadPlaylists());
     _playlistService.addListener(_onPlaylistsChanged);
+    _curationService.addListener(_onCurationChanged);
     _searchController.addListener(_onSearchChanged);
     _searchFocusNode.addListener(_onFocusChanged);
     widget.reselectionRequests?.addListener(_onSearchTabReselected);
@@ -141,6 +148,7 @@ class _SearchScreenState extends State<SearchScreen> {
     _searchSettingsService.removeListener(_onSearchSettingsChanged);
     _downloadStateWatcher.dispose();
     _playlistService.removeListener(_onPlaylistsChanged);
+    _curationService.removeListener(_onCurationChanged);
     _searchController.removeListener(_onSearchChanged);
     _searchFocusNode.removeListener(_onFocusChanged);
     widget.reselectionRequests?.removeListener(_onSearchTabReselected);
@@ -226,9 +234,10 @@ class _SearchScreenState extends State<SearchScreen> {
       }
 
       setState(() {
-        _allSongs = allSongs;
-        _allAlbums = albums;
-        _albumsById = {for (final album in albums) album.id: album};
+        _rawSongs = allSongs;
+        _rawAlbums = albums;
+        _rawAlbumsById = {for (final album in albums) album.id: album};
+        _applyCuratedSearchLists();
         _isLoading = false;
       });
       _refreshSearchIfNeeded();
@@ -356,6 +365,36 @@ class _SearchScreenState extends State<SearchScreen> {
   void _onPlaylistsChanged() {
     if (!mounted) return;
     _refreshSearchIfNeeded();
+  }
+
+  void _onCurationChanged() {
+    if (!mounted || _isOffline) return;
+    setState(_applyCuratedSearchLists);
+    _refreshSearchIfNeeded();
+  }
+
+  void _applyCuratedSearchLists() {
+    if (_searchFullCatalog || _isOffline) {
+      _allSongs = _rawSongs;
+      _allAlbums = _rawAlbums;
+      _albumsById = _rawAlbumsById;
+      return;
+    }
+    final filter = _curationService.filter;
+    _allAlbums = filter.filterAlbums(
+      _rawAlbums,
+      idOf: (a) => a.id,
+      artistOf: (a) => a.artist,
+    );
+    _allSongs = filter.filterSongs(
+      _rawSongs,
+      idOf: (s) => s.id,
+      artistOf: (s) => s.artist,
+      albumIdOf: (s) => s.albumId,
+      albumArtistOf: (s) =>
+          s.albumId != null ? _rawAlbumsById[s.albumId!]?.artist : null,
+    );
+    _albumsById = {for (final album in _allAlbums) album.id: album};
   }
 
   void _refreshSearchIfNeeded() {
@@ -538,6 +577,30 @@ class _SearchScreenState extends State<SearchScreen> {
                     ],
                   ),
                 ),
+                if (!_isOffline)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: FilterChip(
+                        selected: _searchFullCatalog,
+                        avatar: Icon(
+                          _searchFullCatalog
+                              ? Icons.public_rounded
+                              : Icons.library_music_rounded,
+                          size: 16,
+                        ),
+                        label: const Text('Search full server catalog'),
+                        onSelected: (selected) {
+                          setState(() {
+                            _searchFullCatalog = selected;
+                            _applyCuratedSearchLists();
+                          });
+                          _refreshSearchIfNeeded();
+                        },
+                      ),
+                    ),
+                  ),
 
                 Expanded(
                   child: _buildBody(),
@@ -651,11 +714,34 @@ class _SearchScreenState extends State<SearchScreen> {
       case _SearchListItemKind.headerAlbums:
         return _buildSectionHeader('Albums');
       case _SearchListItemKind.album:
-        return SearchResultAlbumItem(
-          album: item.album!,
+        final album = item.album!;
+        final albumTile = SearchResultAlbumItem(
+          album: album,
           searchQuery: _searchController.text,
-          onTap: () => _openAlbum(item.album!),
+          onTap: () => _openAlbum(album),
         );
+        if (_searchFullCatalog &&
+            !_isOffline &&
+            !_curationService.filter.isAlbumIncluded(
+              albumId: album.id,
+              artist: album.artist,
+            )) {
+          return Row(
+            children: [
+              Expanded(child: albumTile),
+              Padding(
+                padding: const EdgeInsets.only(right: 12),
+                child: ActionChip(
+                  avatar: const Icon(Icons.add_rounded, size: 16),
+                  label: const Text('Add'),
+                  onPressed: () =>
+                      _curationService.addTargetsToLibrary(albumIds: [album.id]),
+                ),
+              ),
+            ],
+          );
+        }
+        return albumTile;
       case _SearchListItemKind.headerPlaylists:
         return _buildSectionHeader('Playlists');
       case _SearchListItemKind.playlist:
@@ -676,7 +762,7 @@ class _SearchScreenState extends State<SearchScreen> {
   Widget _buildSearchSongItem(SongModel song) {
     final (albumName, albumArtist) = _albumInfoFor(song);
 
-    return SearchResultSongItem(
+    final row = SearchResultSongItem(
       key: ValueKey('search_song_${song.id}'),
       song: song,
       searchQuery: _searchController.text,
@@ -691,6 +777,31 @@ class _SearchScreenState extends State<SearchScreen> {
       isAvailable: !_isOffline || _downloadedSongIds.contains(song.id),
       isInRecentSearch: _recentSongIds.contains(song.id),
     );
+
+    if (_searchFullCatalog &&
+        !_isOffline &&
+        !_curationService.filter.isSongIncluded(
+          songId: song.id,
+          artist: song.artist,
+          albumId: song.albumId,
+          albumArtist: albumArtist,
+        )) {
+      return Row(
+        children: [
+          Expanded(child: row),
+          Padding(
+            padding: const EdgeInsets.only(right: 12),
+            child: ActionChip(
+              avatar: const Icon(Icons.add_rounded, size: 16),
+              label: const Text('Add'),
+              onPressed: () =>
+                  _curationService.addTargetsToLibrary(songIds: [song.id]),
+            ),
+          ),
+        ],
+      );
+    }
+    return row;
   }
 
   Widget _buildRecentSearches() {

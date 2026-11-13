@@ -1,3 +1,4 @@
+import 'package:ariami_core/models/library_curation.dart';
 import 'package:ariami_core/models/music_availability.dart';
 import 'package:ariami_core/models/lyrics_models.dart';
 import 'dart:convert';
@@ -342,6 +343,16 @@ class ApiClient {
     await _delete(
       '/pins/${Uri.encodeComponent(type)}/${Uri.encodeComponent(targetId)}',
     );
+  }
+
+  Future<UserLibraryCuration> getCuration() async {
+    final response = await _get('/v2/curation');
+    return UserLibraryCuration.fromJson(response);
+  }
+
+  Future<UserLibraryCuration> putCuration(Map<String, dynamic> body) async {
+    final response = await _put('/v2/curation', body);
+    return UserLibraryCuration.fromJson(response);
   }
 
   Future<List<Map<String, dynamic>>> importPins(

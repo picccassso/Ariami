@@ -1,6 +1,9 @@
+import 'package:ariami_core/models/library_curation.dart';
 import 'package:flutter/material.dart';
 
+import '../../../../services/curation/library_curation_service.dart';
 import '../../../../widgets/common/mini_player_aware_bottom_sheet.dart';
+import '../../../curation/curate_library_screen.dart';
 import '../library_controller.dart';
 
 class LibraryOptionsSheet extends StatelessWidget {
@@ -43,6 +46,26 @@ class LibraryOptionsSheet extends StatelessWidget {
               onChanged: (_) => controller.toggleMixedMode(),
             ),
             const Divider(height: 1),
+            ListTile(
+              leading: const Icon(Icons.tune_rounded),
+              title: const Text('Curate My Library…'),
+              subtitle: Text(
+                UserLibraryCuration.formatSummaryLabel(
+                  LibraryCurationService().curation.toSummaryJson(),
+                ),
+              ),
+              enabled: !isOffline,
+              onTap: isOffline
+                  ? null
+                  : () {
+                      Navigator.pop(context);
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => const CurateLibraryScreen(),
+                        ),
+                      );
+                    },
+            ),
             ListTile(
               leading: const Icon(Icons.playlist_add_check_rounded),
               title: const Text('Select Multiple'),

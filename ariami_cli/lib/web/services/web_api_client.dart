@@ -2,6 +2,8 @@ import 'dart:convert';
 
 import 'package:ariami_core/models/auth_models.dart';
 import 'package:ariami_core/models/host_controls.dart';
+import 'package:ariami_core/models/library_curation.dart';
+import 'package:ariami_core/models/library_curation_picker.dart';
 import 'package:ariami_core/services/transcoding/transcode_slots_policy.dart';
 import 'package:http/http.dart' as http;
 
@@ -85,6 +87,7 @@ class ServerUserRow {
     required this.createdAt,
     required this.isAdmin,
     required this.connectedDeviceCount,
+    this.curationSummary,
   });
 
   final String userId;
@@ -92,9 +95,14 @@ class ServerUserRow {
   final DateTime? createdAt;
   final bool isAdmin;
   final int connectedDeviceCount;
+  final Map<String, dynamic>? curationSummary;
+
+  String get librarySummaryLabel =>
+      UserLibraryCuration.formatSummaryLabel(curationSummary);
 
   factory ServerUserRow.fromJson(Map<String, dynamic> json) {
     final createdAt = json['createdAt'];
+    final rawCuration = json['curation'];
     return ServerUserRow(
       userId: json['userId'] as String? ?? '',
       username: json['username'] as String? ?? 'Unknown User',
@@ -102,6 +110,8 @@ class ServerUserRow {
           createdAt is String ? DateTime.tryParse(createdAt)?.toLocal() : null,
       isAdmin: json['isAdmin'] as bool? ?? false,
       connectedDeviceCount: json['connectedDeviceCount'] as int? ?? 0,
+      curationSummary:
+          rawCuration is Map ? Map<String, dynamic>.from(rawCuration) : null,
     );
   }
 }
@@ -222,6 +232,102 @@ class WebApiClient {
         .whereType<Map<String, dynamic>>()
         .map(ServerUserRow.fromJson)
         .toList();
+  }
+
+  Future<UserLibraryCuration> getUserCuration(String userId) async {
+    final response = await get(
+      '/api/admin/users/${Uri.encodeComponent(userId)}/curation',
+      includeDeviceIdentity: true,
+    );
+    if (!response.isSuccess || response.jsonBody == null) {
+      throw WebApiException(response);
+    }
+    return UserLibraryCuration.fromJson(
+      response.jsonBody!,
+      fallbackUserId: userId,
+    );
+  }
+
+  Future<UserLibraryCuration> putUserCuration(
+    String userId, {
+    required LibraryCurationMode mode,
+    required List<CurationRuleEntry> rules,
+    bool onboardingCompleted = true,
+  }) async {
+    final response = await put(
+      '/api/admin/users/${Uri.encodeComponent(userId)}/curation',
+      body: <String, dynamic>{
+        'mode': mode.wireName,
+        'onboardingCompleted': onboardingCompleted,
+        'rules': rules.map((r) => r.toJson()).toList(growable: false),
+      },
+      includeDeviceIdentity: true,
+    );
+    if (!response.isSuccess || response.jsonBody == null) {
+      throw WebApiException(response);
+    }
+    return UserLibraryCuration.fromJson(
+      response.jsonBody!,
+      fallbackUserId: userId,
+    );
+  }
+
+  Future<
+      ({
+        List<CurationCatalogAlbum> albums,
+        List<CurationCatalogPlaylist> playlists,
+        List<CurationCatalogSong> standaloneSongs,
+      })> getAdminCurationCatalog() async {
+    final response = await get(
+      '/api/admin/curation/catalog',
+      includeDeviceIdentity: true,
+    );
+    if (!response.isSuccess || response.jsonBody == null) {
+      throw WebApiException(response);
+    }
+    final json = response.jsonBody!;
+    final albums = (json['albums'] as List<dynamic>? ?? const <dynamic>[])
+        .whereType<Map>()
+        .map((m) => CurationCatalogAlbum.fromJson(Map<String, dynamic>.from(m)))
+        .toList(growable: false);
+    final playlists = (json['playlists'] as List<dynamic>? ?? const <dynamic>[])
+        .whereType<Map>()
+        .map((m) =>
+            CurationCatalogPlaylist.fromJson(Map<String, dynamic>.from(m)))
+        .toList(growable: false);
+    final standaloneSongs =
+        (json['standaloneSongs'] as List<dynamic>? ?? const <dynamic>[])
+            .whereType<Map>()
+            .map((m) =>
+                CurationCatalogSong.fromJson(Map<String, dynamic>.from(m)))
+            .toList(growable: false);
+    return (
+      albums: albums,
+      playlists: playlists,
+      standaloneSongs: standaloneSongs,
+    );
+  }
+
+  Future<List<CurationCatalogSong>> getAdminCurationSongs({
+    String? albumId,
+    String? query,
+  }) async {
+    final params = <String, String>{};
+    if (albumId != null && albumId.isNotEmpty) params['albumId'] = albumId;
+    if (query != null && query.trim().isNotEmpty) params['q'] = query.trim();
+    final uri = Uri(
+      path: '/api/admin/curation/songs',
+      queryParameters: params.isEmpty ? null : params,
+    ).toString();
+    final response = await get(uri, includeDeviceIdentity: true);
+    if (!response.isSuccess || response.jsonBody == null) {
+      throw WebApiException(response);
+    }
+    final raw = response.jsonBody!['songs'] as List<dynamic>? ?? const <dynamic>[];
+    return raw
+        .whereType<Map>()
+        .map((m) => CurationCatalogSong.fromJson(Map<String, dynamic>.from(m)))
+        .toList(growable: false);
   }
 
   Future<void> createUser({

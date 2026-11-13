@@ -2,6 +2,7 @@ import '../../utils/responsive.dart';
 import 'dart:async';
 import 'dart:io' show Platform;
 import 'package:ariami_core/models/connect_models.dart';
+import 'package:ariami_core/models/library_curation.dart';
 import 'package:flutter/material.dart';
 import '../../widgets/common/confirm_dialog.dart';
 import '../../widgets/common/mini_player_aware_bottom_sheet.dart';
@@ -9,6 +10,7 @@ import 'package:package_info_plus/package_info_plus.dart';
 import '../../models/download_task.dart';
 import '../../services/api/connection_service.dart';
 import '../../services/ariami_connect_controller.dart';
+import '../../services/curation/library_curation_service.dart';
 import '../../services/download/download_manager.dart';
 import '../../services/library/library_repository.dart';
 import '../../services/offline/offline_manual_reconnect.dart';
@@ -18,6 +20,7 @@ import '../../services/profile_image_service.dart';
 import '../../widgets/settings/settings_section.dart';
 import '../../widgets/settings/settings_tile.dart';
 import '../../utils/constants.dart';
+import '../curation/curate_library_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -340,6 +343,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         listenable: Listenable.merge([
           _profileImageService,
           _connectController,
+          LibraryCurationService(),
         ]),
         builder: (context, _) {
           return ListView(
@@ -360,6 +364,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     onTap: () {
                       Navigator.of(context).pushNamed('/general');
                     },
+                  ),
+                  SettingsTile(
+                    icon: Icons.tune_rounded,
+                    title: 'Curate My Library',
+                    subtitle: UserLibraryCuration.formatSummaryLabel(
+                      LibraryCurationService().curation.toSummaryJson(),
+                    ),
+                    onTap: _isOfflineModeEnabled
+                        ? null
+                        : () {
+                            Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) => const CurateLibraryScreen(),
+                              ),
+                            );
+                          },
                   ),
                 ],
               ),

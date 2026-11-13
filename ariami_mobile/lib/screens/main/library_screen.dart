@@ -4,7 +4,9 @@ import 'package:flutter/services.dart';
 import '../../models/api_models.dart';
 import '../../models/song.dart';
 import '../../services/ariami_connect_controller.dart';
+import '../../services/curation/library_curation_service.dart';
 import '../../services/offline/offline_manual_reconnect.dart';
+import '../curation/curate_library_screen.dart';
 import '../../services/playback_manager.dart';
 import '../../services/quality/quality_settings_service.dart';
 import '../../widgets/common/bottom_chrome_metrics.dart';
@@ -30,6 +32,8 @@ class _LibraryScreenState extends State<LibraryScreen> {
   final QualitySettingsService _qualityService = QualitySettingsService();
   final ScrollController _scrollController = ScrollController();
   double _savedScrollOffset = 0;
+  String? _promptedOnboardingUserId;
+  bool _onboardingSheetOpen = false;
 
   @override
   void initState() {
@@ -37,7 +41,9 @@ class _LibraryScreenState extends State<LibraryScreen> {
     _controller = LibraryController();
     _controller.initialize();
     _controller.addListener(_onControllerChanged);
+    LibraryCurationService().addListener(_maybeShowCurationOnboarding);
     _scrollController.addListener(_trackScrollOffset);
+    _maybeShowCurationOnboarding();
   }
 
   void _trackScrollOffset() {
@@ -54,11 +60,33 @@ class _LibraryScreenState extends State<LibraryScreen> {
     _scrollController.removeListener(_trackScrollOffset);
     _scrollController.dispose();
     _controller.removeListener(_onControllerChanged);
+    LibraryCurationService().removeListener(_maybeShowCurationOnboarding);
     super.dispose();
+  }
+
+  void _maybeShowCurationOnboarding() {
+    if (!mounted || _onboardingSheetOpen) return;
+    final curationService = LibraryCurationService();
+    if (!curationService.needsOnboarding || !_controller.hasRawCatalog) return;
+    if (_controller.connectionService.isConnected == false) return;
+    final userId = curationService.curation.userId;
+    if (_promptedOnboardingUserId == userId) return;
+    _promptedOnboardingUserId = userId;
+    _onboardingSheetOpen = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      try {
+        if (mounted) {
+          await showMobileCurationOnboardingSheet(context);
+        }
+      } finally {
+        _onboardingSheetOpen = false;
+      }
+    });
   }
 
   void _onControllerChanged() {
     if (!mounted) return;
+    _maybeShowCurationOnboarding();
 
     final shouldRestoreScroll = _controller.consumeScrollRestorePending();
     setState(() {});

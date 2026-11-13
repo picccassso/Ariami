@@ -228,11 +228,28 @@ extension _LibraryControllerLoading on LibraryController {
     }
 
     final isAuthoritativeLibrary = !library.isPartialRead;
+    if (!LibraryCurationService().isLoaded &&
+        _connectionService.apiClient != null) {
+      await LibraryCurationService().loadFromServer();
+    }
+
+    _rawOnlineAlbums = library.albums;
+    _rawOnlineSongs = library.songs;
+    _rawOnlineServerPlaylists = library.serverPlaylists;
+    _rawOnlineGenreIndex = library.genreIndex;
+    _rawDurationsReady = library.durationsReady;
+    _rawSyncWarningMessage = _buildSyncWarningMessage(library);
+
+    final filter = LibraryCurationService().filter;
+    final filteredServerPlaylists = filter.filterPlaylists(
+      library.serverPlaylists,
+      idOf: (p) => p.id,
+    );
 
     final validSongIds = library.songs.map((song) => song.id).toSet();
     final validAlbumIds = library.albums.map((album) => album.id).toSet();
     if (isAuthoritativeLibrary) {
-      _playlistService.updateServerPlaylists(library.serverPlaylists);
+      _playlistService.updateServerPlaylists(filteredServerPlaylists);
       await _downloadManager.pruneOrphanedIncompleteDownloads(
         validSongIds,
         isAuthoritativeLibrary: true,
@@ -265,41 +282,11 @@ extension _LibraryControllerLoading on LibraryController {
         serverAlbumIds: validAlbumIds,
       );
     }
-    final retainedAlbums = _buildRetainedOfflineAlbums();
-    final retainedSongs = _buildRetainedOfflineSongs();
-    final retainedGenreIndex = _buildDownloadGenreIndex(
-      _downloadManager.queue.where(
-        (task) =>
-            task.status == DownloadStatus.completed &&
-            task.albumId != null &&
-            _offlineCopyService.isRetainedAlbum(task.albumId!),
-      ),
-    );
-    final genreIndex = LibraryGenreIndex.merge(
-      <LibraryGenreIndex>[library.genreIndex, retainedGenreIndex],
-    );
-    final selectedGenre = _state.genreFilter;
-    final keepGenreFilter = selectedGenre != null &&
-        genreIndex.genreAlbums.containsKey(selectedGenre);
     if (isAuthoritativeLibrary) {
       _hasLoadedOnlineLibrary = true;
     }
 
-    _updateState(_state.copyWith(
-      albums: [...library.albums, ...retainedAlbums],
-      songs: library.songs,
-      offlineCopySongs: retainedSongs,
-      genreIndex: genreIndex,
-      genreFilter: keepGenreFilter ? selectedGenre : null,
-      clearGenreFilter: !keepGenreFilter,
-      offlineCopyAlbumIds: _offlineCopyService.retainedAlbumIds,
-      isOfflineMode: false,
-      isLoading: false,
-      isRefreshing: false,
-      showDownloadedOnly: false,
-      syncWarningMessage: _buildSyncWarningMessage(library),
-      clearSyncWarning: !_hasSyncWarning(library),
-    ));
+    _applyFilteredOnlineState(isLoadingComplete: true);
 
     if (library.durationsReady) {
       _clearDurationRetries();
@@ -315,6 +302,103 @@ extension _LibraryControllerLoading on LibraryController {
       await _playlistService.rehydrateSongMetadataFromLibrary(library.songs);
     }
     await _loadDownloadedSongs();
+  }
+
+  void _applyFilteredOnlineState({bool isLoadingComplete = false}) {
+    final filter = LibraryCurationService().filter;
+    final albumArtistById = <String, String>{
+      for (final album in _rawOnlineAlbums) album.id: album.artist,
+    };
+    final visibleOnlineAlbums = filter.filterAlbums(
+      _rawOnlineAlbums,
+      idOf: (a) => a.id,
+      artistOf: (a) => a.artist,
+    );
+    final visibleOnlineSongs = filter.filterSongs(
+      _rawOnlineSongs,
+      idOf: (s) => s.id,
+      artistOf: (s) => s.artist,
+      albumIdOf: (s) => s.albumId,
+      albumArtistOf: (s) =>
+          s.albumId != null ? albumArtistById[s.albumId!] : null,
+    );
+    final filteredServerPlaylists = filter.filterPlaylists(
+      _rawOnlineServerPlaylists,
+      idOf: (p) => p.id,
+    );
+    _playlistService.updateServerPlaylists(filteredServerPlaylists);
+
+    final retainedAlbums = _buildRetainedOfflineAlbums();
+    final retainedSongs = _buildRetainedOfflineSongs();
+    final retainedGenreIndex = _buildDownloadGenreIndex(
+      _downloadManager.queue.where(
+        (task) =>
+            task.status == DownloadStatus.completed &&
+            task.albumId != null &&
+            _offlineCopyService.isRetainedAlbum(task.albumId!),
+      ),
+    );
+    final filteredOnlineGenres = _filterGenreIndex(
+      _rawOnlineGenreIndex,
+      {for (final a in visibleOnlineAlbums) a.id},
+    );
+    final genreIndex = LibraryGenreIndex.merge(
+      <LibraryGenreIndex>[filteredOnlineGenres, retainedGenreIndex],
+    );
+    final selectedGenre = _state.genreFilter;
+    final keepGenreFilter = selectedGenre != null &&
+        genreIndex.genreAlbums.containsKey(selectedGenre);
+
+    _updateState(_state.copyWith(
+      albums: [...visibleOnlineAlbums, ...retainedAlbums],
+      songs: visibleOnlineSongs,
+      offlineCopySongs: retainedSongs,
+      genreIndex: genreIndex,
+      genreFilter: keepGenreFilter ? selectedGenre : null,
+      clearGenreFilter: !keepGenreFilter,
+      offlineCopyAlbumIds: _offlineCopyService.retainedAlbumIds,
+      isOfflineMode: false,
+      isLoading: isLoadingComplete ? false : _state.isLoading,
+      isRefreshing: isLoadingComplete ? false : _state.isRefreshing,
+      showDownloadedOnly: false,
+      syncWarningMessage: _rawSyncWarningMessage,
+      clearSyncWarning: _rawSyncWarningMessage == null && _rawDurationsReady,
+    ));
+  }
+
+  LibraryGenreIndex _filterGenreIndex(
+    LibraryGenreIndex raw,
+    Set<String> visibleAlbumIds,
+  ) {
+    if (raw.genres.isEmpty ||
+        visibleAlbumIds.length == _rawOnlineAlbums.length) {
+      return raw;
+    }
+    final albumGenres = <String, List<String>>{};
+    for (final id in visibleAlbumIds) {
+      final genres = raw.albumGenres[id];
+      if (genres != null && genres.isNotEmpty) {
+        albumGenres[id] = genres;
+      }
+    }
+    final genreAlbums = <String, Set<String>>{};
+    for (final entry in raw.genreAlbums.entries) {
+      final subset = entry.value.where(visibleAlbumIds.contains).toSet();
+      if (subset.isNotEmpty) {
+        genreAlbums[entry.key] = subset;
+      }
+    }
+    final genres = genreAlbums.keys.toList()
+      ..sort((a, b) {
+        final countCmp =
+            genreAlbums[b]!.length.compareTo(genreAlbums[a]!.length);
+        return countCmp != 0 ? countCmp : a.compareTo(b);
+      });
+    return LibraryGenreIndex(
+      albumGenres: albumGenres,
+      genreAlbums: genreAlbums,
+      genres: genres,
+    );
   }
 
   bool _hasSyncWarning(LibraryReadBundle library) {

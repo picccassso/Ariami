@@ -11,6 +11,7 @@ class ServerDataLayout {
   static const musicDiscoveryFileName = 'music_discovery.json';
   static const metadataCacheFileName = 'metadata_cache.json';
   static const catalogDbFileName = 'catalog.db';
+  static const userLibraryCurationDbFileName = 'user_library_curation.db';
   static const artworkCacheDirName = 'artwork_cache';
   static const transcodedCacheDirName = 'transcoded_cache';
 
@@ -19,6 +20,8 @@ class ServerDataLayout {
   String get musicDiscoveryFile => p.join(rootDir, musicDiscoveryFileName);
   String get metadataCacheFile => p.join(rootDir, metadataCacheFileName);
   String get catalogDbFile => p.join(rootDir, catalogDbFileName);
+  String get userLibraryCurationDbFile =>
+      p.join(rootDir, userLibraryCurationDbFileName);
   String get artworkCacheDir => p.join(rootDir, artworkCacheDirName);
   String get transcodedCacheDir => p.join(rootDir, transcodedCacheDirName);
 }

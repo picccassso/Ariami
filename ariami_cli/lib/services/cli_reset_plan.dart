@@ -27,7 +27,10 @@ ResetPlan buildCliResetPlan(ResetScope scope, String? musicFolderGuard) {
       CliStateService.getMetadataCacheFilePath(),
       CliStateService.getAutostartLogFilePath(),
     ]);
-    sqliteDatabases.add(CliStateService.getCatalogDbFilePath());
+    sqliteDatabases.addAll([
+      CliStateService.getCatalogDbFilePath(),
+      CliStateService.getUserLibraryCurationDbFilePath(),
+    ]);
     directories.addAll([
       CliStateService.getArtworkCacheDirPath(),
       CliStateService.getTranscodedCacheDirPath(),

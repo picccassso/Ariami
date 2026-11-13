@@ -19,6 +19,7 @@ extension AriamiHttpServerRouterMethods on AriamiHttpServer {
     _registerListeningStatsRoutes(router);
     _registerPinsRoutes(router);
     _registerHiddenRoutes(router);
+    _registerCurationRoutes(router);
     _registerPlaylistSuggestionRoutes(router);
     _registerPlaylistEditRoutes(router);
     _registerArtistImageRoutes(router);
@@ -304,6 +305,16 @@ extension AriamiHttpServerRouterMethods on AriamiHttpServer {
     router.post('/api/admin/kick-client', _handleAdminKickClient);
     router.post('/api/admin/change-password', _handleAdminChangePassword);
     router.post('/api/admin/delete-user', _handleAdminDeleteUser);
+    router.get('/api/admin/curation/catalog', _handleAdminCurationCatalog);
+    router.get('/api/admin/curation/songs', _handleAdminCurationSongs);
+    router.get(
+      '/api/admin/users/<userId>/curation',
+      _handleAdminGetUserCuration,
+    );
+    router.put(
+      '/api/admin/users/<userId>/curation',
+      _handleAdminPutUserCuration,
+    );
     router.get('/api/admin/transcode-slots', _handleAdminGetTranscodeSlots);
     router.post('/api/admin/transcode-slots', _handleAdminPostTranscodeSlots);
     router.get('/api/admin/host-controls', _handleAdminGetHostControls);

@@ -96,12 +96,19 @@ extension AriamiHttpServerAdminHandlersMethods on AriamiHttpServer {
     }
 
     final rows = _authService.getUsers().map((user) {
+      final isAdmin = _authService.isAdminUser(user.userId);
+      final curation = _curationStoreIfReady?.getForUser(
+        user.userId,
+        defaultMode: LibraryCurationMode.full,
+        defaultOnboardingCompleted: isAdmin,
+      );
       return {
         'userId': user.userId,
         'username': user.username,
         'createdAt': user.createdAt,
-        'isAdmin': _authService.isAdminUser(user.userId),
+        'isAdmin': isAdmin,
         'connectedDeviceCount': connectedDeviceCountByUserId[user.userId] ?? 0,
+        if (curation != null) 'curation': curation.toSummaryJson(),
       };
     }).toList(growable: false);
 
@@ -543,6 +550,7 @@ extension AriamiHttpServerAdminHandlersMethods on AriamiHttpServer {
             HttpStatus.notFound, 'USER_NOT_FOUND', 'User not found');
       }
 
+      _curationStoreIfReady?.deleteUser(targetUserId);
       updateAuthMode();
 
       return Response.ok(

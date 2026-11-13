@@ -60,6 +60,10 @@ class CliStateService {
     return ServerDataLayout(getConfigDir()).catalogDbFile;
   }
 
+  static String getUserLibraryCurationDbFilePath() {
+    return ServerDataLayout(getConfigDir()).userLibraryCurationDbFile;
+  }
+
   static String getArtworkCacheDirPath() {
     return ServerDataLayout(getConfigDir()).artworkCacheDir;
   }

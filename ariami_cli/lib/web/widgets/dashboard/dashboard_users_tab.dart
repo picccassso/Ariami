@@ -20,6 +20,7 @@ class DashboardUsersTab extends StatelessWidget {
     required this.deletingUserIds,
     required this.onCreateUser,
     required this.onChangePassword,
+    required this.onCurateLibrary,
     required this.onDeleteUser,
     required this.userPickerEnabled,
     required this.isSavingUserPicker,
@@ -36,6 +37,7 @@ class DashboardUsersTab extends StatelessWidget {
   final Set<String> deletingUserIds;
   final VoidCallback onCreateUser;
   final ValueChanged<ServerUserRow> onChangePassword;
+  final ValueChanged<ServerUserRow> onCurateLibrary;
   final ValueChanged<ServerUserRow> onDeleteUser;
 
   /// null hides the section (non-admin, or the setting hasn't loaded).
@@ -83,6 +85,7 @@ class DashboardUsersTab extends StatelessWidget {
                   columns: const [
                     DataColumn(label: Text('User')),
                     DataColumn(label: Text('Role')),
+                    DataColumn(label: Text('Library')),
                     DataColumn(label: Text('Created')),
                     DataColumn(label: Text('Devices')),
                     DataColumn(label: Text('')),
@@ -95,6 +98,13 @@ class DashboardUsersTab extends StatelessWidget {
                           style: const TextStyle(fontWeight: FontWeight.w600),
                         )),
                         DataCell(_RoleChip(isAdmin: row.isAdmin)),
+                        DataCell(Text(
+                          row.librarySummaryLabel,
+                          style: const TextStyle(
+                            color: AppTheme.textSecondary,
+                            fontSize: 13,
+                          ),
+                        )),
                         DataCell(Text(
                           _formatDateTime(row.createdAt),
                           style:
@@ -112,6 +122,7 @@ class DashboardUsersTab extends StatelessWidget {
                             isDeleting: deletingUserIds.contains(row.userId),
                             canDeleteUser: !(row.isAdmin && rows.length == 1),
                             onChangePassword: onChangePassword,
+                            onCurateLibrary: onCurateLibrary,
                             onDeleteUser: onDeleteUser,
                           ),
                         ),
@@ -201,6 +212,7 @@ class _RoleChip extends StatelessWidget {
 }
 
 enum _UserAction {
+  curateLibrary,
   changePassword,
   deleteUser,
 }
@@ -211,6 +223,7 @@ class _UserActionsButton extends StatelessWidget {
     required this.isChangingPassword,
     required this.isDeleting,
     required this.canDeleteUser,
+    required this.onCurateLibrary,
     required this.onChangePassword,
     required this.onDeleteUser,
   });
@@ -219,6 +232,7 @@ class _UserActionsButton extends StatelessWidget {
   final bool isChangingPassword;
   final bool isDeleting;
   final bool canDeleteUser;
+  final ValueChanged<ServerUserRow> onCurateLibrary;
   final ValueChanged<ServerUserRow> onChangePassword;
   final ValueChanged<ServerUserRow> onDeleteUser;
 
@@ -232,6 +246,9 @@ class _UserActionsButton extends StatelessWidget {
       position: PopupMenuPosition.under,
       onSelected: (action) {
         switch (action) {
+          case _UserAction.curateLibrary:
+            if (!isDeleting) onCurateLibrary(row);
+            break;
           case _UserAction.changePassword:
             if (canChangePassword) onChangePassword(row);
             break;
@@ -241,6 +258,11 @@ class _UserActionsButton extends StatelessWidget {
         }
       },
       itemBuilder: (context) => [
+        PopupMenuItem(
+          value: _UserAction.curateLibrary,
+          enabled: !isDeleting,
+          child: const Text('Curate library…'),
+        ),
         PopupMenuItem(
           value: _UserAction.changePassword,
           enabled: canChangePassword,

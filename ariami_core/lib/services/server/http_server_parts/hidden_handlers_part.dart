@@ -20,9 +20,12 @@ extension AriamiHttpServerHiddenMethods on AriamiHttpServer {
     final session = request.context['session'] as Session?;
     if (session == null) return _authRequiredResponse();
     final store = _hiddenStoreIfReady;
-    if (store == null) return _hiddenUnavailable();
+    final curationStore = _curationStoreIfReady;
+    if (store == null && curationStore == null) return _hiddenUnavailable();
 
-    final hidden = store.list(session.userId);
+    final hidden = curationStore != null
+        ? curationStore.listExcludedAsHiddenItems(session.userId)
+        : store!.list(session.userId);
     final repository = _libraryManager.createCatalogRepository();
     final albums = repository == null
         ? const <String, CatalogAlbumRecord>{}
@@ -133,6 +136,38 @@ extension AriamiHttpServerHiddenMethods on AriamiHttpServer {
       targets,
       sourceDeviceId: session.deviceId,
     );
+    final curationStore = _curationStoreIfReady;
+    if (curationStore != null) {
+      final now = DateTime.now().toUtc();
+      final excludeRules = <CurationRuleEntry>[];
+      for (final item in hidden) {
+        final targetType = CurationTargetType.tryFromWire(item.type);
+        if (targetType == null || item.targetId.trim().isEmpty) continue;
+        excludeRules.add(CurationRuleEntry(
+          targetType: targetType,
+          targetId: item.targetId.trim(),
+          action: CurationRuleAction.exclude,
+          updatedAt: now,
+          sourceDeviceId: session.deviceId,
+          displayLabel: targetType == CurationTargetType.artist
+              ? item.targetId.trim()
+              : null,
+        ));
+      }
+      if (excludeRules.isNotEmpty) {
+        final saved = curationStore.applyPatchForUser(
+          session.userId,
+          upsertRules: excludeRules,
+          defaultOnboardingCompleted: _authService.isAdminUser(session.userId),
+          sourceDeviceId: session.deviceId,
+        );
+        _broadcastCurationChanged(
+          session.userId,
+          curation: saved,
+          sourceDeviceId: session.deviceId,
+        );
+      }
+    }
     if (store.list(session.userId).length > before) {
       _broadcastHiddenChanged(session, reason: 'hidden');
     }
@@ -163,8 +198,40 @@ extension AriamiHttpServerHiddenMethods on AriamiHttpServer {
         decodedType,
         decodedTargetId,
       );
-      if (removed) _broadcastHiddenChanged(session, reason: 'unhidden');
-      return _jsonOk({'removed': removed});
+      var curationRemoved = false;
+      final curationStore = _curationStoreIfReady;
+      final targetType = CurationTargetType.tryFromWire(decodedType);
+      if (targetType != null && curationStore != null) {
+        final current = _readUserCuration(session.userId);
+        final normId = CurationRuleEntry.normalizeTargetId(
+          targetType,
+          decodedTargetId,
+        );
+        final hadExclude = current.rules.any(
+          (r) =>
+              r.targetType == targetType &&
+              r.normalizedTargetId == normId &&
+              r.action == CurationRuleAction.exclude,
+        );
+        if (hadExclude) {
+          final saved = curationStore.applyPatchForUser(
+            session.userId,
+            removeTargets: [(targetType: targetType, targetId: decodedTargetId)],
+            defaultOnboardingCompleted: _authService.isAdminUser(session.userId),
+            sourceDeviceId: session.deviceId,
+          );
+          _broadcastCurationChanged(
+            session.userId,
+            curation: saved,
+            sourceDeviceId: session.deviceId,
+          );
+          curationRemoved = true;
+        }
+      }
+      if (removed || curationRemoved) {
+        _broadcastHiddenChanged(session, reason: 'unhidden');
+      }
+      return _jsonOk({'removed': removed || curationRemoved});
     } on ArgumentError catch (error) {
       return _invalidHiddenRequest(
         error.message?.toString() ?? 'Invalid hidden item',

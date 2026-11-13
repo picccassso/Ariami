@@ -1,7 +1,10 @@
+import 'package:ariami_core/models/library_curation.dart';
 import 'package:flutter/material.dart';
 import '../../../../models/api_models.dart';
 import '../../../../models/song.dart';
+import '../../../../services/curation/library_curation_service.dart';
 import '../../../../services/playlist_service.dart';
+import '../../../curation/curate_library_screen.dart';
 import '../../../../widgets/common/bottom_chrome_metrics.dart';
 import '../../../../widgets/common/mini_player_aware_bottom_sheet.dart';
 import '../../../../widgets/library/collapsible_section.dart';
@@ -92,6 +95,64 @@ class LibraryBody extends StatelessWidget {
     }
 
     if (state.isLibraryEmpty && playlistService.playlists.isEmpty) {
+      final isCurated = !isOffline &&
+          LibraryCurationService().curation.mode == LibraryCurationMode.curated;
+      if (isCurated) {
+        return Center(
+          child: Padding(
+            padding: const EdgeInsets.all(28),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.tune_rounded,
+                  size: 64,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'Your curated library is empty',
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Pick the artists, albums, server playlists, or songs you want '
+                  'in your library, or switch to Include Everything.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+                ),
+                const SizedBox(height: 20),
+                Wrap(
+                  spacing: 12,
+                  runSpacing: 10,
+                  alignment: WrapAlignment.center,
+                  children: [
+                    FilledButton.icon(
+                      onPressed: () => Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => const CurateLibraryScreen(),
+                        ),
+                      ),
+                      icon: const Icon(Icons.tune_rounded),
+                      label: const Text('Curate My Library…'),
+                    ),
+                    OutlinedButton(
+                      onPressed: () =>
+                          LibraryCurationService().completeOnboardingFull(),
+                      child: const Text('Include Everything'),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      }
       return MiniPlayerScrollPaddingBuilder(
         builder: (context, bottomPadding) {
           return RefreshIndicator(

@@ -371,4 +371,21 @@ extension _DashboardUsers on _DashboardScreenState {
       }
     }
   }
+
+  Future<void> _promptCurateUserLibrary(ServerUserRow row) async {
+    final saved = await showCurateUserLibraryDialog(
+      context,
+      user: row,
+      apiClient: _apiClient,
+    );
+    if (!mounted || saved == null) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Updated library curation for ${row.username}'),
+        backgroundColor: AppTheme.surface,
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+    await _loadRegisteredUsers(showLoading: false);
+  }
 }

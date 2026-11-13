@@ -22,6 +22,7 @@ import '../widgets/dashboard/dashboard_users_tab.dart';
 import '../widgets/dashboard/library_upload_dialog.dart';
 import '../widgets/dashboard/change_password_dialog.dart';
 import '../widgets/dashboard/create_user_dialog.dart';
+import '../widgets/dashboard/curate_user_library_dialog.dart';
 import '../widgets/dashboard/delete_user_dialog.dart';
 import '../widgets/dashboard/reset_ariami_dialog.dart';
 import '../widgets/dashboard/server_reset_complete_panel.dart';
@@ -278,6 +279,7 @@ class _DashboardScreenState extends State<DashboardScreen>
               onChangePassword: (row) => _promptChangePassword(
                 initialUsername: row.username,
               ),
+              onCurateLibrary: _promptCurateUserLibrary,
               onDeleteUser: _deleteUser,
               userPickerEnabled: _userPickerEnabled,
               isSavingUserPicker: _isSavingUserPicker,

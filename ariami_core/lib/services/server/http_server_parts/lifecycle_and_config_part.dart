@@ -199,6 +199,8 @@ extension AriamiHttpServerLifecycleMethods on AriamiHttpServer {
       _pinnedItemStore = null;
       _hiddenItemStore?.close();
       _hiddenItemStore = null;
+      _curationStore?.close();
+      _curationStore = null;
       _playlistEditStore?.close();
       _playlistEditStore = null;
       _playlistImageStore?.close();
@@ -264,6 +266,23 @@ extension AriamiHttpServerLifecycleMethods on AriamiHttpServer {
       _hiddenItemStore = store;
     } catch (e) {
       print('[HttpServer] Hidden items store unavailable: $e');
+    }
+
+    try {
+      final curationDbPath =
+          '${File(usersFilePath).parent.path}/${ServerDataLayout.userLibraryCurationDbFileName}';
+      final store = _curationStore ??
+          UserLibraryCurationStore(databasePath: curationDbPath);
+      store.initialize();
+      if (_hiddenItemStore != null && _hiddenItemStore!.isInitialized) {
+        store.migrateFromHiddenItems(
+          _hiddenItemStore!,
+          isAdminUser: _authService.isAdminUser,
+        );
+      }
+      _curationStore = store;
+    } catch (e) {
+      print('[HttpServer] Library curation store unavailable: $e');
     }
 
     // Playlist edits are durable account data and live beside the auth stores.

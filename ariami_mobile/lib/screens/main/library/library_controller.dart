@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'package:ariami_core/models/library_curation.dart';
 import 'package:ariami_core/services/playlists/created_playlist_id.dart';
 import 'package:ariami_core/services/stats/credited_artist_splitter.dart';
 import 'package:flutter/foundation.dart';
@@ -11,6 +12,7 @@ import '../../../models/song.dart';
 import '../../../models/websocket_models.dart';
 import '../../../services/api/connection_service.dart';
 import '../../../services/cache/cache_manager.dart';
+import '../../../services/curation/library_curation_service.dart';
 import '../../../services/download/download_manager.dart';
 import '../../../services/library/library_artist_index.dart';
 import '../../../services/library/library_genre_index.dart';
@@ -60,6 +62,22 @@ class LibraryController extends ChangeNotifier {
 
   LibraryState _state = const LibraryState();
   LibraryState get state => _state;
+
+  // Unfiltered online server catalog retained for curation editing & full search.
+  List<AlbumModel> _rawOnlineAlbums = const <AlbumModel>[];
+  List<SongModel> _rawOnlineSongs = const <SongModel>[];
+  List<ServerPlaylist> _rawOnlineServerPlaylists = const <ServerPlaylist>[];
+  LibraryGenreIndex _rawOnlineGenreIndex = LibraryGenreIndex.empty;
+  bool _rawDurationsReady = true;
+  String? _rawSyncWarningMessage;
+
+  List<AlbumModel> get rawAlbums => _rawOnlineAlbums;
+  List<SongModel> get rawSongs => _rawOnlineSongs;
+  List<ServerPlaylist> get rawServerPlaylists => _rawOnlineServerPlaylists;
+  bool get hasRawCatalog =>
+      _rawOnlineAlbums.isNotEmpty ||
+      _rawOnlineSongs.isNotEmpty ||
+      _rawOnlineServerPlaylists.isNotEmpty;
 
   // Artist index memoization: rebuilt only when the underlying catalog lists
   // change (see library_controller_artists.dart).
@@ -214,12 +232,15 @@ class LibraryController extends ChangeNotifier {
       _cacheManager.initialize(),
     ]);
     await _offlineCopyService.initialize();
+    await LibraryCurationService().initialize();
     await _loadUiPreferences();
     await _loadPlayedHistory();
     await _playlistService.loadPlaylists();
     await _loadPinnedItems();
+    await LibraryCurationService().loadFromServer();
     await _loadLibrary();
     _playlistService.addListener(_onPlaylistsChanged);
+    LibraryCurationService().addListener(_onCurationServiceChanged);
     await _loadDownloadedSongs();
     await _loadCachedSongs();
     _setupStreamListeners();
