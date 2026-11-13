@@ -26,6 +26,8 @@ import '../widgets/admin_credentials_dialog.dart';
 import '../widgets/alias_dialog.dart';
 import '../widgets/change_password_dialog.dart';
 import '../widgets/create_user_dialog.dart';
+import '../widgets/curation/curation_rows.dart';
+import '../widgets/curation/library_curation_picker_dialog.dart';
 import '../widgets/dashboard/dashboard_content.dart';
 import '../widgets/delete_user_dialog.dart';
 import '../widgets/reset_ariami_dialog.dart';
@@ -253,6 +255,7 @@ class _DashboardScreenState extends State<DashboardScreen>
       onOpenOwnerSetup: _openOwnerSetup,
       onKick: _kickClient,
       onCreateUser: _promptCreateUser,
+      onCurateLibrary: _curateUserLibrary,
       onChangePassword: (row) => _promptChangePassword(
         initialUsername: row.username,
       ),

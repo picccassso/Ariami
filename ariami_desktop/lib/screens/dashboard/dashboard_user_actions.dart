@@ -262,4 +262,152 @@ extension _DashboardUserActions on _DashboardScreenState {
       }
     }
   }
+
+  Future<void> _curateUserLibrary(ServerUserRow row) async {
+    if (!_hasOwnerAccount) {
+      await _openOwnerSetup();
+      return;
+    }
+
+    final info = _httpServer.getServerInfo();
+    final host = (info['server'] as String?) ?? '127.0.0.1';
+    final port = info['port'] as int? ?? 8080;
+    final artworkClient = CurationArtworkClient(
+      baseUrl: 'http://$host:$port',
+      sessionToken: _adminApi.adminSessionToken,
+    );
+    var catalogSongs = const <CurationCatalogSong>[];
+
+    final UserLibraryCuration? saved;
+    try {
+      saved = await showLibraryCurationPickerDialog(
+        context,
+        title: 'Curate Library · ${row.username}',
+        artworkClient: artworkClient,
+        loadBundle: () async {
+          final curationRes = await _adminApi.sendAdminRequest(
+            method: 'GET',
+            path: '/api/admin/users/${Uri.encodeComponent(row.userId)}/curation',
+          );
+          if (curationRes == null ||
+              !curationRes.isSuccess ||
+              curationRes.jsonBody == null) {
+            throw StateError(
+              curationRes?.errorMessage ?? 'Could not load user curation.',
+            );
+          }
+          final catalogRes = await _adminApi.sendAdminRequest(
+            method: 'GET',
+            path: '/api/admin/curation/catalog',
+          );
+          if (catalogRes == null ||
+              !catalogRes.isSuccess ||
+              catalogRes.jsonBody == null) {
+            throw StateError(
+              catalogRes?.errorMessage ?? 'Could not load server catalog.',
+            );
+          }
+          artworkClient.sessionToken = _adminApi.adminSessionToken;
+          final json = catalogRes.jsonBody!;
+          final standaloneSongs =
+              (json['standaloneSongs'] as List<dynamic>? ?? const <dynamic>[])
+                  .whereType<Map>()
+                  .map((m) => CurationCatalogSong.fromJson(
+                      Map<String, dynamic>.from(m)))
+                  .toList(growable: false);
+          final parsedSongs =
+              (json['songs'] as List<dynamic>? ?? const <dynamic>[])
+                  .whereType<Map>()
+                  .map((m) => CurationCatalogSong.fromJson(
+                      Map<String, dynamic>.from(m)))
+                  .toList(growable: false);
+          catalogSongs = parsedSongs.isNotEmpty ? parsedSongs : standaloneSongs;
+          return (
+            curation: UserLibraryCuration.fromJson(
+              curationRes.jsonBody!,
+              fallbackUserId: row.userId,
+            ),
+            albums: (json['albums'] as List<dynamic>? ?? const <dynamic>[])
+                .whereType<Map>()
+                .map((m) =>
+                    CurationCatalogAlbum.fromJson(Map<String, dynamic>.from(m)))
+                .toList(growable: false),
+            playlists:
+                (json['playlists'] as List<dynamic>? ?? const <dynamic>[])
+                    .whereType<Map>()
+                    .map((m) => CurationCatalogPlaylist.fromJson(
+                        Map<String, dynamic>.from(m)))
+                    .toList(growable: false),
+            standaloneSongs: standaloneSongs,
+          );
+        },
+        loadAllSongs: () => catalogSongs,
+        loadAlbumSongs: (albumId) async {
+          final uri = Uri(
+            path: '/api/admin/curation/songs',
+            queryParameters: <String, String>{'albumId': albumId},
+          ).toString();
+          final res = await _adminApi.sendAdminRequest(method: 'GET', path: uri);
+          if (res == null || !res.isSuccess || res.jsonBody == null) {
+            return const <CurationCatalogSong>[];
+          }
+          final raw =
+              res.jsonBody!['songs'] as List<dynamic>? ?? const <dynamic>[];
+          return raw
+              .whereType<Map>()
+              .map((m) =>
+                  CurationCatalogSong.fromJson(Map<String, dynamic>.from(m)))
+              .toList(growable: false);
+        },
+        searchAllSongs: (query) async {
+          final uri = Uri(
+            path: '/api/admin/curation/songs',
+            queryParameters: <String, String>{'q': query},
+          ).toString();
+          final res = await _adminApi.sendAdminRequest(method: 'GET', path: uri);
+          if (res == null || !res.isSuccess || res.jsonBody == null) {
+            return const <CurationCatalogSong>[];
+          }
+          final raw =
+              res.jsonBody!['songs'] as List<dynamic>? ?? const <dynamic>[];
+          return raw
+              .whereType<Map>()
+              .map((m) =>
+                  CurationCatalogSong.fromJson(Map<String, dynamic>.from(m)))
+              .toList(growable: false);
+        },
+        onSave: (mode, rules) async {
+          final res = await _adminApi.sendAdminRequest(
+            method: 'PUT',
+            path: '/api/admin/users/${Uri.encodeComponent(row.userId)}/curation',
+            body: <String, dynamic>{
+              'mode': mode.wireName,
+              'onboardingCompleted': true,
+              'rules': rules.map((r) => r.toJson()).toList(growable: false),
+            },
+          );
+          if (res == null || !res.isSuccess || res.jsonBody == null) {
+            throw StateError(
+              res?.errorMessage ?? 'Could not save user curation.',
+            );
+          }
+          return UserLibraryCuration.fromJson(
+            res.jsonBody!,
+            fallbackUserId: row.userId,
+          );
+        },
+      );
+    } finally {
+      artworkClient.dispose();
+    }
+
+    if (!mounted || saved == null) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Updated library curation for ${row.username}'),
+        duration: const Duration(seconds: 2),
+      ),
+    );
+    await _refreshServerUsers(showLoading: false);
+  }
 }

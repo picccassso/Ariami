@@ -170,10 +170,11 @@ class DashboardAdminApiService {
   }
 
   Future<DashboardHttpResponse?> sendAdminRequest({
+    String method = 'POST',
     required String path,
-    required Map<String, dynamic> body,
+    Map<String, dynamic>? body,
   }) =>
-      sendAuthenticatedRequest(method: 'POST', path: path, body: body);
+      sendAuthenticatedRequest(method: method, path: path, body: body);
 
   /// Sends an owner-authenticated dashboard request, prompting again once if
   /// the cached session expired.

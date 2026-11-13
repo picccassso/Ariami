@@ -50,6 +50,7 @@ class DashboardContent extends StatelessWidget {
     required this.onOpenOwnerSetup,
     required this.onKick,
     required this.onCreateUser,
+    required this.onCurateLibrary,
     required this.onChangePassword,
     required this.onDeleteUser,
     required this.onEditTranscodeSlots,
@@ -104,6 +105,7 @@ class DashboardContent extends StatelessWidget {
   final VoidCallback onOpenOwnerSetup;
   final void Function(ConnectedClientRow row) onKick;
   final VoidCallback onCreateUser;
+  final void Function(ServerUserRow row) onCurateLibrary;
   final void Function(ServerUserRow row) onChangePassword;
   final void Function(ServerUserRow row) onDeleteUser;
   final VoidCallback onEditTranscodeSlots;
@@ -183,6 +185,7 @@ class DashboardContent extends StatelessWidget {
                     deletingUserIds: deletingUserIds,
                     isTvAccountPickerEnabled: isTvAccountPickerEnabled,
                     onCreateUser: onCreateUser,
+                    onCurateLibrary: onCurateLibrary,
                     onChangePassword: onChangePassword,
                     onDeleteUser: onDeleteUser,
                     onOpenOwnerSetup: onOpenOwnerSetup,

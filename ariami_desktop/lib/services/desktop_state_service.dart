@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'package:ariami_core/services/server/server_data_layout.dart';
 import 'package:path/path.dart' as path;
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -169,6 +170,11 @@ class DesktopStateService {
   /// Catalog database file (mirrors LibraryManager.setCachePath derivation).
   Future<String> getCatalogDbFilePath() async {
     return path.join(await getAuthConfigDir(), 'catalog.db');
+  }
+
+  /// Per-account library curation database.
+  Future<String> getUserLibraryCurationDbFilePath() async {
+    return ServerDataLayout(await getAuthConfigDir()).userLibraryCurationDbFile;
   }
 
   /// Persistent library metadata cache file.

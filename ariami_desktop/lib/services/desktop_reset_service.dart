@@ -51,6 +51,7 @@ class DesktopResetService {
       ],
       sqliteDatabases: [
         await _stateService.getCatalogDbFilePath(),
+        await _stateService.getUserLibraryCurationDbFilePath(),
       ],
       directories: [
         await _stateService.getArtworkCacheDirPath(),

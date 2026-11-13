@@ -73,6 +73,18 @@ class AppTheme {
   static const double tileRadius = 6;
   static const double panelRadius = 10;
 
+  /// A section heading: condensed, semi-bold.
+  static TextStyle heading(double size, {Color? color}) => TextStyle(
+        fontFamily: headingFamily,
+        fontSize: size,
+        fontWeight: FontWeight.w600,
+        height: 1.15,
+        color: color,
+      );
+
+  /// Times and counts: tabular figures so columns of numbers line up.
+  static const List<FontFeature> tabular = [FontFeature.tabularFigures()];
+
   static final ThemeData darkTheme = _build();
 
   static ThemeData _build() {

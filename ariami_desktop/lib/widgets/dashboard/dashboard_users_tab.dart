@@ -16,6 +16,7 @@ class DashboardUsersTab extends StatelessWidget {
     required this.deletingUserIds,
     required this.isTvAccountPickerEnabled,
     required this.onCreateUser,
+    required this.onCurateLibrary,
     required this.onChangePassword,
     required this.onDeleteUser,
     required this.onOpenOwnerSetup,
@@ -31,6 +32,7 @@ class DashboardUsersTab extends StatelessWidget {
   final Set<String> deletingUserIds;
   final bool isTvAccountPickerEnabled;
   final VoidCallback onCreateUser;
+  final void Function(ServerUserRow row) onCurateLibrary;
   final void Function(ServerUserRow row) onChangePassword;
   final void Function(ServerUserRow row) onDeleteUser;
   final VoidCallback onOpenOwnerSetup;
@@ -79,6 +81,7 @@ class DashboardUsersTab extends StatelessWidget {
                 ownerActionsEnabled: hasOwnerAccount,
                 isChangingPassword: isChangingPassword,
                 deletingUserIds: deletingUserIds,
+                onCurateLibrary: onCurateLibrary,
                 onChangePassword: onChangePassword,
                 onDeleteUser: onDeleteUser,
                 onSetUpOwner: onOpenOwnerSetup,

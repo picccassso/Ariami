@@ -5,6 +5,7 @@ import '../utils/date_formatter.dart';
 import '../utils/constants.dart';
 
 enum _UserActionMenuItem {
+  curateLibrary,
   changePassword,
   deleteUser,
 }
@@ -19,6 +20,7 @@ class ServerUsersTable extends StatelessWidget {
     required this.ownerActionsEnabled,
     required this.isChangingPassword,
     required this.deletingUserIds,
+    required this.onCurateLibrary,
     required this.onChangePassword,
     required this.onDeleteUser,
     required this.onSetUpOwner,
@@ -30,6 +32,7 @@ class ServerUsersTable extends StatelessWidget {
   final bool ownerActionsEnabled;
   final bool isChangingPassword;
   final Set<String> deletingUserIds;
+  final void Function(ServerUserRow row) onCurateLibrary;
   final void Function(ServerUserRow row) onChangePassword;
   final void Function(ServerUserRow row) onDeleteUser;
   final VoidCallback onSetUpOwner;
@@ -85,6 +88,7 @@ class ServerUsersTable extends StatelessWidget {
               columns: const [
                 DataColumn(label: Text('User')),
                 DataColumn(label: Text('Role')),
+                DataColumn(label: Text('Library')),
                 DataColumn(label: Text('Created')),
                 DataColumn(label: Text('Connected Devices')),
                 DataColumn(label: Text('Actions')),
@@ -104,6 +108,7 @@ class ServerUsersTable extends StatelessWidget {
                       ),
                     ),
                   ),
+                  DataCell(Text(row.librarySummaryLabel)),
                   DataCell(Text(formatDashboardDateTime(row.createdAt))),
                   DataCell(Text(row.connectedDeviceCount.toString())),
                   DataCell(
@@ -113,6 +118,7 @@ class ServerUsersTable extends StatelessWidget {
                             isChangingPassword: isChangingPassword,
                             isDeleting: isDeleting,
                             canDeleteUser: canDeleteUser,
+                            onCurateLibrary: onCurateLibrary,
                             onChangePassword: onChangePassword,
                             onDeleteUser: onDeleteUser,
                           )
@@ -137,6 +143,7 @@ class _UserActionsButton extends StatefulWidget {
     required this.isChangingPassword,
     required this.isDeleting,
     required this.canDeleteUser,
+    required this.onCurateLibrary,
     required this.onChangePassword,
     required this.onDeleteUser,
   });
@@ -145,6 +152,7 @@ class _UserActionsButton extends StatefulWidget {
   final bool isChangingPassword;
   final bool isDeleting;
   final bool canDeleteUser;
+  final void Function(ServerUserRow row) onCurateLibrary;
   final void Function(ServerUserRow row) onChangePassword;
   final void Function(ServerUserRow row) onDeleteUser;
 
@@ -156,16 +164,24 @@ class _UserActionsButtonState extends State<_UserActionsButton> {
   final GlobalKey<PopupMenuButtonState<_UserActionMenuItem>> _menuKey =
       GlobalKey<PopupMenuButtonState<_UserActionMenuItem>>();
 
+  bool get _canCurateLibrary => !widget.isDeleting;
+
   bool get _canChangePassword =>
       !widget.isChangingPassword && !widget.isDeleting;
 
   bool get _canDeleteUser =>
       !widget.isChangingPassword && !widget.isDeleting && widget.canDeleteUser;
 
-  bool get _isEnabled => _canChangePassword || _canDeleteUser;
+  bool get _isEnabled =>
+      _canCurateLibrary || _canChangePassword || _canDeleteUser;
 
   void _onSelected(_UserActionMenuItem value) {
     switch (value) {
+      case _UserActionMenuItem.curateLibrary:
+        if (_canCurateLibrary) {
+          widget.onCurateLibrary(widget.row);
+        }
+        break;
       case _UserActionMenuItem.changePassword:
         if (_canChangePassword) {
           widget.onChangePassword(widget.row);
@@ -188,6 +204,11 @@ class _UserActionsButtonState extends State<_UserActionsButton> {
       tooltip: 'User actions',
       onSelected: _onSelected,
       itemBuilder: (context) => <PopupMenuEntry<_UserActionMenuItem>>[
+        PopupMenuItem<_UserActionMenuItem>(
+          value: _UserActionMenuItem.curateLibrary,
+          enabled: _canCurateLibrary,
+          child: const Text('Curate Library…'),
+        ),
         PopupMenuItem<_UserActionMenuItem>(
           value: _UserActionMenuItem.changePassword,
           enabled: _canChangePassword,

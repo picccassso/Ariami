@@ -35,18 +35,25 @@ class DashboardDataService {
     }
 
     final adminUserId = users.isEmpty ? null : users.first.userId;
-    return users
-        .map(
-          (user) => ServerUserRow(
-            userId: user.userId,
-            username: user.username,
-            createdAt: user.createdAt,
-            isAdmin: adminUserId == user.userId,
-            connectedDeviceCount:
-                connectedDeviceCountByUserId[user.userId] ?? 0,
-          ),
-        )
-        .toList(growable: false);
+    final curationStore = httpServer.curationStore;
+    return users.map((user) {
+      final isAdmin = adminUserId == user.userId;
+      final curationSummary = curationStore
+          ?.getForUser(
+            user.userId,
+            defaultOnboardingCompleted: isAdmin,
+          )
+          .toSummaryJson();
+      return ServerUserRow(
+        userId: user.userId,
+        username: user.username,
+        createdAt: user.createdAt,
+        isAdmin: isAdmin,
+        connectedDeviceCount:
+            connectedDeviceCountByUserId[user.userId] ?? 0,
+        curationSummary: curationSummary,
+      );
+    }).toList(growable: false);
   }
 
   /// The owner account's Spotify import status, read straight from the

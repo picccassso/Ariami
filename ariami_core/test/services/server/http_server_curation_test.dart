@@ -115,6 +115,12 @@ void main() {
     expect((catalogRes.json['albums'] as List), hasLength(2));
     expect((catalogRes.json['playlists'] as List), hasLength(1));
     expect((catalogRes.json['standaloneSongs'] as List), hasLength(1));
+    final catalogSongs =
+        (catalogRes.json['songs'] as List).cast<Map<String, dynamic>>();
+    expect(catalogSongs, hasLength(2));
+    final albumSong = catalogSongs.firstWhere((s) => s['id'] == 'song-1');
+    expect(albumSong['albumId'], 'alb-dp');
+    expect(albumSong['albumTitle'], 'Discovery');
 
     final songsSearch = await _request(
       port,

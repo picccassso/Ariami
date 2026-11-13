@@ -123,10 +123,15 @@ extension AriamiHttpServerCurationMethods on AriamiHttpServer {
         'albums': const <Map<String, dynamic>>[],
         'playlists': const <Map<String, dynamic>>[],
         'standaloneSongs': const <Map<String, dynamic>>[],
+        'songs': const <Map<String, dynamic>>[],
       });
     }
 
-    final albums = _loadAllCatalogAlbums(repository)
+    final rawAlbums = _loadAllCatalogAlbums(repository);
+    final albumTitleById = <String, String>{
+      for (final album in rawAlbums) album.id: album.title,
+    };
+    final albums = rawAlbums
         .map((album) => <String, dynamic>{
               'id': album.id,
               'title': album.title,
@@ -146,7 +151,8 @@ extension AriamiHttpServerCurationMethods on AriamiHttpServer {
             })
         .toList(growable: false);
 
-    final standaloneSongs = _loadAllCatalogSongs(repository)
+    final rawSongs = _loadAllCatalogSongs(repository);
+    final standaloneSongs = rawSongs
         .where((song) => song.albumId == null || song.albumId!.isEmpty)
         .map((song) => <String, dynamic>{
               'id': song.id,
@@ -156,10 +162,26 @@ extension AriamiHttpServerCurationMethods on AriamiHttpServer {
             })
         .toList(growable: false);
 
+    final songs = rawSongs
+        .map((song) => <String, dynamic>{
+              'id': song.id,
+              'title': song.title,
+              'artist': song.artist,
+              if (song.albumId != null && song.albumId!.isNotEmpty)
+                'albumId': song.albumId,
+              if (song.albumId != null &&
+                  albumTitleById[song.albumId!] != null)
+                'albumTitle': albumTitleById[song.albumId!],
+              'durationSeconds': song.durationSeconds,
+              if (song.trackNumber != null) 'trackNumber': song.trackNumber,
+            })
+        .toList(growable: false);
+
     return _jsonOk({
       'albums': albums,
       'playlists': playlists,
       'standaloneSongs': standaloneSongs,
+      'songs': songs,
     });
   }
 
