@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:ariami_core/models/auth_models.dart';
 import 'package:ariami_core/models/host_controls.dart';
@@ -277,6 +278,7 @@ class WebApiClient {
         List<CurationCatalogAlbum> albums,
         List<CurationCatalogPlaylist> playlists,
         List<CurationCatalogSong> standaloneSongs,
+        List<CurationCatalogSong> songs,
       })> getAdminCurationCatalog() async {
     final response = await get(
       '/api/admin/curation/catalog',
@@ -301,11 +303,72 @@ class WebApiClient {
             .map((m) =>
                 CurationCatalogSong.fromJson(Map<String, dynamic>.from(m)))
             .toList(growable: false);
+    final parsedSongs = (json['songs'] as List<dynamic>? ?? const <dynamic>[])
+        .whereType<Map>()
+        .map((m) => CurationCatalogSong.fromJson(Map<String, dynamic>.from(m)))
+        .toList(growable: false);
+    final songs = parsedSongs.isNotEmpty ? parsedSongs : standaloneSongs;
     return (
       albums: albums,
       playlists: playlists,
       standaloneSongs: standaloneSongs,
+      songs: songs,
     );
+  }
+
+  String albumArtworkUrl(String albumId, {bool thumbnail = true}) {
+    return Uri.parse('/api/artwork/${Uri.encodeComponent(albumId)}')
+        .replace(
+          queryParameters: <String, String>{
+            'size': thumbnail ? 'thumbnail' : 'full',
+          },
+        )
+        .toString();
+  }
+
+  String songArtworkUrl(String songId, {bool thumbnail = true}) {
+    return Uri.parse('/api/song-artwork/${Uri.encodeComponent(songId)}')
+        .replace(
+          queryParameters: <String, String>{
+            'size': thumbnail ? 'thumbnail' : 'full',
+          },
+        )
+        .toString();
+  }
+
+  Future<Uint8List> getArtworkBytes(String path) async {
+    final uri = Uri.parse(path);
+    final headers = <String, String>{
+      'Accept': 'image/*,application/json',
+    };
+    if (tokenProvider != null) {
+      final token = await tokenProvider!.call();
+      if (token != null && token.isNotEmpty) {
+        headers['Authorization'] = 'Bearer $token';
+      }
+    }
+    var response = await _httpClient.get(uri, headers: headers);
+    if (!headers.containsKey('Authorization') &&
+        (response.statusCode == 401 || response.statusCode == 403) &&
+        tokenProvider != null) {
+      final retryToken = await tokenProvider!.call();
+      if (retryToken != null && retryToken.isNotEmpty) {
+        response = await _httpClient.get(
+          uri,
+          headers: <String, String>{
+            ...headers,
+            'Authorization': 'Bearer $retryToken',
+          },
+        );
+      }
+    }
+    if (response.statusCode != 200 || response.bodyBytes.isEmpty) {
+      throw http.ClientException(
+        'Artwork request failed (HTTP ${response.statusCode})',
+        uri,
+      );
+    }
+    return response.bodyBytes;
   }
 
   Future<List<CurationCatalogSong>> getAdminCurationSongs({

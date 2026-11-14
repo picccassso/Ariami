@@ -142,16 +142,43 @@ extension AriamiHttpServerCurationMethods on AriamiHttpServer {
             })
         .toList(growable: false);
 
-    final playlists = _loadAllCatalogPlaylists(repository)
+    final rawSongs = _loadAllCatalogSongs(repository);
+    final songAlbumIdById = <String, String>{
+      for (final song in rawSongs)
+        if (song.albumId != null && song.albumId!.trim().isNotEmpty)
+          song.id: song.albumId!.trim(),
+    };
+
+    final rawPlaylists = _loadAllCatalogPlaylists(repository);
+    final playlistAlbumIdsById = <String, List<String>>{};
+    if (rawPlaylists.isNotEmpty) {
+      final playlistSongs = repository.getPlaylistSongsByPlaylistIds(
+        rawPlaylists.map((p) => p.id).toList(growable: false),
+      );
+      for (final row in playlistSongs) {
+        final albumId = songAlbumIdById[row.songId];
+        if (albumId == null) continue;
+        final list = playlistAlbumIdsById.putIfAbsent(
+          row.playlistId,
+          () => <String>[],
+        );
+        if (list.length < 4 && !list.contains(albumId)) {
+          list.add(albumId);
+        }
+      }
+    }
+
+    final playlists = rawPlaylists
         .map((playlist) => <String, dynamic>{
               'id': playlist.id,
               'name': playlist.name,
               'songCount': playlist.songCount,
               'durationSeconds': playlist.durationSeconds,
+              'albumIds':
+                  playlistAlbumIdsById[playlist.id] ?? const <String>[],
             })
         .toList(growable: false);
 
-    final rawSongs = _loadAllCatalogSongs(repository);
     final standaloneSongs = rawSongs
         .where((song) => song.albumId == null || song.albumId!.isEmpty)
         .map((song) => <String, dynamic>{

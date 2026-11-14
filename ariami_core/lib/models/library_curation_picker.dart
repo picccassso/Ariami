@@ -31,17 +31,28 @@ class CurationCatalogPlaylist {
     required this.id,
     required this.name,
     this.songCount = 0,
+    this.albumIds = const <String>[],
   });
 
   final String id;
   final String name;
   final int songCount;
+  final List<String> albumIds;
 
   factory CurationCatalogPlaylist.fromJson(Map<String, dynamic> json) {
+    final rawAlbumIds = json['albumIds'];
+    final albumIds = rawAlbumIds is List
+        ? rawAlbumIds
+            .whereType<String>()
+            .map((id) => id.trim())
+            .where((id) => id.isNotEmpty)
+            .toList(growable: false)
+        : const <String>[];
     return CurationCatalogPlaylist(
       id: (json['id'] as String? ?? '').trim(),
       name: (json['name'] as String? ?? 'Playlist').trim(),
       songCount: (json['songCount'] as num?)?.toInt() ?? 0,
+      albumIds: albumIds,
     );
   }
 }

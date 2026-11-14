@@ -1221,7 +1221,7 @@ class _LibraryCurationPickerDialogState
         final included = filter.isServerPlaylistIncluded(playlist.id);
         return CurationPlaylistTile(
           playlist: playlist,
-          albumIds: _playlistAlbumIdsById[playlist.id] ?? const <String>[],
+          albumIds: _playlistAlbumIdsById[playlist.id] ?? playlist.albumIds,
           included: included,
           artworkClient: widget.artworkClient,
           customImageVersion:
