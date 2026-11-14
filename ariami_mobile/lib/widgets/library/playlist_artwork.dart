@@ -93,11 +93,19 @@ class PlaylistArtwork extends StatelessWidget {
 
   _PlaylistArtworkRequest _parseArtworkRequest(String artworkId) {
     final apiClient = ConnectionService().apiClient;
+    final hasServerUrl = apiClient != null ||
+        (ConnectionService().serverInfo?.baseUrl.isNotEmpty ?? false);
 
-    String? albumUrl(String albumId) =>
-        apiClient != null ? '${apiClient.baseUrl}/artwork/$albumId' : null;
-    String? songUrl(String songId) =>
-        apiClient != null ? '${apiClient.baseUrl}/song-artwork/$songId' : null;
+    String? albumUrl(String albumId) => hasServerUrl
+        ? (apiClient != null
+            ? '${apiClient.baseUrl}/artwork/${Uri.encodeComponent(albumId)}'
+            : '/api/artwork/${Uri.encodeComponent(albumId)}')
+        : null;
+    String? songUrl(String songId) => hasServerUrl
+        ? (apiClient != null
+            ? '${apiClient.baseUrl}/song-artwork/${Uri.encodeComponent(songId)}'
+            : '/api/song-artwork/${Uri.encodeComponent(songId)}')
+        : null;
 
     if (artworkId.startsWith('a:')) {
       final splitIndex = artworkId.indexOf('|s:');

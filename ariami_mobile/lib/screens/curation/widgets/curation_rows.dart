@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:ariami_core/models/library_curation_picker.dart';
 import 'package:ariami_core/services/stats/credited_artist_splitter.dart';
 import 'package:flutter/material.dart';
@@ -5,6 +7,7 @@ import 'package:flutter/material.dart';
 import '../../../models/api_models.dart';
 import '../../../services/api/connection_service.dart';
 import '../../../services/artist_image_service.dart';
+import '../../../services/playlist_service.dart';
 import '../../../utils/artwork_url.dart';
 import '../../../utils/constants.dart';
 import '../../../widgets/common/cached_artwork.dart';
@@ -381,6 +384,7 @@ class CurationPlaylistTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final playlistService = PlaylistService();
     return _CurationRowShell(
       onTap: onToggle,
       leading: ClipRRect(
@@ -388,14 +392,40 @@ class CurationPlaylistTile extends StatelessWidget {
         child: SizedBox(
           width: 44,
           height: 44,
-          child: PlaylistArtwork(
-            playlistName: playlist.name,
-            customImagePath: null,
-            customImageExists: false,
-            albumIds: albumIds,
-            isLikedSongs: false,
-            iconSize: 20,
-            decodeWidth: 44,
+          child: ListenableBuilder(
+            listenable: playlistService,
+            builder: (context, _) {
+              final customImagePath =
+                  playlistService.customImagePathForServerPlaylist(playlist.id);
+              final customImageExists = customImagePath != null &&
+                  File(customImagePath).existsSync();
+              final artwork = PlaylistArtwork(
+                playlistName: playlist.name,
+                customImagePath: customImagePath,
+                customImageExists: customImageExists,
+                albumIds: albumIds,
+                isLikedSongs: false,
+                iconSize: 20,
+                decodeWidth: 44,
+              );
+              if (customImageExists) return artwork;
+
+              final imageVersion =
+                  playlistService.serverPlaylistImageVersion(playlist.id);
+              if (imageVersion == null) return artwork;
+
+              final safeId = Uri.encodeComponent(playlist.id);
+              return CachedArtwork(
+                key: ValueKey('curation-playlist-custom-${safeId}_v$imageVersion'),
+                albumId: 'playlist_${safeId}_v$imageVersion',
+                artworkUrl: '/api/playlists/$safeId/image?v=$imageVersion',
+                width: 44,
+                height: 44,
+                fit: BoxFit.cover,
+                sizeHint: ArtworkSizeHint.thumbnail,
+                fallback: artwork,
+              );
+            },
           ),
         ),
       ),

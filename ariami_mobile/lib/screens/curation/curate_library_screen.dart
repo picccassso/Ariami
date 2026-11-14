@@ -11,6 +11,7 @@ import '../../models/api_models.dart';
 import '../../services/api/connection_service.dart';
 import '../../services/artist_image_service.dart';
 import '../../services/curation/library_curation_service.dart';
+import '../../services/playlist_service.dart';
 import '../../utils/constants.dart';
 import '../../widgets/common/mini_player_aware_bottom_sheet.dart';
 import '../main/library/library_controller.dart';
@@ -266,6 +267,7 @@ class _CurateLibraryScreenState extends State<CurateLibraryScreen>
       }
       if (ConnectionService().isConnected) {
         unawaited(ArtistImageService().loadArtistImages());
+        unawaited(PlaylistService().loadServerPlaylistEdits());
       }
 
       final rawAlbums = _library.rawAlbums;
@@ -316,23 +318,35 @@ class _CurateLibraryScreenState extends State<CurateLibraryScreen>
         );
       }
 
+      final playlistService = PlaylistService();
       final playlistAlbumIdsById = <String, List<String>>{};
       final playlistsSorted = _library.rawServerPlaylists
           .where((p) => !isAccountOwnedPlaylistId(p.id))
           .map((p) {
-        final albumIds = <String>[];
-        for (final songId in p.songIds) {
+        final edit = playlistService.serverPlaylistEdits[p.id];
+        final effectiveSongIds = edit?.songIds ?? p.songIds;
+        final artworkIds = <String>[];
+        final seenPrimaryIds = <String>{};
+        for (final songId in effectiveSongIds) {
           final albumId = songAlbumIdById[songId];
-          if (albumId != null && !albumIds.contains(albumId)) {
-            albumIds.add(albumId);
-            if (albumIds.length == 4) break;
+          if (albumId != null &&
+              albumId.isNotEmpty &&
+              albumCoverArtById.containsKey(albumId)) {
+            if (seenPrimaryIds.add('a:$albumId')) {
+              artworkIds.add('a:$albumId|s:$songId');
+            }
+          } else {
+            if (seenPrimaryIds.add('s:$songId')) {
+              artworkIds.add('s:$songId');
+            }
           }
+          if (artworkIds.length == 4) break;
         }
-        playlistAlbumIdsById[p.id] = albumIds;
+        playlistAlbumIdsById[p.id] = artworkIds;
         return CurationCatalogPlaylist(
           id: p.id,
-          name: p.name,
-          songCount: p.songCount,
+          name: edit?.name?.trim().isNotEmpty == true ? edit!.name!.trim() : p.name,
+          songCount: effectiveSongIds.length,
         );
       }).toList()
         ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));

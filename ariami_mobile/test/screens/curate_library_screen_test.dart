@@ -6,6 +6,7 @@ import 'package:ariami_mobile/services/artist_image_service.dart';
 import 'package:ariami_mobile/services/curation/library_curation_service.dart';
 import 'package:ariami_mobile/utils/constants.dart';
 import 'package:ariami_mobile/widgets/common/cached_artwork.dart';
+import 'package:ariami_mobile/widgets/library/playlist_artwork.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -392,6 +393,59 @@ void main() {
       );
       expect(soloArt.albumId, 'song_s_solo');
       expect(soloArt.artworkUrl, '/api/song-artwork/s_solo');
+    });
+
+    testWidgets(
+        'resolves playlist thumbnails from album coverArt, artless-album songs, and standalone singles',
+        (tester) async {
+      seedCatalog(
+        albums: [
+          makeAlbum('a_noart', 'No Art', 'Artist A'),
+          makeAlbum(
+            'a_art',
+            'With Art',
+            'Artist B',
+            coverArt: '/api/artwork/a_art',
+          ),
+        ],
+        songs: [
+          makeSong('s_art', 'Art Track', 'Artist B', albumId: 'a_art'),
+          makeSong('s_noart', 'No Art Track', 'Artist A', albumId: 'a_noart'),
+          makeSong('s_solo', 'Solo Track', 'Artist C'),
+        ],
+        playlists: [
+          ServerPlaylist(
+            id: 'sp_solo',
+            name: 'Folder Singles',
+            songIds: const ['s_solo', 's_noart'],
+            songCount: 2,
+          ),
+          ServerPlaylist(
+            id: 'sp_mixed',
+            name: 'Mixed Playlist',
+            songIds: const ['s_art'],
+            songCount: 1,
+          ),
+        ],
+        mode: LibraryCurationMode.curated,
+      );
+
+      await pumpCurateScreen(tester);
+      await tester.tap(find.text('Playlists 2'));
+      await pumpFrames(tester);
+
+      final artworks = tester.widgetList<CachedArtwork>(find.byType(CachedArtwork));
+      final cacheIds = artworks.map((w) => w.albumId).toSet();
+      expect(cacheIds, containsAll(['a_art', 'song_s_solo', 'song_s_noart']));
+
+      final playlistWidgets =
+          tester.widgetList<PlaylistArtwork>(find.byType(PlaylistArtwork));
+      final soloPlaylist = playlistWidgets
+          .firstWhere((w) => w.playlistName == 'Folder Singles');
+      final mixedPlaylist = playlistWidgets
+          .firstWhere((w) => w.playlistName == 'Mixed Playlist');
+      expect(soloPlaylist.albumIds, ['s:s_solo', 's:s_noart']);
+      expect(mixedPlaylist.albumIds, ['a:a_art|s:s_art']);
     });
   });
 }

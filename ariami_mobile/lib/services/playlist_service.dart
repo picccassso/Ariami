@@ -94,6 +94,22 @@ class PlaylistService extends ChangeNotifier {
   Map<String, ServerPlaylistEdit> get serverPlaylistEdits =>
       Map.unmodifiable(_serverPlaylistEdits);
 
+  int? serverPlaylistImageVersion(String serverPlaylistId) {
+    for (final image in _serverPlaylistImages) {
+      if (image.playlistId == serverPlaylistId) return image.updatedAt;
+    }
+    return null;
+  }
+
+  String? customImagePathForServerPlaylist(String serverPlaylistId) {
+    for (final entry in _importedFromServer.entries) {
+      if (entry.value == serverPlaylistId) {
+        return _getPlaylistImpl(entry.key)?.customImagePath;
+      }
+    }
+    return null;
+  }
+
   /// Get visible server playlists (not hidden/imported).
   ///
   /// Account edits are applied here so every mobile surface (including the
