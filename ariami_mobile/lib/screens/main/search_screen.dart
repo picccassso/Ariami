@@ -12,6 +12,7 @@ import '../../services/curation/library_curation_service.dart';
 import '../../services/search_service.dart';
 import '../../services/playback_manager.dart';
 import '../../services/download/download_manager.dart';
+import '../../services/library/library_read_facade.dart';
 import '../../services/offline/offline_playback_service.dart';
 import '../../services/settings/search_settings_service.dart';
 import '../../utils/download_state_watcher.dart';
@@ -48,10 +49,12 @@ class SearchScreen extends StatefulWidget {
     super.key,
     this.focusOnOpen,
     this.reselectionRequests,
+    @visibleForTesting this.libraryBundleLoaderForTest,
   });
 
   final bool? focusOnOpen;
   final ValueListenable<int>? reselectionRequests;
+  final Future<LibraryReadBundle> Function()? libraryBundleLoaderForTest;
 
   @override
   State<SearchScreen> createState() => _SearchScreenState();
@@ -216,8 +219,9 @@ class _SearchScreenState extends State<SearchScreen> {
         _errorMessage = null;
       });
 
-      final library =
-          await _connectionService.libraryReadFacade.getLibraryBundle();
+      final library = widget.libraryBundleLoaderForTest != null
+          ? await widget.libraryBundleLoaderForTest!()
+          : await _connectionService.libraryReadFacade.getLibraryBundle();
       final rawSongs = List<SongModel>.from(library.songs);
       final rawAlbums = List<AlbumModel>.from(library.albums);
       final allSongs = _searchService.deduplicateSongs(rawSongs);
@@ -237,6 +241,9 @@ class _SearchScreenState extends State<SearchScreen> {
         _rawSongs = allSongs;
         _rawAlbums = albums;
         _rawAlbumsById = {for (final album in albums) album.id: album};
+        if (_curationService.filter.isPassThrough) {
+          _searchFullCatalog = false;
+        }
         _applyCuratedSearchLists();
         _isLoading = false;
       });
@@ -369,7 +376,12 @@ class _SearchScreenState extends State<SearchScreen> {
 
   void _onCurationChanged() {
     if (!mounted || _isOffline) return;
-    setState(_applyCuratedSearchLists);
+    setState(() {
+      if (_curationService.filter.isPassThrough) {
+        _searchFullCatalog = false;
+      }
+      _applyCuratedSearchLists();
+    });
     _refreshSearchIfNeeded();
   }
 
@@ -461,6 +473,12 @@ class _SearchScreenState extends State<SearchScreen> {
     await _searchService.insertRecentSongAt(song, originalIndex);
     await _loadRecentSongs();
   }
+
+  bool get _showFullCatalogToggle =>
+      !_isOffline &&
+      _errorMessage == null &&
+      _searchController.text.trim().isNotEmpty &&
+      !_curationService.filter.isPassThrough;
 
   @override
   Widget build(BuildContext context) {
@@ -577,7 +595,7 @@ class _SearchScreenState extends State<SearchScreen> {
                     ],
                   ),
                 ),
-                if (!_isOffline)
+                if (_showFullCatalogToggle)
                   Padding(
                     padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
                     child: Align(
