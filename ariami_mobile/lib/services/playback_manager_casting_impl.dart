@@ -136,7 +136,10 @@ extension _PlaybackManagerCastingImpl on PlaybackManager {
         }
       }
 
-      await _castService.connectToDevice(device);
+      await _castService.connectToDevice(
+        device,
+        initialPosition: snapshot.position,
+      );
 
       if (snapshot.song != null) {
         if (currentSong?.id != snapshot.song?.id) {

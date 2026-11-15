@@ -47,6 +47,14 @@ class ChromeCastService extends ChangeNotifier {
   CastMediaPlayerState? _lastRemotePlayerState;
   CastSyncPayload? _lastSyncPayload;
 
+  /// Target position requested for an active Cast handoff, load, or seek,
+  /// held until the receiver catches up or a short grace window expires.
+  /// Receiver progress ticks emit 0 (or a stale pre-seek position) while
+  /// loading/buffering, which would otherwise snap the seek bar backward.
+  Duration? _pendingTargetPosition;
+  DateTime? _pendingTargetSetAt;
+  bool _isConnectingHandoff = false;
+
   /// Volume we last asked the receiver for, kept until the receiver either
   /// confirms it or reports a different value of its own (physical buttons,
   /// another controller). Receiver status echoes lag behind our requests, so
@@ -170,8 +178,10 @@ class ChromeCastService extends ChangeNotifier {
       _positionSubscription ??= GoogleCastRemoteMediaClient
           .instance.playerPositionStream
           .listen((pos) {
-        _recordRemotePosition(pos);
-        notifyListeners();
+        if (!isConnected) return;
+        if (applyRemotePositionUpdate(pos)) {
+          notifyListeners();
+        }
       });
 
       _isInitialized = true;
@@ -221,34 +231,55 @@ class ChromeCastService extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> connectToDevice(GoogleCastDevice device) async {
+  Future<void> connectToDevice(
+    GoogleCastDevice device, {
+    Duration? initialPosition,
+  }) async {
     if (!isSupportedPlatform) return;
     await initialize();
     _forceLocalPlayback = false;
     _attachedToExistingPlayback = false;
-
-    final started =
-        await GoogleCastSessionManager.instance.startSessionWithDevice(device);
-    if (!started) {
-      throw StateError('Failed to start Chromecast session.');
+    _isConnectingHandoff = initialPosition != null;
+    if (initialPosition != null) {
+      _setPendingTargetPosition(initialPosition);
+    } else {
+      _clearPendingTargetPosition();
     }
 
-    if (!isConnected) {
-      await GoogleCastSessionManager.instance.currentSessionStream
-          .firstWhere(
-            (session) =>
-                session?.connectionState == GoogleCastConnectState.connected,
-          )
-          .timeout(
-            const Duration(seconds: 10),
-            onTimeout: () => throw TimeoutException(
-              'Chromecast connection timed out.',
-            ),
-          );
-    }
+    try {
+      final started =
+          await GoogleCastSessionManager.instance.startSessionWithDevice(device);
+      if (!started) {
+        throw StateError('Failed to start Chromecast session.');
+      }
 
-    _connectedDeviceName = device.friendlyName;
-    notifyListeners();
+      if (!isConnected) {
+        await GoogleCastSessionManager.instance.currentSessionStream
+            .firstWhere(
+              (session) =>
+                  session?.connectionState == GoogleCastConnectState.connected,
+            )
+            .timeout(
+              const Duration(seconds: 10),
+              onTimeout: () => throw TimeoutException(
+                'Chromecast connection timed out.',
+              ),
+            );
+      }
+
+      _connectedDeviceName = device.friendlyName;
+      notifyListeners();
+    } catch (_) {
+      _isConnectingHandoff = false;
+      if (!hasActiveSession) {
+        _clearPendingTargetPosition();
+        _lastKnownRemotePosition = Duration.zero;
+        _lastRemotePositionUpdatedAt = null;
+      }
+      rethrow;
+    } finally {
+      _isConnectingHandoff = false;
+    }
   }
 
   /// Joins media that is already playing without issuing a replacement LOAD.
@@ -285,6 +316,7 @@ class ChromeCastService extends ChangeNotifier {
     _lastSentPlaying = null;
     _lastSyncPayload = null;
     _attachedToExistingPlayback = false;
+    _clearPendingTargetPosition();
     notifyListeners();
   }
 
@@ -372,11 +404,13 @@ class ChromeCastService extends ChangeNotifier {
     _lastCastedSongId = null;
     _lastSyncPayload = null;
     _forceLocalPlayback = false;
+    _clearPendingTargetPosition();
     notifyListeners();
   }
 
   Future<void> seek(Duration position, {required bool playAfterSeek}) async {
     if (!isConnected) return;
+    _setPendingTargetPosition(position);
     await GoogleCastRemoteMediaClient.instance.seek(
       GoogleCastMediaSeekOption(
         position: position,
@@ -385,7 +419,7 @@ class ChromeCastService extends ChangeNotifier {
             : GoogleCastMediaResumeState.pause,
       ),
     );
-    _recordRemotePosition(position);
+    _setPendingTargetPosition(position);
     _lastRemotePlayerState = playAfterSeek
         ? CastMediaPlayerState.playing
         : CastMediaPlayerState.paused;
@@ -434,6 +468,12 @@ class ChromeCastService extends ChangeNotifier {
     }
 
     _isSyncing = true;
+    if (position > Duration.zero) {
+      _setPendingTargetPosition(position);
+    } else {
+      _clearPendingTargetPosition();
+      _recordRemotePosition(Duration.zero);
+    }
     try {
       final payload = await _buildPayload(song, position);
       if (payload == null) {
@@ -465,7 +505,12 @@ class ChromeCastService extends ChangeNotifier {
         playPosition: payload.position,
       );
 
-      _recordRemotePosition(payload.position);
+      if (payload.position > Duration.zero) {
+        _setPendingTargetPosition(payload.position);
+      } else {
+        _clearPendingTargetPosition();
+        _recordRemotePosition(Duration.zero);
+      }
       _lastRemotePlayerState = isPlaying
           ? CastMediaPlayerState.playing
           : CastMediaPlayerState.paused;
@@ -608,11 +653,14 @@ class ChromeCastService extends ChangeNotifier {
       _lastSyncPayload = null;
       _forceLocalPlayback = false;
       _attachedToExistingPlayback = false;
-      _lastKnownRemotePosition = Duration.zero;
-      _lastRemotePositionUpdatedAt = null;
       _lastRemotePlayerState = null;
       _requestedVolume = null;
       _reportedVolumeAtRequest = null;
+      if (!_isConnectingHandoff && !isConnecting) {
+        _clearPendingTargetPosition();
+        _lastKnownRemotePosition = Duration.zero;
+        _lastRemotePositionUpdatedAt = null;
+      }
     }
     notifyListeners();
   }
@@ -625,6 +673,7 @@ class ChromeCastService extends ChangeNotifier {
       return;
     }
 
+    _clearPendingTargetPosition();
     _recordRemotePosition(capturedPosition);
     _lastRemotePlayerState =
         wasPlaying ? CastMediaPlayerState.playing : CastMediaPlayerState.paused;
@@ -684,7 +733,11 @@ class ChromeCastService extends ChangeNotifier {
     final wasAdvancing = _isAdvancingState(_lastRemotePlayerState);
     final isAdvancing = _isAdvancingState(nextState);
 
-    if (wasAdvancing && !isAdvancing) {
+    if (_pendingTargetPosition != null &&
+        _isLoadingOrIdleState(_lastRemotePlayerState) &&
+        !_isLoadingOrIdleState(nextState)) {
+      _lastRemotePositionUpdatedAt = now;
+    } else if (wasAdvancing && !isAdvancing) {
       _recordRemotePosition(_estimateRemotePosition(now: now), at: now);
     } else if (!wasAdvancing && isAdvancing) {
       _lastRemotePositionUpdatedAt = now;
@@ -700,6 +753,86 @@ class ChromeCastService extends ChangeNotifier {
         state == CastMediaPlayerState.loading;
   }
 
+  bool _isLoadingOrIdleState(CastMediaPlayerState? state) {
+    return state == null ||
+        state == CastMediaPlayerState.idle ||
+        state == CastMediaPlayerState.loading ||
+        state == CastMediaPlayerState.buffering;
+  }
+
+  void _setPendingTargetPosition(Duration position, {DateTime? at}) {
+    final clamped = position < Duration.zero ? Duration.zero : position;
+    final now = at ?? DateTime.now();
+    _pendingTargetPosition = clamped;
+    _pendingTargetSetAt = now;
+    _recordRemotePosition(clamped, at: now);
+  }
+
+  void _clearPendingTargetPosition() {
+    _pendingTargetPosition = null;
+    _pendingTargetSetAt = null;
+  }
+
+  @visibleForTesting
+  void seedHandoffPositionForTest(
+    Duration position, {
+    DateTime? at,
+    bool connecting = false,
+  }) {
+    _isConnectingHandoff = connecting;
+    _setPendingTargetPosition(position, at: at);
+  }
+
+  @visibleForTesting
+  void resetPositionStateForTest() {
+    _isConnectingHandoff = false;
+    _isSyncing = false;
+    _forceLocalPlayback = false;
+    _clearPendingTargetPosition();
+    _lastKnownRemotePosition = Duration.zero;
+    _lastRemotePositionUpdatedAt = null;
+    _lastRemotePlayerState = null;
+  }
+
+  @visibleForTesting
+  bool applyRemotePositionUpdate(
+    Duration pos, {
+    CastMediaPlayerState? playerState,
+    DateTime? now,
+  }) {
+    if (_isConnectingHandoff || _isSyncing || _forceLocalPlayback) {
+      return false;
+    }
+
+    final currentTime = now ?? DateTime.now();
+    final effectiveState = playerState ?? mediaStatus?.playerState;
+    final target = _pendingTargetPosition;
+    if (target != null) {
+      final setAt = _pendingTargetSetAt ?? currentTime;
+      final elapsed = currentTime.difference(setAt);
+
+      if (_isLoadingOrIdleState(effectiveState)) {
+        if (elapsed < const Duration(seconds: 15)) {
+          return false;
+        }
+        _clearPendingTargetPosition();
+      } else {
+        const tolerance = Duration(seconds: 2);
+        const forwardWindow = Duration(seconds: 5);
+        final lower = target > tolerance ? target - tolerance : Duration.zero;
+        final upper = target + forwardWindow;
+        final caughtUp = pos >= lower && pos <= upper;
+        if (!caughtUp && elapsed < const Duration(seconds: 5)) {
+          return false;
+        }
+        _clearPendingTargetPosition();
+      }
+    }
+
+    _recordRemotePosition(pos, at: currentTime);
+    return true;
+  }
+
   void _recordRemotePosition(Duration position, {DateTime? at}) {
     _lastKnownRemotePosition =
         position < Duration.zero ? Duration.zero : position;
@@ -707,6 +840,13 @@ class ChromeCastService extends ChangeNotifier {
   }
 
   Duration _estimateRemotePosition({DateTime? now}) {
+    if (_pendingTargetPosition != null &&
+        (_isConnectingHandoff ||
+            _isSyncing ||
+            _isLoadingOrIdleState(mediaStatus?.playerState))) {
+      return _pendingTargetPosition!;
+    }
+
     var position = _lastKnownRemotePosition;
     final capturedAt = _lastRemotePositionUpdatedAt;
     final effectiveNow = now ?? DateTime.now();
