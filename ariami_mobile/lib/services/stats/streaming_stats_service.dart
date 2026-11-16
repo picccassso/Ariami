@@ -11,6 +11,7 @@ import '../../models/song_stats.dart';
 import '../../models/artist_stats.dart';
 import '../../models/album_stats.dart';
 import '../../database/stats_database.dart';
+import '../music_discovery_cache.dart';
 import '../song_id_remapping_service.dart';
 
 /// Service for tracking streaming statistics across the app with SQLite persistence.
@@ -648,6 +649,7 @@ class StreamingStatsService extends ChangeNotifier
     _statsCache.clear();
     _dirtyStats.clear();
     await _database.resetAllStats();
+    await MusicDiscoveryCache.clearAll();
     _emitTopSongs();
     notifyListeners();
   }

@@ -15,6 +15,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../models/song_stats.dart';
 import '../api/connection_service.dart';
+import '../music_discovery_cache.dart';
 import 'streaming_stats_service.dart';
 import 'period_stats_cache.dart';
 
@@ -505,6 +506,7 @@ class AccountStatsService extends ChangeNotifier {
       _stats.setAccountStatsOverlay(null);
       notifyListeners();
       await _prefs?.setBool(_pendingResetKey, false);
+      await MusicDiscoveryCache.clearAll(_prefs);
     }
     await _prefs?.setString(_lastUserKey, userId);
   }

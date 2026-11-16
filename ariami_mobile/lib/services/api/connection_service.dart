@@ -11,6 +11,7 @@ import '../audio/playback_state_manager.dart';
 import '../library/library_read_facade.dart';
 import '../library/library_pin_storage.dart';
 import '../library/library_repository.dart';
+import '../music_discovery_cache.dart';
 import '../offline/offline_playback_service.dart';
 import '../sync/library_sync_engine.dart';
 import 'api_client.dart';
@@ -342,6 +343,7 @@ class ConnectionService {
     }
 
     await _authManager.clearAuthInfo();
+    await MusicDiscoveryCache.clearAll();
     await disconnect(isManual: true);
   }
 

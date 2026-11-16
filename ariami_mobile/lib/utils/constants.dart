@@ -574,10 +574,23 @@ class AppTheme {
       chipTheme: ChipThemeData(
         backgroundColor: Colors.transparent,
         selectedColor: primary,
+        checkmarkColor: onPrimary,
         side: BorderSide(color: colors.border),
         shape: controlShape,
-        labelStyle: TextStyle(
-            fontFamily: bodyFamily, color: colors.textPrimary, fontSize: 13),
+        labelStyle: WidgetStateTextStyle.resolveWith(
+          (states) => TextStyle(
+            fontFamily: bodyFamily,
+            color: states.contains(WidgetState.selected)
+                ? onPrimary
+                : colors.textPrimary,
+            fontSize: 13,
+          ),
+        ),
+        secondaryLabelStyle: TextStyle(
+          fontFamily: bodyFamily,
+          color: onPrimary,
+          fontSize: 13,
+        ),
       ),
 
       sliderTheme: SliderThemeData(

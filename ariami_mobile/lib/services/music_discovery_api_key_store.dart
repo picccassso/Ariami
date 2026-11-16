@@ -35,7 +35,19 @@ class MusicDiscoveryApiKeyStore {
 
   Future<void> write(SharedPreferences preferences, String value) async {
     await preferences.setBool(_migrationAttemptedKey, true);
-    await preferences.setString(key, value.trim());
+    final trimmed = value.trim();
+    if (trimmed.isEmpty) {
+      await delete(preferences);
+      return;
+    }
+    await preferences.setString(key, trimmed);
+  }
+
+  Future<void> delete(SharedPreferences preferences) async {
+    // Keep the migration marker so clearing the key cannot resurrect a
+    // legacy secure-storage copy on the next open.
+    await preferences.setBool(_migrationAttemptedKey, true);
+    await preferences.remove(key);
   }
 
   Future<String?> readHouseholdCache(
@@ -50,7 +62,12 @@ class MusicDiscoveryApiKeyStore {
     String scope,
     String value,
   ) async {
-    await preferences.setString(_householdCacheKey(scope), value.trim());
+    final trimmed = value.trim();
+    if (trimmed.isEmpty) {
+      await deleteHouseholdCache(preferences, scope);
+      return;
+    }
+    await preferences.setString(_householdCacheKey(scope), trimmed);
   }
 
   Future<void> deleteHouseholdCache(

@@ -56,6 +56,39 @@ void main() {
     expect(legacyReads, 1);
   });
 
+  test('deleting a local key does not resurrect the legacy copy', () async {
+    final preferences = await SharedPreferences.getInstance();
+    var legacyReads = 0;
+    await store.write(preferences, 'local-key');
+    await store.delete(preferences);
+
+    final key = await store.readAndMigrate(
+      preferences,
+      readLegacyKey: () async {
+        legacyReads++;
+        return 'legacy-key';
+      },
+    );
+
+    expect(key, isNull);
+    expect(legacyReads, 0);
+  });
+
+  test('blank values clear stored local and household keys', () async {
+    final preferences = await SharedPreferences.getInstance();
+    await store.write(preferences, 'local-key');
+    await store.writeHouseholdCache(preferences, 'server-a|owner', 'key-a');
+
+    await store.write(preferences, '   ');
+    await store.writeHouseholdCache(preferences, 'server-a|owner', ' \t ');
+
+    expect(preferences.getString(MusicDiscoveryApiKeyStore.key), isNull);
+    expect(
+      await store.readHouseholdCache(preferences, 'server-a|owner'),
+      isNull,
+    );
+  });
+
   test('household caches are isolated by server scope', () async {
     final preferences = await SharedPreferences.getInstance();
     await store.writeHouseholdCache(preferences, 'server-a|owner', 'key-a');
