@@ -190,4 +190,48 @@ void main() {
     expect(avg.activeDays, 1);
     expect(avg.perActiveDay, const Duration(minutes: 600));
   });
+
+  testWidgets('export button opens share card preview sheet', (tester) async {
+    final service = StreamingStatsService();
+    addTearDown(() => service.setAccountStatsOverlay(null));
+
+    await tester.pumpWidget(const MaterialApp(home: StreamingStatsScreen()));
+    await tester.pump();
+
+    final now = DateTime.now();
+    service.setAccountStatsOverlay([
+      SongStats(
+        songId: 'export-song-1',
+        playCount: 7,
+        totalTime: const Duration(minutes: 28),
+        firstPlayed: DateTime(now.year, 1, 1),
+        lastPlayed: now,
+        songTitle: 'Night Drive',
+        songArtist: 'Chromatics',
+      ),
+    ]);
+    await tester.pump();
+
+    await tester.tap(find.text('All'));
+    await tester.pump();
+    await tester.pump();
+
+    await tester.tap(find.byTooltip('Export stats image'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 350));
+
+    expect(find.text('Export stats card'), findsOneWidget);
+    expect(find.text('Save image'), findsOneWidget);
+    expect(find.text('Share'), findsOneWidget);
+    expect(find.text('Night Drive'), findsWidgets);
+
+    await tester.tap(find.text('Top 5'));
+    await tester.pump();
+    expect(find.text('Top 10'), findsOneWidget);
+
+    await tester.tap(find.text('All').last);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 200));
+    expect(find.text('Listening summary'), findsOneWidget);
+  });
 }

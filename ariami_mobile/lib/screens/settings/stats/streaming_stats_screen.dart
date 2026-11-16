@@ -4,8 +4,11 @@ import '../../../utils/responsive.dart';
 
 import 'package:ariami_core/ariami_core.dart' show ListeningPeriodStats;
 import 'package:flutter/material.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
+import '../../../models/album_stats.dart';
 import '../../../models/api_models.dart';
 import '../../../models/artist_stats.dart';
+import '../../../models/song_stats.dart';
 import '../../../services/stats/period_stats_loader.dart';
 import '../../../services/stats/period_stats_cache.dart';
 import '../../../services/stats/period_stats_overlay_apply.dart';
@@ -364,6 +367,74 @@ class _StreamingStatsScreenState extends State<StreamingStatsScreen>
     if (firstTap) showPlaytimeHintDialog(context);
   }
 
+  bool get _hasShareableData {
+    if (_useAllTimeData) {
+      return _statsService.getAllStats().isNotEmpty ||
+          (_creditedArtists?.isNotEmpty ?? false);
+    }
+    final stats = _periodStats;
+    if (_loadingPeriod || _periodUnavailable || stats == null) return false;
+    return stats.songs.isNotEmpty ||
+        stats.artists.isNotEmpty ||
+        stats.albums.isNotEmpty;
+  }
+
+  StatsShareSnapshot? _buildShareSnapshot() {
+    final useAllTime = _useAllTimeData;
+    final periodStats = _periodStats;
+    if (!useAllTime &&
+        (_loadingPeriod || _periodUnavailable || periodStats == null)) {
+      return null;
+    }
+
+    final List<SongStats> songs;
+    final List<ArtistStats> artists;
+    final List<AlbumStats> albums;
+    if (useAllTime) {
+      songs = _statsService.getTopSongs(limit: 10);
+      artists =
+          (_creditedArtists ?? _statsService.getTopArtists(limit: 10))
+              .take(10)
+              .toList();
+      albums = _statsService.getTopAlbums(limit: 10);
+    } else {
+      final allSongs = songStatsFromRollups(periodStats!.songs);
+      songs = allSongs.take(10).toList();
+      artists = artistStatsFromCredited(periodStats.artists, allSongs)
+          .take(10)
+          .toList();
+      albums = albumStatsFromRollups(periodStats.albums).take(10).toList();
+    }
+
+    final snapshot = StatsShareSnapshot(
+      range: _range,
+      songs: songs,
+      artists: artists,
+      albums: albums,
+      metricsForTab: (tab) => computeOverviewMetrics(
+        tabIndex: tab,
+        useAllTimeData: useAllTime,
+        periodStats: periodStats,
+        statsService: _statsService,
+        creditedArtists: _creditedArtists,
+        playtime: _playtime,
+      ),
+      artworkResolver: _artworkResolver,
+      albumsById: _albumsById,
+    );
+    return snapshot.hasData ? snapshot : null;
+  }
+
+  void _onShareTap() {
+    final snapshot = _buildShareSnapshot();
+    if (snapshot == null) return;
+    showStatsShareSheet(
+      context: context,
+      snapshot: snapshot,
+      initialTabIndex: _currentTabIndex,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -379,6 +450,16 @@ class _StreamingStatsScreenState extends State<StreamingStatsScreen>
         centerTitle: false,
         backgroundColor: Colors.transparent,
         elevation: 0,
+        actions: [
+          ListenableBuilder(
+            listenable: _statsService,
+            builder: (context, _) => IconButton(
+              icon: const Icon(LucideIcons.share2, size: 20),
+              tooltip: 'Export stats image',
+              onPressed: _hasShareableData ? _onShareTap : null,
+            ),
+          ),
+        ],
         bottom: TabBar(
           controller: _tabController,
           indicatorColor: isDark ? Colors.white : Colors.black,
