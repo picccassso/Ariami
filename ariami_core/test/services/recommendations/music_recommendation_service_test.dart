@@ -244,6 +244,97 @@ void main() {
       expect(artists.single.match, 1);
       expect(methods, <String>['tag.gettoptracks', 'tag.gettopartists']);
     });
+
+    test('retries transient rate limits and 503s with bounded backoff', () async {
+      var attempts = 0;
+      final retryAttempts = <int>[];
+      final client = LastFmRecommendationClient(
+        apiKey: 'key',
+        endpoint: Uri.https('example.test', '/2.0/'),
+        retryDelay: (attempt) {
+          retryAttempts.add(attempt);
+          return Duration.zero;
+        },
+        httpClient: MockClient((request) async {
+          attempts++;
+          if (attempts == 1) return http.Response('busy', 503);
+          if (attempts == 2) {
+            return _jsonResponse(
+              <String, dynamic>{'error': 29, 'message': 'Rate limit exceeded'},
+            );
+          }
+          return _jsonResponse(<String, dynamic>{
+            'similarartists': <String, dynamic>{
+              'artist': <Map<String, dynamic>>[_artist('Recovered', 0.9)],
+            },
+          });
+        }),
+      );
+
+      final result = await client.similarArtists('Seed');
+      expect(attempts, 3);
+      expect(retryAttempts, <int>[0, 1]);
+      expect(result.single.name, 'Recovered');
+
+      var exhaustedCalls = 0;
+      final failingClient = LastFmRecommendationClient(
+        apiKey: 'key',
+        endpoint: Uri.https('example.test', '/2.0/'),
+        retryDelay: (_) => Duration.zero,
+        httpClient: MockClient((_) async {
+          exhaustedCalls++;
+          return http.Response('too many requests', 429);
+        }),
+      );
+      await expectLater(
+        failingClient.similarArtists('Seed'),
+        throwsA(
+          isA<LastFmRecommendationException>()
+              .having((error) => error.isRateLimited, 'rate limited', isTrue),
+        ),
+      );
+      expect(exhaustedCalls, 3);
+    });
+
+    test('caches responses within TTL and evicts oldest beyond capacity',
+        () async {
+      var now = DateTime.utc(2026, 1, 1, 12);
+      var networkCalls = 0;
+      final client = LastFmRecommendationClient(
+        apiKey: 'key',
+        endpoint: Uri.https('example.test', '/2.0/'),
+        cacheTtl: const Duration(minutes: 15),
+        maxCacheEntries: 2,
+        clock: () => now,
+        httpClient: MockClient((request) async {
+          networkCalls++;
+          final artist = request.url.queryParameters['artist']!.trim();
+          return _jsonResponse(<String, dynamic>{
+            'similarartists': <String, dynamic>{
+              'artist': <Map<String, dynamic>>[_artist('$artist Sim', 0.9)],
+            },
+          });
+        }),
+      );
+
+      await client.similarArtists('Artist A');
+      await client.similarArtists(' artist a ');
+      expect(networkCalls, 1);
+
+      await client.similarArtists('Artist B');
+      await client.similarArtists('Artist A'); // refreshes LRU position
+      await client.similarArtists('Artist C'); // evicts Artist B
+      expect(networkCalls, 3);
+
+      await client.similarArtists('Artist A');
+      expect(networkCalls, 3);
+      await client.similarArtists('Artist B');
+      expect(networkCalls, 4);
+
+      now = now.add(const Duration(minutes: 16));
+      await client.similarArtists('Artist B');
+      expect(networkCalls, 5);
+    });
   });
 
   group('MusicRecommendationService', () {
@@ -381,6 +472,8 @@ void main() {
         ownedTracks: const <OwnedMusicTrack>[
           OwnedMusicTrack(
               title: 'Owned Song (2011 Remaster)', artist: 'Owned Artist'),
+          OwnedMusicTrack(title: 'Owned B-Side', artist: 'Owned Artist'),
+          OwnedMusicTrack(title: 'Owned Bonus', artist: 'Owned Artist'),
         ],
       );
 
@@ -575,17 +668,10 @@ void main() {
 
     test('a selected tag sources candidates instead of reranking taste',
         () async {
+      final methodsCalled = <String>[];
       final service = _serviceWith(MockClient((request) async {
         final query = request.url.queryParameters;
-        if (query['method'] == 'track.getsimilar') {
-          return _jsonResponse(<String, dynamic>{
-            'similartracks': <String, dynamic>{
-              'track': <Map<String, dynamic>>[
-                _track('NF Neighbour', 'Rap Artist', 0.95),
-              ],
-            },
-          });
-        }
+        methodsCalled.add(query['method']!);
         if (query['method'] == 'tag.gettoptracks') {
           expect(query['tag'], 'country');
           return _jsonResponse(<String, dynamic>{
@@ -602,6 +688,7 @@ void main() {
 
       final result = await service.discover(
         seeds: const <MusicRecommendationSeed>[
+          MusicRecommendationSeed.artist('Seed Artist'),
           MusicRecommendationSeed.track(
             artist: 'Seed Artist',
             title: 'Seed Song',
@@ -613,6 +700,10 @@ void main() {
         preferredTags: const <String>{'country'},
       );
 
+      expect(methodsCalled, isNot(contains('artist.getsimilar')));
+      expect(methodsCalled, isNot(contains('track.getsimilar')));
+      expect(result.artistSeeds, isEmpty);
+      expect(result.trackSeeds, isEmpty);
       expect(result.recommendations.map((item) => item.name),
           <String>['Country Road', 'Honky Tonk']);
       expect(
@@ -951,6 +1042,186 @@ void main() {
           contains('Neighbour Song'));
     });
 
+    test('keeps artists with only 1-2 loose owned tracks and skips owned top albums',
+        () async {
+      final httpClient = MockClient((request) async {
+        final query = request.url.queryParameters;
+        if (query['method'] == 'artist.getsimilar') {
+          return _jsonResponse(<String, dynamic>{
+            'similarartists': <String, dynamic>{
+              'artist': <Map<String, dynamic>>[
+                _artist('Loose Track Artist', 0.9),
+              ],
+            },
+          });
+        }
+        if (query['method'] == 'artist.gettopalbums') {
+          return _jsonResponse(<String, dynamic>{
+            'topalbums': <String, dynamic>{
+              'album': <Map<String, dynamic>>[
+                <String, dynamic>{
+                  'name': 'Owned #1 Album',
+                  'url': 'https://www.last.fm/music/Loose/Owned',
+                },
+                <String, dynamic>{
+                  'name': 'Fresh #2 Album',
+                  'url': 'https://www.last.fm/music/Loose/Fresh',
+                },
+              ],
+            },
+          });
+        }
+        return _jsonResponse(<String, dynamic>{});
+      });
+      final service = _serviceWith(httpClient);
+      const owned = <OwnedMusicTrack>[
+        OwnedMusicTrack(
+          title: 'Single Track',
+          artist: 'Loose Track Artist',
+          album: 'Owned #1 Album',
+        ),
+      ];
+
+      final artistRes = await service.discover(
+        seeds: const <MusicRecommendationSeed>[MusicRecommendationSeed.artist('Seed')],
+        ownedTracks: owned,
+        mix: MusicDiscoveryMix.artists,
+      );
+      final albumRes = await service.discover(
+        seeds: const <MusicRecommendationSeed>[MusicRecommendationSeed.artist('Seed')],
+        ownedTracks: owned,
+        mix: MusicDiscoveryMix.albums,
+      );
+
+      expect(artistRes.artists.single.name, 'Loose Track Artist');
+      expect(albumRes.albums.single.name, 'Fresh #2 Album');
+    });
+
+    test('filters mix before MusicBrainz lookups and retries primary artist on track seeds',
+        () async {
+      final mbPaths = <String>[];
+      final trackSeedsAsked = <String>[];
+      final httpClient = MockClient((request) async {
+        final query = request.url.queryParameters;
+        if (query['method'] == 'artist.getsimilar') {
+          return _jsonResponse(<String, dynamic>{
+            'similarartists': <String, dynamic>{
+              'artist': <Map<String, dynamic>>[_artist('Some Artist', 0.99)],
+            },
+          });
+        }
+        if (query['method'] == 'track.getsimilar') {
+          trackSeedsAsked.add(query['artist']!);
+          if (query['artist'] != 'Lead') {
+            return _jsonResponse(
+                <String, dynamic>{'error': 6, 'message': 'Track not found'});
+          }
+          return _jsonResponse(<String, dynamic>{
+            'similartracks': <String, dynamic>{
+              'track': <Map<String, dynamic>>[_track('Target Track', 'Other', 0.8)],
+            },
+          });
+        }
+        if (request.url.path.contains('/ws/2/')) {
+          mbPaths.add(request.url.path);
+        }
+        return _jsonResponse(<String, dynamic>{});
+      });
+      final service = MusicRecommendationService(
+        lastFm: LastFmRecommendationClient(
+          apiKey: 'key',
+          endpoint: Uri.https('example.test', '/2.0/'),
+          httpClient: httpClient,
+        ),
+        musicBrainz: MusicBrainzIdentityClient(
+          endpoint: Uri.https('example.test', '/ws/2/'),
+          httpClient: httpClient,
+          requestSpacing: Duration.zero,
+        ),
+      );
+
+      final result = await service.discover(
+        seeds: const <MusicRecommendationSeed>[
+          MusicRecommendationSeed.artist('Seed Artist'),
+          MusicRecommendationSeed.track(
+            artist: 'Lead feat. Guest',
+            title: 'Collab Song',
+          ),
+        ],
+        ownedTracks: const <OwnedMusicTrack>[],
+        mix: MusicDiscoveryMix.tracks,
+      );
+
+      expect(trackSeedsAsked, <String>['Lead feat. Guest', 'Lead']);
+      expect(result.tracks.single.name, 'Target Track');
+      expect(mbPaths, <String>['/ws/2/recording/']);
+    });
+
+    test('balanced mix reserves track/artist quotas and backfills shortages',
+        () async {
+      final service = _serviceWith(MockClient((request) async {
+        final query = request.url.queryParameters;
+        if (query['method'] == 'artist.getsimilar') {
+          return _jsonResponse(<String, dynamic>{
+            'similarartists': <String, dynamic>{
+              'artist': <Map<String, dynamic>>[
+                for (var i = 0; i < 6; i++) _artist('Artist $i', 0.99 - i * 0.01),
+              ],
+            },
+          });
+        }
+        if (query['method'] == 'track.getsimilar') {
+          if (query['artist'] == 'Short Seed') {
+            return _jsonResponse(<String, dynamic>{
+              'similartracks': <String, dynamic>{
+                'track': <Map<String, dynamic>>[
+                  _track('Only Track', 'Track Artist', 0.50),
+                ],
+              },
+            });
+          }
+          return _jsonResponse(<String, dynamic>{
+            'similartracks': <String, dynamic>{
+              'track': <Map<String, dynamic>>[
+                _track('Cap 1', 'Same Artist', 0.60),
+                _track('Cap 2', 'Same Artist', 0.59),
+                _track('Cap 3 Dropped', 'Same Artist', 0.58),
+                _track('Other Track 1', 'Other Artist 1', 0.57),
+                _track('Other Track 2', 'Other Artist 2', 0.56),
+              ],
+            },
+          });
+        }
+        return _jsonResponse(<String, dynamic>{});
+      }));
+
+      final balanced = await service.discover(
+        seeds: const <MusicRecommendationSeed>[
+          MusicRecommendationSeed.artist('Seed Artist'),
+          MusicRecommendationSeed.track(artist: 'Seed Artist', title: 'Seed'),
+        ],
+        ownedTracks: const <OwnedMusicTrack>[],
+        limit: 6,
+        mix: MusicDiscoveryMix.balanced,
+      );
+      expect(balanced.artists.map((a) => a.name),
+          <String>['Artist 0', 'Artist 1', 'Artist 2']);
+      expect(balanced.tracks.map((t) => t.name),
+          <String>['Cap 1', 'Cap 2', 'Other Track 1']);
+
+      final backfilled = await service.discover(
+        seeds: const <MusicRecommendationSeed>[
+          MusicRecommendationSeed.artist('Seed Artist'),
+          MusicRecommendationSeed.track(artist: 'Short Seed', title: 'Short'),
+        ],
+        ownedTracks: const <OwnedMusicTrack>[],
+        limit: 6,
+        mix: MusicDiscoveryMix.balanced,
+      );
+      expect(backfilled.tracks.map((t) => t.name), <String>['Only Track']);
+      expect(backfilled.artists, hasLength(5));
+    });
+
     test('preferences round-trip and reject unsupported sizes', () {
       final restored = MusicDiscoveryPreferences.fromJson(
         MusicDiscoveryPreferences(
@@ -1189,6 +1460,7 @@ MusicRecommendationService _serviceWith(http.Client httpClient) =>
         apiKey: 'key',
         endpoint: Uri.https('example.test', '/2.0/'),
         httpClient: httpClient,
+        retryDelay: (_) => Duration.zero,
       ),
       musicBrainz: MusicBrainzIdentityClient(
         endpoint: Uri.https('example.test', '/ws/2/'),

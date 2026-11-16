@@ -76,15 +76,29 @@ class LastFmRecommendationClient {
     http.Client? httpClient,
     Uri? endpoint,
     this.timeout = const Duration(seconds: 12),
+    this.retryDelay,
+    this.cacheTtl = const Duration(minutes: 15),
+    this.maxCacheEntries = 256,
+    DateTime Function()? clock,
   })  : _httpClient = httpClient ?? http.Client(),
         _ownsHttpClient = httpClient == null,
-        endpoint = endpoint ?? Uri.https('ws.audioscrobbler.com', '/2.0/');
+        endpoint = endpoint ?? Uri.https('ws.audioscrobbler.com', '/2.0/'),
+        _clock = clock ?? DateTime.now;
+
+  static const int _maxRetries = 2;
 
   final String apiKey;
   final http.Client _httpClient;
   final bool _ownsHttpClient;
   final Uri endpoint;
   final Duration timeout;
+  final Duration Function(int attempt)? retryDelay;
+  final Duration cacheTtl;
+  final int maxCacheEntries;
+  final DateTime Function() _clock;
+  final Map<String, _CachedResponse> _cache = <String, _CachedResponse>{};
+  final Map<String, Future<Map<String, dynamic>>> _inFlight =
+      <String, Future<Map<String, dynamic>>>{};
 
   Future<List<LastFmRecommendationCandidate>> similarArtists(
     String artist, {
@@ -164,30 +178,37 @@ class LastFmRecommendationClient {
     ];
   }
 
-  Future<LastFmTopAlbum?> topAlbum(String artist) async {
+  Future<LastFmTopAlbum?> topAlbum(String artist) async =>
+      (await topAlbums(artist, limit: 1)).firstOrNull;
+
+  Future<List<LastFmTopAlbum>> topAlbums(
+    String artist, {
+    int limit = 5,
+  }) async {
     // Last.fm currently replaces artist portraits with its generic placeholder.
-    // A top album gives the recommendation a truthful visual identity with one
+    // Top albums give the recommendation a truthful visual identity with one
     // request instead of trying the consistently empty artist image first.
     final albumsJson = await _request(<String, String>{
       'method': 'artist.gettopalbums',
       'artist': artist,
-      'limit': '1',
+      'limit': '$limit',
     });
     final albumsRoot = albumsJson['topalbums'];
     final albums = albumsRoot is Map<String, dynamic>
         ? _asMaps(albumsRoot['album'])
         : const <Map<String, dynamic>>[];
-    if (albums.isEmpty) return null;
-    final album = albums.first;
-    final name = (album['name'] as String? ?? '').trim();
-    if (name.isEmpty) return null;
-    return LastFmTopAlbum(
-      name: name,
-      artist: artist,
-      url: _safeAlbumUrl(album['url'], artist: artist, album: name),
-      musicBrainzId: _nonEmpty(album['mbid']),
-      imageUrl: _imageUrl(album['image']),
-    );
+    return <LastFmTopAlbum>[
+      for (final album in albums)
+        if ((album['name'] as String? ?? '').trim() case final name
+            when name.isNotEmpty)
+          LastFmTopAlbum(
+            name: name,
+            artist: artist,
+            url: _safeAlbumUrl(album['url'], artist: artist, album: name),
+            musicBrainzId: _nonEmpty(album['mbid']),
+            imageUrl: _imageUrl(album['image']),
+          ),
+    ];
   }
 
   Future<Uri?> artistImage(String artist) async =>
@@ -236,7 +257,43 @@ class LastFmRecommendationClient {
   }) async =>
       (await trackMetadata(artist: artist, track: track)).imageUrl;
 
+  bool get _cacheEnabled =>
+      maxCacheEntries > 0 && cacheTtl > Duration.zero;
+
+  void clearCache() => _cache.clear();
+
   Future<Map<String, dynamic>> _request(Map<String, String> query) async {
+    if (!_cacheEnabled) {
+      return _requestWithRetry(query);
+    }
+    final key = _cacheKey(query);
+    final cached = _cache[key];
+    if (cached != null) {
+      if (_clock().difference(cached.cachedAt) < cacheTtl) {
+        _cache.remove(key);
+        _cache[key] = cached;
+        return cached.data;
+      }
+      _cache.remove(key);
+    }
+    final existing = _inFlight[key];
+    if (existing != null) return existing;
+
+    final future = _requestWithRetry(query).then((decoded) {
+      _storeCache(key, decoded);
+      return decoded;
+    });
+    _inFlight[key] = future;
+    try {
+      return await future;
+    } finally {
+      _inFlight.remove(key);
+    }
+  }
+
+  Future<Map<String, dynamic>> _requestWithRetry(
+    Map<String, String> query,
+  ) async {
     final uri = endpoint.replace(queryParameters: <String, String>{
       ...endpoint.queryParameters,
       ...query,
@@ -244,38 +301,110 @@ class LastFmRecommendationClient {
       'format': 'json',
       'autocorrect': '1',
     });
-    http.Response response;
-    try {
-      response = await _httpClient.get(uri).timeout(timeout);
-    } catch (error) {
-      throw LastFmRecommendationException(
-        'Could not reach Last.fm. Check your connection and try again.',
-      );
+    for (var attempt = 0; ; attempt++) {
+      http.Response response;
+      try {
+        response = await _httpClient.get(uri).timeout(timeout);
+      } catch (error) {
+        throw const LastFmRecommendationException(
+          'Could not reach Last.fm. Check your connection and try again.',
+        );
+      }
+      final isTransientStatus =
+          response.statusCode == 429 || response.statusCode == 503;
+      Object? decoded;
+      try {
+        decoded = jsonDecode(response.body);
+      } catch (_) {
+        if (isTransientStatus && attempt < _maxRetries) {
+          await _waitForRetry(attempt);
+          continue;
+        }
+        if (response.statusCode == 429) {
+          throw const LastFmRecommendationException(
+            'Last.fm rate limit exceeded. Please try again in a moment.',
+            apiCode: 29,
+          );
+        }
+        if (response.statusCode == 503) {
+          throw const LastFmRecommendationException(
+            'Last.fm is temporarily unavailable. Please try again.',
+          );
+        }
+        throw const LastFmRecommendationException(
+          'Last.fm returned an unreadable response.',
+        );
+      }
+      if (decoded is! Map<String, dynamic>) {
+        if (isTransientStatus && attempt < _maxRetries) {
+          await _waitForRetry(attempt);
+          continue;
+        }
+        throw const LastFmRecommendationException(
+          'Last.fm returned an unexpected response.',
+        );
+      }
+      final apiCode = (decoded['error'] as num?)?.toInt();
+      if ((isTransientStatus || apiCode == 29) && attempt < _maxRetries) {
+        await _waitForRetry(attempt);
+        continue;
+      }
+      if (response.statusCode < 200 ||
+          response.statusCode >= 300 ||
+          apiCode != null) {
+        throw LastFmRecommendationException(
+          decoded['message'] as String? ??
+              'Last.fm could not load recommendations.',
+          apiCode: apiCode ?? (response.statusCode == 429 ? 29 : null),
+        );
+      }
+      return decoded;
     }
-    Object? decoded;
-    try {
-      decoded = jsonDecode(response.body);
-    } catch (_) {
-      throw const LastFmRecommendationException(
-        'Last.fm returned an unreadable response.',
-      );
+  }
+
+  Future<void> _waitForRetry(int attempt) async {
+    final delay = (retryDelay ?? _defaultRetryDelay)(attempt);
+    if (delay > Duration.zero) await Future<void>.delayed(delay);
+  }
+
+  static Duration _defaultRetryDelay(int attempt) =>
+      Duration(milliseconds: 500 * (1 << attempt));
+
+  void _storeCache(String key, Map<String, dynamic> data) {
+    if (!_cacheEnabled) return;
+    _cache.remove(key);
+    while (_cache.length >= maxCacheEntries) {
+      _cache.remove(_cache.keys.first);
     }
-    if (decoded is! Map<String, dynamic>) {
-      throw const LastFmRecommendationException(
-        'Last.fm returned an unexpected response.',
-      );
+    _cache[key] = _CachedResponse(data: data, cachedAt: _clock());
+  }
+
+  String _cacheKey(Map<String, String> query) {
+    final normalized = <String, String>{};
+    void addNormalized(Map<String, String> source) {
+      for (final entry in source.entries) {
+        final key = entry.key.trim().toLowerCase();
+        if (key.isEmpty || key == 'api_key') continue;
+        normalized[key] = entry.value.trim().toLowerCase();
+      }
     }
-    final apiCode = (decoded['error'] as num?)?.toInt();
-    if (response.statusCode < 200 ||
-        response.statusCode >= 300 ||
-        apiCode != null) {
-      throw LastFmRecommendationException(
-        decoded['message'] as String? ??
-            'Last.fm could not load recommendations.',
-        apiCode: apiCode,
-      );
+
+    addNormalized(endpoint.queryParameters);
+    addNormalized(query);
+    normalized['format'] = 'json';
+    normalized['autocorrect'] = '1';
+
+    final method = normalized.remove('method') ?? '';
+    final keys = normalized.keys.toList()..sort();
+    final buffer = StringBuffer(method);
+    for (final key in keys) {
+      buffer
+        ..write('&')
+        ..write(Uri.encodeQueryComponent(key))
+        ..write('=')
+        ..write(Uri.encodeQueryComponent(normalized[key]!));
     }
-    return decoded;
+    return buffer.toString();
   }
 
   LastFmRecommendationCandidate? _parseArtist(
@@ -395,6 +524,14 @@ class LastFmRecommendationClient {
   }
 
   void close() {
+    _cache.clear();
     if (_ownsHttpClient) _httpClient.close();
   }
+}
+
+class _CachedResponse {
+  const _CachedResponse({required this.data, required this.cachedAt});
+
+  final Map<String, dynamic> data;
+  final DateTime cachedAt;
 }

@@ -96,6 +96,35 @@ void main() {
         isEmpty,
       );
     });
+
+    test('applies recency decay and caps tracks per artist', () {
+      final now = DateTime.utc(2026, 8, 1);
+      final recent = now.subtract(const Duration(days: 1)).millisecondsSinceEpoch;
+      final stale = now.subtract(const Duration(days: 365)).millisecondsSinceEpoch;
+      final seeds = buildTasteSeeds(
+        artists: <TasteSeedEntry>[
+          TasteSeedEntry.artist('Old Fav', 1000, lastPlayedMs: stale),
+          TasteSeedEntry.artist('Fresh Fav', 800, lastPlayedMs: recent),
+        ],
+        tracks: <TasteSeedEntry>[
+          const TasteSeedEntry.track(artist: 'Same', title: 'T1', listenedMs: 900),
+          const TasteSeedEntry.track(artist: 'Same feat. Guest', title: 'T2', listenedMs: 800),
+          const TasteSeedEntry.track(artist: 'Same', title: 'T3', listenedMs: 700),
+          const TasteSeedEntry.track(artist: 'Other', title: 'T4', listenedMs: 500),
+        ],
+        depth: 3,
+        now: now,
+      );
+
+      expect(
+        seeds.where((seed) => !seed.isTrack).map((seed) => seed.artist),
+        <String>['Fresh Fav', 'Old Fav'],
+      );
+      expect(
+        seeds.where((seed) => seed.isTrack).map((seed) => seed.title),
+        <String>['T1', 'T2', 'T4'],
+      );
+    });
   });
 
   group('StatsRange tokens', () {

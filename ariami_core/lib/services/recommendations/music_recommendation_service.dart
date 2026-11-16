@@ -1,4 +1,5 @@
 import '../search/search_normalizer.dart';
+import '../stats/credited_artist_splitter.dart';
 import 'lastfm_recommendation_client.dart';
 import 'music_recommendation_models.dart';
 import 'musicbrainz_identity_client.dart';
@@ -48,10 +49,20 @@ class MusicRecommendationService {
         .map(normalizeMusicDiscoveryTag)
         .where((tag) => tag.isNotEmpty)
         .toSet();
-    final selectedArtists =
-        _selectSeeds(seeds.where((seed) => !seed.isTrack), artistSeedLimit);
-    final selectedTracks =
-        _selectSeeds(seeds.where((seed) => seed.isTrack), trackSeedLimit);
+    final skipTasteSeeds = requestedTags.isNotEmpty;
+    final selectedArtists = skipTasteSeeds
+        ? const <MusicRecommendationSeed>[]
+        : _selectSeeds(
+            seeds.where((seed) => !seed.isTrack),
+            artistSeedLimit,
+          );
+    final selectedTracks = skipTasteSeeds
+        ? const <MusicRecommendationSeed>[]
+        : _selectSeeds(
+            seeds.where((seed) => seed.isTrack),
+            trackSeedLimit,
+            maxPerArtist: _maxTrackSeedsPerArtist,
+          );
     final selectedSeeds = <MusicRecommendationSeed>[
       ...selectedArtists,
       ...selectedTracks,
@@ -72,29 +83,17 @@ class MusicRecommendationService {
     // a rate limit, a dead connection — is about the request itself and still
     // propagates immediately.
     var unresolvedSeeds = 0;
-    for (final seed in selectedArtists) {
-      try {
-        _merge(
-          accumulators,
-          await lastFm.similarArtists(seed.artist, limit: candidateLimit),
-          seed,
-        );
-      } on LastFmRecommendationException catch (error) {
-        if (!error.isNotFound) rethrow;
-        unresolvedSeeds++;
-      }
-    }
-    for (final seed in selectedTracks) {
-      try {
-        _merge(
-          accumulators,
-          await _similarTracksForSeed(seed, limit: candidateLimit),
-          seed,
-        );
-      } on LastFmRecommendationException catch (error) {
-        if (!error.isNotFound) rethrow;
-        unresolvedSeeds++;
-      }
+    if (!skipTasteSeeds) {
+      unresolvedSeeds += await _collectSeedCandidates(
+        accumulators,
+        selectedArtists,
+        (seed) => _similarArtistsForSeed(seed, limit: candidateLimit),
+      );
+      unresolvedSeeds += await _collectSeedCandidates(
+        accumulators,
+        selectedTracks,
+        (seed) => _similarTracksForSeed(seed, limit: candidateLimit),
+      );
     }
     if (accumulators.isEmpty && unresolvedSeeds > 0 && requestedTags.isEmpty) {
       throw const LastFmRecommendationException(
@@ -164,6 +163,46 @@ class MusicRecommendationService {
         .toList()
       ..sort(_compareCandidates);
 
+    candidates = switch (effectiveMix) {
+      MusicDiscoveryMix.tracks => candidates
+          .where((item) => item.kind == MusicRecommendationKind.track)
+          .toList(),
+      MusicDiscoveryMix.artists || MusicDiscoveryMix.albums => candidates
+          .where((item) => item.kind == MusicRecommendationKind.artist)
+          .toList(),
+      MusicDiscoveryMix.balanced => candidates,
+    };
+
+    if (localTasteTags.isNotEmpty) {
+      await _enrichMetadata(
+        candidates.take(metadataLookupLimit),
+        rethrowFailures: false,
+      );
+      for (final candidate in candidates) {
+        if (_tagsMatch(candidate.tags, localTasteTags)) {
+          candidate.boostForLibraryTaste();
+        }
+      }
+      candidates.sort(_compareCandidates);
+    }
+
+    if (instrumentalOnly) {
+      await _enrichMetadata(candidates.take(metadataLookupLimit));
+      final styleTags =
+          requestedTags.difference(const <String>{'instrumental'});
+      candidates = candidates
+          .where((candidate) => _matchesInstrumentalStyle(candidate, styleTags))
+          .toList();
+      if (candidates.isEmpty) {
+        throw LastFmRecommendationException(
+          requestedTags.isEmpty
+              ? 'Last.fm found no explicitly instrumental matches for your taste. Try a wider taste period or depth.'
+              : 'Last.fm found no explicitly instrumental ${requestedTags.map(musicDiscoveryTagLabel).join(' or ')} matches. Try another tag.',
+          apiCode: 6,
+        );
+      }
+    }
+
     var lookups = 0;
     for (final candidate in candidates) {
       if (lookups >= musicBrainzLookupLimit) break;
@@ -207,46 +246,6 @@ class MusicRecommendationService {
     }
     candidates = identified.values.toList()..sort(_compareCandidates);
 
-    if (localTasteTags.isNotEmpty) {
-      await _enrichMetadata(
-        candidates.take(metadataLookupLimit),
-        rethrowFailures: false,
-      );
-      for (final candidate in candidates) {
-        if (_tagsMatch(candidate.tags, localTasteTags)) {
-          candidate.boostForLibraryTaste();
-        }
-      }
-      candidates.sort(_compareCandidates);
-    }
-
-    candidates = switch (effectiveMix) {
-      MusicDiscoveryMix.tracks => candidates
-          .where((item) => item.kind == MusicRecommendationKind.track)
-          .toList(),
-      MusicDiscoveryMix.artists || MusicDiscoveryMix.albums => candidates
-          .where((item) => item.kind == MusicRecommendationKind.artist)
-          .toList(),
-      MusicDiscoveryMix.balanced => candidates,
-    };
-
-    if (instrumentalOnly) {
-      await _enrichMetadata(candidates.take(metadataLookupLimit));
-      final styleTags =
-          requestedTags.difference(const <String>{'instrumental'});
-      candidates = candidates
-          .where((candidate) => _matchesInstrumentalStyle(candidate, styleTags))
-          .toList();
-      if (candidates.isEmpty) {
-        throw LastFmRecommendationException(
-          requestedTags.isEmpty
-              ? 'Last.fm found no explicitly instrumental matches for your taste. Try a wider taste period or depth.'
-              : 'Last.fm found no explicitly instrumental ${requestedTags.map(musicDiscoveryTagLabel).join(' or ')} matches. Try another tag.',
-          apiCode: 6,
-        );
-      }
-    }
-
     if (effectiveMix == MusicDiscoveryMix.albums) {
       final recommendations = await _albumsFromArtists(
         candidates,
@@ -262,19 +261,11 @@ class MusicRecommendationService {
       );
     }
 
-    final selected = <_CandidateAccumulator>[];
-    final tracksPerArtist = <String, int>{};
-    for (final candidate in candidates) {
-      if (selected.length >= limit) break;
-      if (candidate.kind == MusicRecommendationKind.track) {
-        final artistKey =
-            SearchNormalizer.normalizeString(candidate.artist ?? '');
-        final count = tracksPerArtist[artistKey] ?? 0;
-        if (artistKey.isNotEmpty && count >= 2) continue;
-        tracksPerArtist[artistKey] = count + 1;
-      }
-      selected.add(candidate);
-    }
+    final selected = _selectRecommendations(
+      candidates,
+      mix: effectiveMix,
+      limit: limit,
+    );
 
     await _enrichArtwork(selected);
     final recommendations = selected.map((candidate) => candidate.build());
@@ -287,29 +278,97 @@ class MusicRecommendationService {
     );
   }
 
-  /// Similar tracks for [seed], retrying once without a trailing edition or
-  /// feature suffix. Library tags carry things Last.fm does not index in the
-  /// title — "Song (Remastered 2011)", "Song (feat. Someone)" — and those are
-  /// the most common cause of a false "Track not found".
-  Future<List<LastFmRecommendationCandidate>> _similarTracksForSeed(
+  static const int _maxTrackSeedsPerArtist = 2;
+  static const int _seedConcurrency = 4;
+  static final CreditedArtistSplitter _artistSplitter = CreditedArtistSplitter();
+
+  Future<int> _collectSeedCandidates(
+    Map<String, _CandidateAccumulator> accumulators,
+    List<MusicRecommendationSeed> seeds,
+    Future<List<LastFmRecommendationCandidate>> Function(
+            MusicRecommendationSeed)
+        fetch,
+  ) async {
+    var unresolved = 0;
+    for (var offset = 0; offset < seeds.length; offset += _seedConcurrency) {
+      final end = offset + _seedConcurrency < seeds.length
+          ? offset + _seedConcurrency
+          : seeds.length;
+      final batch = await Future.wait(
+        seeds.sublist(offset, end).map((seed) async {
+          try {
+            return (seed: seed, candidates: await fetch(seed), notFound: false);
+          } on LastFmRecommendationException catch (error) {
+            if (!error.isNotFound) rethrow;
+            return (
+              seed: seed,
+              candidates: const <LastFmRecommendationCandidate>[],
+              notFound: true,
+            );
+          }
+        }),
+      );
+      for (final item in batch) {
+        if (item.notFound) {
+          unresolved++;
+        } else {
+          _merge(accumulators, item.candidates, item.seed);
+        }
+      }
+    }
+    return unresolved;
+  }
+
+  Future<List<LastFmRecommendationCandidate>> _similarArtistsForSeed(
     MusicRecommendationSeed seed, {
     required int limit,
   }) async {
     try {
-      return await lastFm.similarTracks(
-        artist: seed.artist,
-        track: seed.title!,
-        limit: limit,
-      );
+      return await lastFm.similarArtists(seed.artist, limit: limit);
     } on LastFmRecommendationException catch (error) {
-      final base = error.isNotFound ? _baseTitle(seed.title!) : null;
-      if (base == null) rethrow;
-      return lastFm.similarTracks(
-        artist: seed.artist,
-        track: base,
-        limit: limit,
-      );
+      final primary = error.isNotFound ? _primaryArtist(seed.artist) : null;
+      if (primary == null) rethrow;
+      return lastFm.similarArtists(primary, limit: limit);
     }
+  }
+
+  /// Similar tracks for [seed], retrying without a trailing edition/feature
+  /// suffix or secondary collaboration credits on "Track not found".
+  Future<List<LastFmRecommendationCandidate>> _similarTracksForSeed(
+    MusicRecommendationSeed seed, {
+    required int limit,
+  }) async {
+    final title = seed.title!;
+    final base = _baseTitle(title);
+    final primary = _primaryArtist(seed.artist);
+    final attempts = <(String artist, String track)>[
+      (seed.artist, title),
+      if (base != null) (seed.artist, base),
+      if (primary != null) (primary, title),
+      if (primary != null && base != null) (primary, base),
+    ];
+    LastFmRecommendationException? lastNotFound;
+    for (final attempt in attempts) {
+      try {
+        return await lastFm.similarTracks(
+          artist: attempt.$1,
+          track: attempt.$2,
+          limit: limit,
+        );
+      } on LastFmRecommendationException catch (error) {
+        if (!error.isNotFound) rethrow;
+        lastNotFound = error;
+      }
+    }
+    throw lastNotFound!;
+  }
+
+  static String? _primaryArtist(String artist) {
+    final trimmed = artist.trim();
+    final credits = _artistSplitter.split(trimmed);
+    if (credits.isEmpty) return null;
+    final primary = credits.first.display;
+    return primary == trimmed ? null : primary;
   }
 
   Future<void> _mergeTopTagCandidates(
@@ -376,43 +435,44 @@ class MusicRecommendationService {
           try {
             return (
               candidate: candidate,
-              album: await lastFm.topAlbum(candidate.name)
+              albums: await lastFm.topAlbums(candidate.name, limit: 5),
             );
           } catch (_) {
-            return (candidate: candidate, album: null);
+            return (candidate: candidate, albums: const <LastFmTopAlbum>[]);
           }
         }),
       );
       for (final entry in batch) {
-        final album = entry.album;
-        if (album == null ||
-            owned.contains(
-              MusicRecommendationKind.album,
-              album.name,
-              album.artist,
-            )) {
-          continue;
+        for (final album in entry.albums) {
+          if (owned.contains(
+            MusicRecommendationKind.album,
+            album.name,
+            album.artist,
+          )) {
+            continue;
+          }
+          final key = _identityKey(
+            MusicRecommendationKind.album,
+            album.name,
+            album.artist,
+            album.musicBrainzId,
+          );
+          if (!seen.add(key)) continue;
+          recommendations.add(MusicRecommendation(
+            kind: MusicRecommendationKind.album,
+            name: album.name,
+            artist: album.artist,
+            score: entry.candidate.score,
+            lastFmUrl: album.url,
+            musicBrainzId: album.musicBrainzId,
+            imageUrl: album.imageUrl,
+            sourceSeeds: entry.candidate.sourceSeeds.toList(growable: false)
+              ..sort(),
+            sourceTags: entry.candidate.sourceTags.toList(growable: false)
+              ..sort(),
+          ));
+          break;
         }
-        final key = _identityKey(
-          MusicRecommendationKind.album,
-          album.name,
-          album.artist,
-          album.musicBrainzId,
-        );
-        if (!seen.add(key)) continue;
-        recommendations.add(MusicRecommendation(
-          kind: MusicRecommendationKind.album,
-          name: album.name,
-          artist: album.artist,
-          score: entry.candidate.score,
-          lastFmUrl: album.url,
-          musicBrainzId: album.musicBrainzId,
-          imageUrl: album.imageUrl,
-          sourceSeeds: entry.candidate.sourceSeeds.toList(growable: false)
-            ..sort(),
-          sourceTags: entry.candidate.sourceTags.toList(growable: false)
-            ..sort(),
-        ));
         if (recommendations.length >= limit) break;
       }
     }
@@ -529,8 +589,9 @@ class MusicRecommendationService {
 
   static List<MusicRecommendationSeed> _selectSeeds(
     Iterable<MusicRecommendationSeed> source,
-    int limit,
-  ) {
+    int limit, {
+    int? maxPerArtist,
+  }) {
     final byIdentity = <String, MusicRecommendationSeed>{};
     for (final seed in source) {
       final artist = seed.artist.trim();
@@ -547,9 +608,24 @@ class MusicRecommendationService {
         byIdentity[key] = seed;
       }
     }
-    final selected = byIdentity.values.toList()
+    final ranked = byIdentity.values.toList()
       ..sort((a, b) => b.weight.compareTo(a.weight));
-    return selected.take(limit).toList(growable: false);
+    if (maxPerArtist == null || maxPerArtist <= 0) {
+      return ranked.take(limit).toList(growable: false);
+    }
+    final selected = <MusicRecommendationSeed>[];
+    final perArtist = <String, int>{};
+    for (final seed in ranked) {
+      if (selected.length >= limit) break;
+      final artistKey = normalizeArtistKey(
+        _primaryArtist(seed.artist) ?? seed.artist,
+      );
+      final count = perArtist[artistKey] ?? 0;
+      if (count >= maxPerArtist) continue;
+      perArtist[artistKey] = count + 1;
+      selected.add(seed);
+    }
+    return selected;
   }
 
   static void _merge(
@@ -638,6 +714,54 @@ class MusicRecommendationService {
     if (mbid != null && mbid.isNotEmpty) return '${kind.name}:mbid:$mbid';
     return '${kind.name}:${SearchNormalizer.normalizeString(name)}|'
         '${SearchNormalizer.normalizeString(artist ?? '')}';
+  }
+
+  static List<_CandidateAccumulator> _selectRecommendations(
+    List<_CandidateAccumulator> candidates, {
+    required MusicDiscoveryMix mix,
+    required int limit,
+  }) {
+    if (limit <= 0) return const <_CandidateAccumulator>[];
+    final tracks = <_CandidateAccumulator>[];
+    final artists = <_CandidateAccumulator>[];
+    final tracksPerArtist = <String, int>{};
+    for (final candidate in candidates) {
+      if (candidate.kind == MusicRecommendationKind.artist) {
+        artists.add(candidate);
+      } else if (candidate.kind == MusicRecommendationKind.track) {
+        final artistKey =
+            SearchNormalizer.normalizeString(candidate.artist ?? '');
+        final count = tracksPerArtist[artistKey] ?? 0;
+        if (artistKey.isNotEmpty && count >= 2) continue;
+        tracksPerArtist[artistKey] = count + 1;
+        tracks.add(candidate);
+      }
+    }
+    if (mix != MusicDiscoveryMix.balanced) {
+      return (mix == MusicDiscoveryMix.tracks ? tracks : artists)
+          .take(limit)
+          .toList(growable: false);
+    }
+    final trackTarget = limit ~/ 2;
+    final artistTarget = limit - trackTarget;
+    final trackCount =
+        tracks.length < trackTarget ? tracks.length : trackTarget;
+    final artistCount =
+        artists.length < artistTarget ? artists.length : artistTarget;
+    final selected = <_CandidateAccumulator>[
+      ...tracks.take(trackCount),
+      ...artists.take(artistCount),
+    ];
+    final remaining = limit - selected.length;
+    if (remaining > 0) {
+      if (tracks.length > trackCount) {
+        selected.addAll(tracks.skip(trackCount).take(remaining));
+      } else if (artists.length > artistCount) {
+        selected.addAll(artists.skip(artistCount).take(remaining));
+      }
+    }
+    selected.sort(_compareCandidates);
+    return selected;
   }
 
   static int _compareCandidates(
@@ -759,11 +883,16 @@ class _CandidateAccumulator {
 }
 
 class _OwnedMusicIndex {
+  static const int _minOwnedTracksForArtist = 3;
+  static const int _minTracksForAlbumArtist = 2;
+
   _OwnedMusicIndex(Iterable<OwnedMusicTrack> tracks) {
+    final albumTracks = <String, Set<String>>{};
     for (final track in tracks) {
       final artist = SearchNormalizer.normalizeString(track.artist);
       if (artist.isEmpty) continue;
-      artists.add(artist);
+      _artistTrackCounts[artist] = (_artistTrackCounts[artist] ?? 0) + 1;
+      final titleKey = SearchNormalizer.normalizeString(track.title);
       for (final title in _titleVariants(track.title)) {
         songs.add('$artist|$title');
       }
@@ -772,18 +901,28 @@ class _OwnedMusicIndex {
         track.albumArtist ?? track.artist,
       );
       if (album.isNotEmpty && albumArtist.isNotEmpty) {
-        albums.add('$albumArtist|$album');
+        final albumKey = '$albumArtist|$album';
+        albums.add(albumKey);
+        final titles = albumTracks.putIfAbsent(albumKey, () => <String>{});
+        titles.add(titleKey.isEmpty ? '${titles.length}' : titleKey);
+        if (titles.length >= _minTracksForAlbumArtist &&
+            albumArtist != 'various artists') {
+          _multiTrackAlbumArtists.add(albumArtist);
+        }
       }
     }
   }
 
-  final Set<String> artists = <String>{};
+  final Map<String, int> _artistTrackCounts = <String, int>{};
+  final Set<String> _multiTrackAlbumArtists = <String>{};
   final Set<String> songs = <String>{};
   final Set<String> albums = <String>{};
 
   bool contains(MusicRecommendationKind kind, String name, String? artist) {
     if (kind == MusicRecommendationKind.artist) {
-      return artists.contains(SearchNormalizer.normalizeString(name));
+      final key = SearchNormalizer.normalizeString(name);
+      return (_artistTrackCounts[key] ?? 0) >= _minOwnedTracksForArtist ||
+          _multiTrackAlbumArtists.contains(key);
     }
     final normalizedArtist = SearchNormalizer.normalizeString(artist ?? '');
     if (normalizedArtist.isEmpty) return false;
