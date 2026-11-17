@@ -11,6 +11,7 @@ import 'package:shelf_static/shelf_static.dart';
 import 'package:path/path.dart' as p;
 import 'package:web_socket_channel/web_socket_channel.dart';
 import 'package:crypto/crypto.dart';
+import 'package:http/http.dart' as http;
 import 'package:ariami_core/services/server/http_server_limiters.dart';
 import 'package:ariami_core/services/server/connection_manager.dart';
 import 'package:ariami_core/services/server/streaming_service.dart';
@@ -70,6 +71,10 @@ import 'package:ariami_core/services/artists/artist_image_store.dart';
 import 'package:ariami_core/services/stats/credited_artist_splitter.dart';
 import 'package:ariami_core/services/license/license_file_store.dart';
 import 'package:ariami_core/services/recommendations/household_music_discovery_store.dart';
+import 'package:ariami_core/services/recommendations/music_recommendation_models.dart';
+import 'package:ariami_core/services/recommendations/music_recommendation_service.dart';
+import 'package:ariami_core/services/recommendations/musicbrainz_identity_client.dart';
+import 'package:ariami_core/models/library_structure.dart';
 
 part 'http_server_parts/lifecycle_and_config_part.dart';
 part 'http_server_parts/router_registration_part.dart';
@@ -187,8 +192,17 @@ class AriamiHttpServer {
   /// devices on this server. Clients verify it themselves.
   LicenseFileStore? _licenseFileStore;
 
-  /// Household Last.fm application key shared by authenticated clients.
+  /// Household Last.fm application key and wishlist shared by authenticated clients.
   HouseholdMusicDiscoveryStore? _householdMusicDiscoveryStore;
+  MusicBrainzIdentityClient? _musicBrainzClient;
+
+  MusicBrainzIdentityClient get _musicBrainz =>
+      _musicBrainzClient ??= MusicBrainzIdentityClient();
+
+  void setMusicBrainzClientForTesting(MusicBrainzIdentityClient? client) {
+    _musicBrainzClient?.close();
+    _musicBrainzClient = client;
+  }
 
   /// User profile pictures stored beside auth/account data.
   String? _userAvatarsDirectoryPath;

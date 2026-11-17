@@ -1,9 +1,10 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:ariami_core/services/auth/auth_service.dart';
-import 'package:ariami_core/services/recommendations/household_music_discovery_store.dart';
-import 'package:ariami_core/services/server/http_server.dart';
+import 'package:ariami_core/ariami_core.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
@@ -224,6 +225,162 @@ void main() {
     );
     expect(fetched.json['lastFmApiKey'], 'durable-key');
   });
+
+  test('wishlist CRUD, Lidarr/text feed token auth, webhook, and auto-prune',
+      () async {
+    final webhookPayloads = <Map<String, dynamic>>[];
+    final webhookReceived = Completer<void>();
+    final webhookServer =
+        await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    unawaited(webhookServer.forEach((req) async {
+      final body = await utf8.decoder.bind(req).join();
+      webhookPayloads.add(jsonDecode(body) as Map<String, dynamic>);
+      req.response.statusCode = 200;
+      await req.response.close();
+      if (!webhookReceived.isCompleted) webhookReceived.complete();
+    }));
+
+    server.setMusicBrainzClientForTesting(
+      MusicBrainzIdentityClient(
+        requestSpacing: Duration.zero,
+        httpClient: MockClient((request) async {
+          return http.Response(
+            jsonEncode(<String, dynamic>{
+              'artists': <Map<String, dynamic>>[
+                <String, dynamic>{
+                  'id': 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+                  'name': 'Resolved Artist',
+                  'score': 100,
+                },
+              ],
+            }),
+            200,
+          );
+        }),
+      ),
+    );
+
+    try {
+      await _request(
+        port,
+        'PUT',
+        '/api/music-discovery/config',
+        token: adminToken,
+        body: <String, dynamic>{
+          'webhookUrl': 'http://127.0.0.1:${webhookServer.port}/hook',
+        },
+      );
+
+      final trackRec = MusicRecommendation(
+        kind: MusicRecommendationKind.track,
+        name: 'Wanted Song',
+        artist: 'Resolved Artist',
+        score: 0.9,
+        lastFmUrl:
+            Uri.https('www.last.fm', '/music/Resolved+Artist/_/Wanted+Song'),
+        sourceSeeds: const <String>['Seed'],
+      );
+      final artistRec = MusicRecommendation(
+        kind: MusicRecommendationKind.artist,
+        name: 'Keep Artist',
+        score: 0.8,
+        lastFmUrl: Uri.https('www.last.fm', '/music/Keep+Artist'),
+        musicBrainzId: 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
+        sourceSeeds: const <String>['Seed'],
+      );
+
+      final addedTrack = await _request(
+        port,
+        'POST',
+        '/api/music-discovery/wishlist',
+        token: memberToken,
+        body: trackRec.toJson(),
+      );
+      expect(addedTrack.statusCode, 200);
+      expect(
+        (addedTrack.json['item'] as Map<String, dynamic>)['artistMusicBrainzId'],
+        'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+      );
+      await webhookReceived.future.timeout(const Duration(seconds: 3));
+      expect(webhookPayloads.single['event'], 'music_discovery.wishlist_added');
+
+      await _request(
+        port,
+        'POST',
+        '/api/music-discovery/wishlist',
+        token: memberToken,
+        body: artistRec.toJson(),
+      );
+
+      final feedToken = addedTrack.json['feedToken'] as String;
+      final unauthFeed =
+          await _requestRaw(port, '/api/music-discovery/wishlist/feed');
+      expect(unauthFeed.statusCode, 401);
+
+      final lidarrFeed = await _requestRaw(
+        port,
+        '/api/music-discovery/wishlist/feed?format=lidarr&token=$feedToken',
+      );
+      expect(lidarrFeed.statusCode, 200);
+      final lidarrItems = jsonDecode(lidarrFeed.body) as List<dynamic>;
+      expect(
+        lidarrItems,
+        <Map<String, dynamic>>[
+          <String, dynamic>{
+            'MusicBrainzId': 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
+            'ArtistName': 'Keep Artist',
+          },
+          <String, dynamic>{
+            'MusicBrainzId': 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+            'ArtistName': 'Resolved Artist',
+          },
+        ],
+      );
+
+      final textFeed = await _requestRaw(
+        port,
+        '/api/music-discovery/wishlist/feed?format=text&token=$feedToken',
+      );
+      expect(textFeed.statusCode, 200);
+      expect(textFeed.body, 'Keep Artist\nResolved Artist - Wanted Song');
+
+      // Simulating library ingest removes the wishlisted track automatically.
+      server.libraryManager.setLibraryForTesting(
+        const LibraryStructure(
+          albums: <String, Album>{},
+          standaloneSongs: <SongMetadata>[
+            SongMetadata(
+              filePath: '/music/wanted.flac',
+              title: 'Wanted Song',
+              artist: 'Resolved Artist',
+            ),
+          ],
+        ),
+      );
+
+      final afterIngest = await _request(
+        port,
+        'GET',
+        '/api/music-discovery/wishlist',
+        token: memberToken,
+      );
+      final remaining = (afterIngest.json['items'] as List<dynamic>)
+          .cast<Map<String, dynamic>>();
+      expect(remaining.map((item) => item['name']), <String>['Keep Artist']);
+
+      final deleted = await _request(
+        port,
+        'DELETE',
+        '/api/music-discovery/wishlist?key=${Uri.encodeQueryComponent(artistRec.identityKey)}',
+        token: memberToken,
+      );
+      expect(deleted.statusCode, 200);
+      expect(deleted.json['items'], isEmpty);
+    } finally {
+      server.setMusicBrainzClientForTesting(null);
+      await webhookServer.close(force: true);
+    }
+  });
 }
 
 Future<String> _login(
@@ -275,6 +432,23 @@ Future<_Response> _request(
     return _Response(
       response.statusCode,
       decoded is Map<String, dynamic> ? decoded : const <String, dynamic>{},
+    );
+  } finally {
+    client.close(force: true);
+  }
+}
+
+Future<({int statusCode, String body})> _requestRaw(
+  int port,
+  String path,
+) async {
+  final client = HttpClient();
+  try {
+    final request = await client.getUrl(Uri.parse('http://127.0.0.1:$port$path'));
+    final response = await request.close();
+    return (
+      statusCode: response.statusCode,
+      body: await utf8.decodeStream(response),
     );
   } finally {
     client.close(force: true);

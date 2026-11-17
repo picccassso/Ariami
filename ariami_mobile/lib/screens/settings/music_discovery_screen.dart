@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:ariami_core/ariami_core.dart'
     show
+        HouseholdMusicDiscoveryStore,
         LastFmRecommendationClient,
         LastFmRecommendationException,
         MusicBrainzIdentityClient,
@@ -24,6 +25,7 @@ import 'package:ariami_core/ariami_core.dart'
         normalizeMusicDiscoveryTag,
         splitMusicDiscoveryGenreTags;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -97,6 +99,11 @@ class _MusicDiscoveryScreenState extends State<MusicDiscoveryScreen> {
   bool _refreshing = false;
   int _refreshToken = 0;
   Set<String> _dismissedKeys = <String>{};
+  List<MusicRecommendation> _wishlist = const <MusicRecommendation>[];
+  bool _showSavedOnly = false;
+  String? _feedToken;
+  String? _webhookUrl;
+  bool _remoteCanManage = false;
   MusicDiscoveryPreferences _preferences = const MusicDiscoveryPreferences();
 
   String get _effectiveApiKey => _apiKeyState.effectiveKey ?? '';
@@ -104,6 +111,28 @@ class _MusicDiscoveryScreenState extends State<MusicDiscoveryScreen> {
   bool get _hasLocalKey =>
       _embeddedLastFmApiKey.isEmpty && _apiKeyState.localKey != null;
   bool get _isOffline => _offline.isOffline || !_connection.isConnected;
+  bool get _canManageHousehold =>
+      _apiKeyState.canManageHousehold || _remoteCanManage;
+  String? get _resolvedFeedToken =>
+      _feedToken ?? _apiKeyState.remoteConfig?.feedToken;
+  String? get _resolvedWebhookUrl =>
+      _webhookUrl ?? _apiKeyState.remoteConfig?.webhookUrl;
+
+  bool _isWishlisted(MusicRecommendation item) =>
+      _wishlist.any((entry) => entry.identityKey == item.identityKey);
+
+  String? _feedUrlFor({String format = 'lidarr'}) {
+    final apiBase = _connection.apiClient?.baseUrl;
+    final token = _resolvedFeedToken;
+    if (apiBase == null || apiBase.isEmpty || token == null || token.isEmpty) {
+      return null;
+    }
+    return Uri.parse('$apiBase/music-discovery/wishlist/feed')
+        .replace(queryParameters: <String, String>{
+      'format': format,
+      'token': token,
+    }).toString();
+  }
 
   @override
   void initState() {
@@ -155,7 +184,11 @@ class _MusicDiscoveryScreenState extends State<MusicDiscoveryScreen> {
 
   void _onLibraryChanged() {
     if (!mounted) return;
+    final prevWishlistCount = _wishlist.length;
     _applyOwnedFilter();
+    if (_wishlist.length != prevWishlistCount) {
+      unawaited(_persistWishlistCache());
+    }
     setState(() {});
   }
 
@@ -241,20 +274,28 @@ class _MusicDiscoveryScreenState extends State<MusicDiscoveryScreen> {
     final apiKeyState = await apiKeyStateFuture;
     final cached = await _readCachedSnapshot(prefs, preferences);
     final dismissed = await _cache.readDismissed(prefs);
+    final cachedWishlist = await _cache.readWishlist(prefs);
     if (!mounted) return;
     setState(() {
       _apiKeySync = apiKeySync;
       _apiKeyState = apiKeyState;
+      _feedToken = apiKeyState.remoteConfig?.feedToken;
+      _webhookUrl = apiKeyState.remoteConfig?.webhookUrl;
+      _remoteCanManage = apiKeyState.remoteConfig?.canManage ?? false;
       _enabled = prefs.getBool(_enabledKey) ?? false;
       _librarySongs = librarySongs;
       _libraryAlbums = libraryAlbums;
       _preferences = preferences;
       _libraryReady = libraryReady;
       _rawSnapshot = cached;
+      _wishlist = cachedWishlist;
       _applyOwnedFilter();
       _dismissedKeys = dismissed;
       _loading = false;
     });
+    if (client != null) {
+      unawaited(_syncRemoteWishlist(client));
+    }
     if (_enabled && _hasApiKey && _isStale(cached) && !_isOffline) {
       unawaited(_refresh());
     }
@@ -319,6 +360,14 @@ class _MusicDiscoveryScreenState extends State<MusicDiscoveryScreen> {
   }
 
   void _applyOwnedFilter() {
+    final ownedTracks = _ownedTracks().toList(growable: false);
+    if (_wishlist.isNotEmpty) {
+      _wishlist = MusicDiscoveryCache.filterOwnedWishlist(
+        _wishlist,
+        ownedTracks,
+      );
+      if (_wishlist.isEmpty) _showSavedOnly = false;
+    }
     final raw = _rawSnapshot;
     if (raw == null) {
       _snapshot = null;
@@ -326,8 +375,83 @@ class _MusicDiscoveryScreenState extends State<MusicDiscoveryScreen> {
     }
     _snapshot = MusicDiscoveryCache.filterOwnedRecommendations(
       raw,
-      _ownedTracks(),
+      ownedTracks,
     );
+  }
+
+  Future<void> _syncRemoteWishlist(ApiClient client) async {
+    try {
+      final response = await client.getMusicDiscoveryWishlist();
+      if (!mounted) return;
+      _applyWishlistResponse(response);
+      await _persistWishlistCache();
+      if (mounted) setState(() {});
+    } catch (_) {}
+  }
+
+  void _applyWishlistResponse(Map<String, dynamic> response) {
+    final rawItems = response['items'];
+    if (rawItems is List<dynamic>) {
+      final parsed = rawItems
+          .whereType<Map<String, dynamic>>()
+          .map(MusicRecommendation.fromJson)
+          .where((item) => item.name.trim().isNotEmpty && item.lastFmUrl.hasScheme)
+          .toList(growable: false);
+      _wishlist = MusicDiscoveryCache.filterOwnedWishlist(
+        parsed,
+        _ownedTracks(),
+      );
+      if (_wishlist.isEmpty) _showSavedOnly = false;
+    }
+    final token = (response['feedToken'] as String?)?.trim();
+    if (token != null && token.isNotEmpty) _feedToken = token;
+    if (response.containsKey('webhookUrl')) {
+      final rawWebhook = (response['webhookUrl'] as String?)?.trim();
+      _webhookUrl =
+          rawWebhook == null || rawWebhook.isEmpty ? null : rawWebhook;
+    }
+    if (response['canManage'] is bool) {
+      _remoteCanManage = response['canManage'] as bool;
+    }
+  }
+
+  Future<void> _persistWishlistCache() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await _cache.writeWishlist(prefs, _wishlist);
+    } catch (_) {}
+  }
+
+  Future<void> _toggleWishlist(MusicRecommendation item) async {
+    final key = item.identityKey;
+    final wasSaved = _isWishlisted(item);
+    setState(() {
+      if (wasSaved) {
+        _wishlist = _wishlist
+            .where((entry) => entry.identityKey != key)
+            .toList(growable: false);
+        if (_wishlist.isEmpty) _showSavedOnly = false;
+      } else {
+        final saved =
+            item.copyWith(savedAt: item.savedAt ?? DateTime.now().toUtc());
+        _wishlist = <MusicRecommendation>[
+          saved,
+          ..._wishlist.where((entry) => entry.identityKey != key),
+        ];
+      }
+    });
+    await _persistWishlistCache();
+
+    final client = _connection.apiClient;
+    if (client == null || _isOffline) return;
+    try {
+      final response = wasSaved
+          ? await client.removeMusicDiscoveryWishlistItem(key)
+          : await client.addMusicDiscoveryWishlistItem(item);
+      if (!mounted || _isWishlisted(item) == wasSaved) return;
+      setState(() => _applyWishlistResponse(response));
+      await _persistWishlistCache();
+    } catch (_) {}
   }
 
   LastFmRecommendationClient _obtainLastFmClient(String apiKey) {
@@ -562,6 +686,12 @@ class _MusicDiscoveryScreenState extends State<MusicDiscoveryScreen> {
     final needsPersonalKey = _embeddedLastFmApiKey.isEmpty;
     final controller =
         TextEditingController(text: _apiKeyState.effectiveKey ?? '');
+    final webhookController =
+        TextEditingController(text: _resolvedWebhookUrl ?? '');
+    final canManageWebhook = _canManageHousehold;
+    final lidarrUrl = _feedUrlFor(format: 'lidarr');
+    final textUrl = _feedUrlFor(format: 'text');
+    String? copiedNotice;
     var obscure = true;
     var keyTouched = false;
     var selectedMix = _preferences.mix;
@@ -590,7 +720,19 @@ class _MusicDiscoveryScreenState extends State<MusicDiscoveryScreen> {
           final keyErrorText = keyTooLong
               ? 'API key must be at most ${MusicDiscoveryApiKeyConfig.maxApiKeyBytes} bytes.'
               : (keyMissing && keyTouched ? 'Enter a Last.fm API key.' : null);
-          final canSubmit = !needsPersonalKey || (!keyMissing && !keyTooLong);
+          final trimmedWebhook = webhookController.text.trim();
+          final webhookInvalid = canManageWebhook &&
+              trimmedWebhook.isNotEmpty &&
+              HouseholdMusicDiscoveryStore.normalizeWebhookUrl(
+                    trimmedWebhook,
+                  ) ==
+                  null;
+          final webhookErrorText = webhookInvalid
+              ? 'Enter a valid http:// or https:// URL.'
+              : null;
+          final canSubmit =
+              (!needsPersonalKey || (!keyMissing && !keyTooLong)) &&
+                  !webhookInvalid;
           return AlertDialog(
             title: const Text('Private music discovery'),
             content: SingleChildScrollView(
@@ -798,6 +940,76 @@ class _MusicDiscoveryScreenState extends State<MusicDiscoveryScreen> {
                     'get broader and refreshing takes longer.',
                     style: Theme.of(context).textTheme.bodySmall,
                   ),
+                  const SizedBox(height: 12),
+                  const Divider(),
+                  const SizedBox(height: 8),
+                  const Text('Wishlist automation',
+                      style: TextStyle(fontWeight: FontWeight.w700)),
+                  const SizedBox(height: 6),
+                  if (lidarrUrl != null && textUrl != null) ...[
+                    Text(
+                      'Copy a server feed URL for Lidarr Custom Lists or MusicGrabber.',
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        OutlinedButton.icon(
+                          onPressed: () {
+                            unawaited(
+                              Clipboard.setData(ClipboardData(text: lidarrUrl)),
+                            );
+                            setDialogState(
+                              () => copiedNotice = 'Lidarr JSON URL copied.',
+                            );
+                          },
+                          icon: const Icon(Icons.copy_rounded, size: 15),
+                          label: const Text('Copy Lidarr URL'),
+                        ),
+                        OutlinedButton.icon(
+                          onPressed: () {
+                            unawaited(
+                              Clipboard.setData(ClipboardData(text: textUrl)),
+                            );
+                            setDialogState(
+                              () => copiedNotice = 'Text list URL copied.',
+                            );
+                          },
+                          icon: const Icon(Icons.copy_rounded, size: 15),
+                          label: const Text('Copy Text URL'),
+                        ),
+                      ],
+                    ),
+                    if (copiedNotice != null) ...[
+                      const SizedBox(height: 6),
+                      Text(
+                        copiedNotice!,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: Theme.of(context).colorScheme.secondary,
+                            ),
+                      ),
+                    ],
+                  ] else
+                    Text(
+                      'Connect to your Ariami server to copy wishlist feed URLs.',
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  if (canManageWebhook) ...[
+                    const SizedBox(height: 10),
+                    TextField(
+                      controller: webhookController,
+                      onChanged: (_) => setDialogState(() {}),
+                      decoration: InputDecoration(
+                        labelText: 'Webhook URL (optional)',
+                        hintText: 'https://example.com/webhook',
+                        errorText: webhookErrorText,
+                        helperText:
+                            'Receives a JSON POST whenever you bookmark an item.',
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: 8),
                   Text(
                     'No Last.fm account is connected and Ariami never scrobbles. '
@@ -834,6 +1046,7 @@ class _MusicDiscoveryScreenState extends State<MusicDiscoveryScreen> {
                               preferredTags: selectedTags,
                               instrumentalOnly: instrumentalOnly,
                             ),
+                            webhookUrl: canManageWebhook ? trimmedWebhook : null,
                           ),
                         )
                     : null,
@@ -845,6 +1058,7 @@ class _MusicDiscoveryScreenState extends State<MusicDiscoveryScreen> {
       ),
     );
     controller.dispose();
+    webhookController.dispose();
     if (result == null) return;
     final prefs = await SharedPreferences.getInstance();
     switch (result.action) {
@@ -905,6 +1119,7 @@ class _MusicDiscoveryScreenState extends State<MusicDiscoveryScreen> {
         setState(() {
           _refreshing = false;
           _enabled = false;
+          _showSavedOnly = false;
           _rawSnapshot = null;
           _snapshot = null;
           _coldStart = false;
@@ -953,6 +1168,28 @@ class _MusicDiscoveryScreenState extends State<MusicDiscoveryScreen> {
           _error = syncWarning;
           _errorKind = _DiscoveryErrorKind.general;
         });
+        if (canManageWebhook &&
+            (result.webhookUrl ?? '') != (_resolvedWebhookUrl ?? '')) {
+          final client = _connection.apiClient;
+          if (client != null && !_isOffline) {
+            try {
+              final updated =
+                  await client.putMusicDiscoveryWebhookUrl(result.webhookUrl);
+              if (mounted) {
+                setState(() {
+                  _webhookUrl = updated.webhookUrl;
+                  _feedToken = updated.feedToken ?? _feedToken;
+                });
+              }
+            } catch (e) {
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Could not save webhook URL: $e')),
+                );
+              }
+            }
+          }
+        }
         if ((!preferencesChanged || _isStale(cached)) && !_isOffline) {
           unawaited(_refresh(force: true));
         }
@@ -1113,19 +1350,33 @@ class _MusicDiscoveryScreenState extends State<MusicDiscoveryScreen> {
     }
 
     final isOffline = _isOffline;
+    final savedOnly = _showSavedOnly;
     final snapshot = _snapshot;
-    final tracks = snapshot == null
-        ? const <MusicRecommendation>[]
-        : _visibleRecommendations(snapshot.tracks);
-    final artists = snapshot == null
-        ? const <MusicRecommendation>[]
-        : _visibleRecommendations(snapshot.artists);
-    final albums = snapshot == null
-        ? const <MusicRecommendation>[]
-        : _visibleRecommendations(snapshot.albums);
+    final tracks = savedOnly
+        ? _wishlist
+            .where((item) => item.kind == MusicRecommendationKind.track)
+            .toList(growable: false)
+        : snapshot == null
+            ? const <MusicRecommendation>[]
+            : _visibleRecommendations(snapshot.tracks);
+    final artists = savedOnly
+        ? _wishlist
+            .where((item) => item.kind == MusicRecommendationKind.artist)
+            .toList(growable: false)
+        : snapshot == null
+            ? const <MusicRecommendation>[]
+            : _visibleRecommendations(snapshot.artists);
+    final albums = savedOnly
+        ? _wishlist
+            .where((item) => item.kind == MusicRecommendationKind.album)
+            .toList(growable: false)
+        : snapshot == null
+            ? const <MusicRecommendation>[]
+            : _visibleRecommendations(snapshot.albums);
     final hasVisible =
         tracks.isNotEmpty || artists.isNotEmpty || albums.isNotEmpty;
-    final allDismissed = snapshot != null &&
+    final allDismissed = !savedOnly &&
+        snapshot != null &&
         snapshot.recommendations.isNotEmpty &&
         !hasVisible;
 
@@ -1151,6 +1402,10 @@ class _MusicDiscoveryScreenState extends State<MusicDiscoveryScreen> {
             snapshotGeneratedAt: snapshot?.generatedAt,
             preferences: _preferences,
             dismissedCount: _dismissedKeys.length,
+            savedCount: _wishlist.length,
+            showSavedOnly: savedOnly,
+            onToggleSavedOnly: (value) =>
+                setState(() => _showSavedOnly = value),
             onMixSelected: (mix) =>
                 unawaited(_applyPreferences(_preferences.copyWith(mix: mix))),
             onClearInstrumental: () => unawaited(
@@ -1168,27 +1423,27 @@ class _MusicDiscoveryScreenState extends State<MusicDiscoveryScreen> {
             onOpenSetup: () => unawaited(_showSetup()),
             onRestoreDismissed: () => unawaited(_restoreDismissed()),
           ),
-          if (isOffline && snapshot != null)
+          if (!savedOnly && isOffline && snapshot != null)
             const DiscoveryNoticeBanner(
               icon: Icons.cloud_off_rounded,
               message: 'Offline — showing cached results.',
             ),
-          if (_error != null)
+          if (!savedOnly && _error != null)
             DiscoveryErrorCard(
               message: _error!,
               actionLabel: errorActionLabel,
               onAction: errorAction,
             ),
-          if (_refreshing && snapshot == null)
+          if (!savedOnly && _refreshing && snapshot == null)
             const Padding(
               padding: EdgeInsets.symmetric(vertical: 48),
               child: Center(child: CircularProgressIndicator()),
             )
-          else if (_error != null && snapshot == null)
+          else if (!savedOnly && _error != null && snapshot == null)
             const SizedBox.shrink()
-          else if (isOffline && snapshot == null)
+          else if (!savedOnly && isOffline && snapshot == null)
             const DiscoveryOfflineView()
-          else if (_coldStart && snapshot == null)
+          else if (!savedOnly && _coldStart && snapshot == null)
             DiscoveryColdStartView(
               isAllTime: _preferences.tasteRange.isAllTime,
               rangeTitle: _preferences.tasteRange.title(),
@@ -1212,7 +1467,7 @@ class _MusicDiscoveryScreenState extends State<MusicDiscoveryScreen> {
               ),
               onBrowseLibrary: () => Navigator.of(context).maybePop(),
             )
-          else if (snapshot == null || !hasVisible)
+          else if ((!savedOnly && snapshot == null) || !hasVisible)
             DiscoveryEmptyView(
               onRefresh: () => unawaited(_refresh(force: true)),
               onAdjustFilters: () => unawaited(_showSetup()),
@@ -1222,29 +1477,35 @@ class _MusicDiscoveryScreenState extends State<MusicDiscoveryScreen> {
           else ...[
             if (tracks.isNotEmpty)
               DiscoveryRecommendationGroup(
-                title: 'Tracks to find',
+                title: savedOnly ? 'Saved tracks' : 'Tracks to find',
                 items: tracks,
                 matchedArtistFor: _matchedLibraryArtist,
+                isWishlisted: _isWishlisted,
+                onToggleWishlist: (item) => unawaited(_toggleWishlist(item)),
                 onOpenArtist: _openArtist,
-                onDismiss: (item) => unawaited(_dismiss(item)),
+                onDismiss: savedOnly ? null : (item) => unawaited(_dismiss(item)),
                 onFind: _showFindLinks,
               ),
             if (artists.isNotEmpty)
               DiscoveryRecommendationGroup(
-                title: 'Artists to explore',
+                title: savedOnly ? 'Saved artists' : 'Artists to explore',
                 items: artists,
                 matchedArtistFor: _matchedLibraryArtist,
+                isWishlisted: _isWishlisted,
+                onToggleWishlist: (item) => unawaited(_toggleWishlist(item)),
                 onOpenArtist: _openArtist,
-                onDismiss: (item) => unawaited(_dismiss(item)),
+                onDismiss: savedOnly ? null : (item) => unawaited(_dismiss(item)),
                 onFind: _showFindLinks,
               ),
             if (albums.isNotEmpty)
               DiscoveryRecommendationGroup(
-                title: 'Albums to try',
+                title: savedOnly ? 'Saved albums' : 'Albums to try',
                 items: albums,
                 matchedArtistFor: _matchedLibraryArtist,
+                isWishlisted: _isWishlisted,
+                onToggleWishlist: (item) => unawaited(_toggleWishlist(item)),
                 onOpenArtist: _openArtist,
-                onDismiss: (item) => unawaited(_dismiss(item)),
+                onDismiss: savedOnly ? null : (item) => unawaited(_dismiss(item)),
                 onFind: _showFindLinks,
               ),
             Padding(
@@ -1283,23 +1544,30 @@ class _MusicDiscoveryScreenState extends State<MusicDiscoveryScreen> {
 }
 
 class _SetupResult {
-  const _SetupResult.enable(this.apiKey, this.preferences)
-      : action = _SetupAction.enable;
+  const _SetupResult.enable(
+    this.apiKey,
+    this.preferences, {
+    this.webhookUrl,
+  }) : action = _SetupAction.enable;
   const _SetupResult.disable()
       : action = _SetupAction.disable,
         apiKey = null,
+        webhookUrl = null,
         preferences = const MusicDiscoveryPreferences();
   const _SetupResult.removeHouseholdKey()
       : action = _SetupAction.removeHouseholdKey,
         apiKey = null,
+        webhookUrl = null,
         preferences = const MusicDiscoveryPreferences();
   const _SetupResult.clearLocalKey()
       : action = _SetupAction.clearLocalKey,
         apiKey = null,
+        webhookUrl = null,
         preferences = const MusicDiscoveryPreferences();
 
   final _SetupAction action;
   final String? apiKey;
+  final String? webhookUrl;
   final MusicDiscoveryPreferences preferences;
 }
 

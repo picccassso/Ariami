@@ -515,6 +515,7 @@ extension AriamiHttpServerLifecycleMethods on AriamiHttpServer {
     if (_libraryListenersRegistered) return;
 
     _scanCompleteListener = () {
+      unawaited(_pruneOwnedWishlistItems());
       final reason = _libraryManager.isScanning ? 'scan_complete' : 'fs_change';
       _broadcastLibraryUpdated(syncReason: reason);
     };
@@ -629,6 +630,8 @@ extension AriamiHttpServerLifecycleMethods on AriamiHttpServer {
     // re-apply the owner's persisted account-picker choice on every start.
     _publicUserPickerEnabled = false;
     _streamTracker.dispose();
+    _musicBrainzClient?.close();
+    _musicBrainzClient = null;
 
     print('Ariami Server stopped');
   }

@@ -88,6 +88,9 @@ class DiscoveryHeader extends StatelessWidget {
     required this.snapshotGeneratedAt,
     required this.preferences,
     required this.dismissedCount,
+    required this.savedCount,
+    required this.showSavedOnly,
+    required this.onToggleSavedOnly,
     required this.onMixSelected,
     required this.onClearInstrumental,
     required this.onRemoveTag,
@@ -99,6 +102,9 @@ class DiscoveryHeader extends StatelessWidget {
   final DateTime? snapshotGeneratedAt;
   final MusicDiscoveryPreferences preferences;
   final int dismissedCount;
+  final int savedCount;
+  final bool showSavedOnly;
+  final ValueChanged<bool> onToggleSavedOnly;
   final ValueChanged<MusicDiscoveryMix> onMixSelected;
   final VoidCallback onClearInstrumental;
   final ValueChanged<String> onRemoveTag;
@@ -140,12 +146,21 @@ class DiscoveryHeader extends StatelessWidget {
               for (final mix in MusicDiscoveryMix.values)
                 ChoiceChip(
                   label: Text(_mixChipLabel(mix)),
-                  selected: preferences.mix == mix,
+                  selected: !showSavedOnly && preferences.mix == mix,
                   onSelected: (selected) {
-                    if (selected && preferences.mix != mix) {
+                    if (!selected) return;
+                    if (showSavedOnly) onToggleSavedOnly(false);
+                    if (preferences.mix != mix) {
                       onMixSelected(mix);
                     }
                   },
+                ),
+              if (savedCount > 0 || showSavedOnly)
+                FilterChip(
+                  avatar: const Icon(Icons.bookmark_rounded, size: 16),
+                  label: Text('Saved ($savedCount)'),
+                  selected: showSavedOnly,
+                  onSelected: onToggleSavedOnly,
                 ),
               if (preferences.instrumentalOnly)
                 InputChip(
@@ -452,16 +467,20 @@ class DiscoveryRecommendationGroup extends StatelessWidget {
     required this.title,
     required this.items,
     required this.matchedArtistFor,
+    required this.isWishlisted,
+    required this.onToggleWishlist,
     required this.onOpenArtist,
-    required this.onDismiss,
+    this.onDismiss,
     required this.onFind,
   });
 
   final String title;
   final List<MusicRecommendation> items;
   final String? Function(MusicRecommendation item) matchedArtistFor;
+  final bool Function(MusicRecommendation item) isWishlisted;
+  final ValueChanged<MusicRecommendation> onToggleWishlist;
   final ValueChanged<String> onOpenArtist;
-  final ValueChanged<MusicRecommendation> onDismiss;
+  final ValueChanged<MusicRecommendation>? onDismiss;
   final ValueChanged<MusicRecommendation> onFind;
 
   @override
@@ -534,11 +553,25 @@ class DiscoveryRecommendationGroup extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 IconButton(
-                  tooltip: 'Not interested',
+                  tooltip: isWishlisted(item)
+                      ? 'Remove from wishlist'
+                      : 'Save to wishlist',
                   visualDensity: VisualDensity.compact,
-                  onPressed: () => onDismiss(item),
-                  icon: const Icon(Icons.close_rounded, size: 20),
+                  onPressed: () => onToggleWishlist(item),
+                  icon: Icon(
+                    isWishlisted(item)
+                        ? Icons.bookmark_rounded
+                        : Icons.bookmark_border_rounded,
+                    size: 20,
+                  ),
                 ),
+                if (onDismiss != null)
+                  IconButton(
+                    tooltip: 'Not interested',
+                    visualDensity: VisualDensity.compact,
+                    onPressed: () => onDismiss!(item),
+                    icon: const Icon(Icons.close_rounded, size: 20),
+                  ),
                 IconButton(
                   tooltip: 'Find on…',
                   visualDensity: VisualDensity.compact,

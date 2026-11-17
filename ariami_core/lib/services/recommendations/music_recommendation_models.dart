@@ -318,7 +318,9 @@ class MusicRecommendation {
     this.sourceTags = const <String>[],
     this.artist,
     this.musicBrainzId,
+    this.artistMusicBrainzId,
     this.imageUrl,
+    this.savedAt,
   });
 
   final MusicRecommendationKind kind;
@@ -329,9 +331,46 @@ class MusicRecommendation {
   final double score;
   final Uri lastFmUrl;
   final String? musicBrainzId;
+  final String? artistMusicBrainzId;
   final Uri? imageUrl;
+  final DateTime? savedAt;
   final List<String> sourceSeeds;
   final List<String> sourceTags;
+
+  String get identityKey =>
+      '${kind.name}:${(artist ?? '').trim().toLowerCase()}:'
+      '${name.trim().toLowerCase()}';
+
+  String get effectiveArtist =>
+      (kind == MusicRecommendationKind.artist ? name : artist ?? '').trim();
+
+  String? get effectiveArtistMusicBrainzId =>
+      artistMusicBrainzId ??
+      (kind == MusicRecommendationKind.artist ? musicBrainzId : null);
+
+  String get textLine {
+    if (kind == MusicRecommendationKind.artist) return name.trim();
+    final credit = (artist ?? '').trim();
+    return credit.isEmpty ? name.trim() : '$credit - ${name.trim()}';
+  }
+
+  MusicRecommendation copyWith({
+    String? artistMusicBrainzId,
+    DateTime? savedAt,
+  }) =>
+      MusicRecommendation(
+        kind: kind,
+        name: name,
+        score: score,
+        lastFmUrl: lastFmUrl,
+        sourceSeeds: sourceSeeds,
+        sourceTags: sourceTags,
+        artist: artist,
+        musicBrainzId: musicBrainzId,
+        artistMusicBrainzId: artistMusicBrainzId ?? this.artistMusicBrainzId,
+        imageUrl: imageUrl,
+        savedAt: savedAt ?? this.savedAt,
+      );
 
   String get discoveryReason {
     if (sourceTags.isNotEmpty) {
@@ -381,7 +420,10 @@ class MusicRecommendation {
         'score': score,
         'lastFmUrl': lastFmUrl.toString(),
         if (musicBrainzId != null) 'musicBrainzId': musicBrainzId,
+        if (artistMusicBrainzId != null && artistMusicBrainzId!.isNotEmpty)
+          'artistMusicBrainzId': artistMusicBrainzId,
         if (imageUrl != null) 'imageUrl': imageUrl.toString(),
+        if (savedAt != null) 'savedAt': savedAt!.toUtc().toIso8601String(),
         'sourceSeeds': sourceSeeds,
         if (sourceTags.isNotEmpty) 'sourceTags': sourceTags,
       };
@@ -389,6 +431,8 @@ class MusicRecommendation {
   factory MusicRecommendation.fromJson(Map<String, dynamic> json) {
     final rawKind = json['kind'] as String?;
     final parsedImageUrl = Uri.tryParse(json['imageUrl'] as String? ?? '');
+    final rawArtistMbid = (json['artistMusicBrainzId'] as String?)?.trim();
+    final parsedSavedAt = DateTime.tryParse(json['savedAt'] as String? ?? '');
     return MusicRecommendation(
       kind: MusicRecommendationKind.values
               .where((kind) => kind.name == rawKind)
@@ -399,7 +443,10 @@ class MusicRecommendation {
       score: (json['score'] as num?)?.toDouble() ?? 0,
       lastFmUrl: Uri.tryParse(json['lastFmUrl'] as String? ?? '') ?? Uri(),
       musicBrainzId: json['musicBrainzId'] as String?,
+      artistMusicBrainzId:
+          rawArtistMbid == null || rawArtistMbid.isEmpty ? null : rawArtistMbid,
       imageUrl: parsedImageUrl?.hasScheme == true ? parsedImageUrl : null,
+      savedAt: parsedSavedAt?.toUtc(),
       sourceSeeds: (json['sourceSeeds'] as List<dynamic>? ?? const <dynamic>[])
           .whereType<String>()
           .toList(growable: false),

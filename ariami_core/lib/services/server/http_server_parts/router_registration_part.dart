@@ -291,6 +291,22 @@ extension AriamiHttpServerRouterMethods on AriamiHttpServer {
       '/api/music-discovery/config',
       _handleMusicDiscoveryConfigDelete,
     );
+    router.get(
+      '/api/music-discovery/wishlist',
+      _handleMusicDiscoveryWishlistGet,
+    );
+    router.post(
+      '/api/music-discovery/wishlist',
+      _handleMusicDiscoveryWishlistPost,
+    );
+    router.delete(
+      '/api/music-discovery/wishlist',
+      _handleMusicDiscoveryWishlistDelete,
+    );
+    router.get(
+      '/api/music-discovery/wishlist/feed',
+      _handleMusicDiscoveryWishlistFeedGet,
+    );
     router.post('/api/stream-ticket', _handleStreamTicket);
     router.post('/api/stream-warmup', _handleStreamWarmup);
     router.post('/api/download-ticket', _handleDownloadTicket);

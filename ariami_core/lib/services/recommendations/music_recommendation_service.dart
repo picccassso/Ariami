@@ -75,7 +75,7 @@ class MusicRecommendationService {
       );
     }
 
-    final owned = _OwnedMusicIndex(ownedTracks);
+    final owned = OwnedMusicIndex(ownedTracks);
     final accumulators = <String, _CandidateAccumulator>{};
     final candidateLimit = limit > 24 ? 24 : 12;
     // A seed Last.fm has never heard of is normal for a personal library, so
@@ -421,7 +421,7 @@ class MusicRecommendationService {
 
   Future<List<MusicRecommendation>> _albumsFromArtists(
     List<_CandidateAccumulator> artists, {
-    required _OwnedMusicIndex owned,
+    required OwnedMusicIndex owned,
     required int limit,
   }) async {
     final recommendations = <MusicRecommendation>[];
@@ -882,11 +882,11 @@ class _CandidateAccumulator {
       );
 }
 
-class _OwnedMusicIndex {
+class OwnedMusicIndex {
   static const int _minOwnedTracksForArtist = 3;
   static const int _minTracksForAlbumArtist = 2;
 
-  _OwnedMusicIndex(Iterable<OwnedMusicTrack> tracks) {
+  OwnedMusicIndex(Iterable<OwnedMusicTrack> tracks) {
     final albumTracks = <String, Set<String>>{};
     for (final track in tracks) {
       final artist = SearchNormalizer.normalizeString(track.artist);
@@ -917,6 +917,11 @@ class _OwnedMusicIndex {
   final Set<String> _multiTrackAlbumArtists = <String>{};
   final Set<String> songs = <String>{};
   final Set<String> albums = <String>{};
+
+  bool get isEmpty => _artistTrackCounts.isEmpty;
+
+  bool containsRecommendation(MusicRecommendation item) =>
+      contains(item.kind, item.name, item.artist);
 
   bool contains(MusicRecommendationKind kind, String name, String? artist) {
     if (kind == MusicRecommendationKind.artist) {

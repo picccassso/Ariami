@@ -318,15 +318,13 @@ extension AriamiHttpServerMiddlewareAndMetricsMethods on AriamiHttpServer {
         if (isPublicPath) {
           return await handler(request);
         }
-        // Artwork requests may use either:
-        // 1) Session auth (Authorization header), or
-        // 2) streamToken query param validated in artwork handlers.
-        //
-        // If there's no bearer auth on artwork routes, defer auth checks to
-        // the handlers so notification artwork can authenticate via streamToken.
+        // Artwork and wishlist feed routes can also authenticate via URL token
+        // parameters validated inside their handlers.
+        final isDeferredTokenAuthPath = isArtworkPath ||
+            path == '/api/music-discovery/wishlist/feed';
         final sessionToken = _bearerToken(request);
         if (sessionToken == null) {
-          return isArtworkPath
+          return isDeferredTokenAuthPath
               ? await handler(request)
               : _authRequiredResponse();
         }

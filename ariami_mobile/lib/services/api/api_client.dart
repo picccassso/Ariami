@@ -4,6 +4,7 @@ import 'package:ariami_core/models/lyrics_models.dart';
 import 'dart:convert';
 import 'dart:typed_data';
 import 'package:ariami_core/services/recommendations/music_discovery_api_key_config.dart';
+import 'package:ariami_core/services/recommendations/music_recommendation_models.dart';
 import 'package:http/http.dart' as http;
 import '../../models/api_models.dart';
 import '../../models/auth_models.dart';
@@ -565,6 +566,38 @@ class ApiClient {
   Future<MusicDiscoveryApiKeyConfig> deleteMusicDiscoveryApiKey() async {
     return MusicDiscoveryApiKeyConfig.fromJson(
       await _delete('/music-discovery/config'),
+    );
+  }
+
+  /// Owner-only: updates or clears the optional wishlist webhook URL.
+  Future<MusicDiscoveryApiKeyConfig> putMusicDiscoveryWebhookUrl(
+    String? webhookUrl,
+  ) async {
+    return MusicDiscoveryApiKeyConfig.fromJson(
+      await _put('/music-discovery/config', <String, dynamic>{
+        'webhookUrl': webhookUrl ?? '',
+      }),
+    );
+  }
+
+  Future<Map<String, dynamic>> getMusicDiscoveryWishlist() async {
+    return _get('/music-discovery/wishlist');
+  }
+
+  Future<Map<String, dynamic>> addMusicDiscoveryWishlistItem(
+    MusicRecommendation item,
+  ) async {
+    return _post('/music-discovery/wishlist', item.toJson());
+  }
+
+  Future<Map<String, dynamic>> removeMusicDiscoveryWishlistItem(
+    String key,
+  ) async {
+    return _delete(
+      _buildEndpointWithQuery(
+        '/music-discovery/wishlist',
+        <String, String?>{'key': key},
+      ),
     );
   }
 

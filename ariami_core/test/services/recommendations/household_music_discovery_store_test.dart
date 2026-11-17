@@ -1,6 +1,6 @@
 import 'dart:io';
 
-import 'package:ariami_core/services/recommendations/household_music_discovery_store.dart';
+import 'package:ariami_core/ariami_core.dart';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
@@ -98,5 +98,49 @@ void main() {
   test('throws when used before initialize', () {
     final store = HouseholdMusicDiscoveryStore(filePath: storePath);
     expect(() => store.lastFmApiKey, throwsStateError);
+  });
+
+  test('persists wishlist, webhookUrl, feedToken, and prunes owned items',
+      () async {
+    final store = HouseholdMusicDiscoveryStore(filePath: storePath)
+      ..initialize();
+    final track = MusicRecommendation(
+      kind: MusicRecommendationKind.track,
+      name: 'Fresh Track',
+      artist: 'Artist A',
+      score: 1,
+      lastFmUrl: Uri.https('www.last.fm', '/music/Artist+A/_/Fresh+Track'),
+      artistMusicBrainzId: '11111111-1111-1111-1111-111111111111',
+      sourceSeeds: const <String>['Seed'],
+    );
+    final artist = MusicRecommendation(
+      kind: MusicRecommendationKind.artist,
+      name: 'Artist B',
+      score: 1,
+      lastFmUrl: Uri.https('www.last.fm', '/music/Artist+B'),
+      musicBrainzId: '22222222-2222-2222-2222-222222222222',
+      sourceSeeds: const <String>['Seed'],
+    );
+
+    await store.saveWebhookUrl('https://example.com/hook');
+    await store.addWishlistItem(track);
+    await store.addWishlistItem(artist);
+
+    final reopened = HouseholdMusicDiscoveryStore(filePath: storePath)
+      ..initialize();
+    expect(reopened.webhookUrl, 'https://example.com/hook');
+    expect(reopened.feedToken, store.feedToken);
+    expect(reopened.wishlist.map((i) => i.name), <String>['Artist B', 'Fresh Track']);
+
+    final removedOwned = await reopened.removeOwnedWishlistItems(
+      OwnedMusicIndex(const <OwnedMusicTrack>[
+        OwnedMusicTrack(title: 'Fresh Track', artist: 'Artist A'),
+      ]),
+    );
+    expect(removedOwned, 1);
+    expect(reopened.wishlist.map((i) => i.name), <String>['Artist B']);
+
+    expect(await reopened.removeWishlistItem(artist.identityKey), isTrue);
+    expect(reopened.wishlist, isEmpty);
   });
 }
