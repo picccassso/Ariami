@@ -245,9 +245,10 @@ class _IndexedItem {
 }
 
 class _IndexedSong {
-  const _IndexedSong(this.id, this.fields, this.preparedLyrics);
+  const _IndexedSong(this.id, this.fields, this.lyrics, this.preparedLyrics);
   final String id;
   final List<SearchField> fields;
+  final String? lyrics;
   final PreparedLyrics? preparedLyrics;
 }
 
@@ -258,6 +259,22 @@ void _workerMain(SendPort replyTo) {
   var indexedSongs = const <_IndexedSong>[];
   var indexedAlbums = const <_IndexedItem>[];
   var indexedPlaylists = const <_IndexedItem>[];
+  var catalogGeneration = 0;
+
+  // Line-level lyric fields are built in small chunks between messages so a
+  // search arriving mid-warm is answered right away.
+  void warmLyrics(int generation, int start) {
+    if (generation != catalogGeneration) return;
+    final end = start + 100 < indexedSongs.length
+        ? start + 100
+        : indexedSongs.length;
+    for (var i = start; i < end; i++) {
+      indexedSongs[i].preparedLyrics?.warm();
+    }
+    if (end < indexedSongs.length) {
+      Timer.run(() => warmLyrics(generation, end));
+    }
+  }
 
   inbox.listen((message) {
     if (message is _DisposeRequest) {
@@ -266,6 +283,12 @@ void _workerMain(SendPort replyTo) {
     }
 
     if (message is _SetCatalogRequest) {
+      // Re-syncs (playlist edits, curation, delta syncs) keep each song's
+      // prepared lyrics when the text is unchanged.
+      final previousSongs = <String, _IndexedSong>{
+        for (final song in indexedSongs)
+          if (song.preparedLyrics != null) song.id: song,
+      };
       final albumById = <String, SearchableAlbumEntry>{
         for (final album in message.albums) album.id: album,
       };
@@ -289,6 +312,7 @@ void _workerMain(SendPort replyTo) {
                 song.albumId == null ? null : albumById[song.albumId!];
             final albumTitle = song.albumTitle ?? album?.title;
             final albumArtist = song.albumArtist ?? album?.artist;
+            final previous = previousSongs[song.id];
             return _IndexedSong(
               song.id,
               [
@@ -297,11 +321,16 @@ void _workerMain(SendPort replyTo) {
                 if (albumTitle != null) SearchField(albumTitle),
                 if (albumArtist != null) SearchField(albumArtist),
               ],
-              LibrarySearchEngine.prepareLyrics(song.lyrics),
+              song.lyrics,
+              previous != null && previous.lyrics == song.lyrics
+                  ? previous.preparedLyrics
+                  : LibrarySearchEngine.prepareLyrics(song.lyrics),
             );
           }(),
       ];
       replyTo.send(_WorkerResponse(message.id, null));
+      final generation = ++catalogGeneration;
+      Timer.run(() => warmLyrics(generation, 0));
       return;
     }
 

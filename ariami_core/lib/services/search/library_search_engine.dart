@@ -224,8 +224,9 @@ class LibrarySearchEngine {
       LinkedHashMap<String, PreparedLyrics>();
   static const int _lyricsCacheLimit = 10000;
 
-  /// Pre-splits and normalizes [rawLyrics] into line, pair, and whole-text
-  /// representations without polluting [SearchNormalizer]'s shared cache.
+  /// Splits [rawLyrics] into lines and normalizes the whole text. Per-line
+  /// and line-pair fields are built lazily, only for songs whose full text
+  /// matches a query (or when [PreparedLyrics.warm] is called).
   static PreparedLyrics? prepareLyrics(String? rawLyrics) {
     if (rawLyrics == null || rawLyrics.trim().isEmpty) return null;
     final rawLines = rawLyrics
@@ -234,19 +235,8 @@ class LibrarySearchEngine {
         .where((line) => line.isNotEmpty)
         .toList(growable: false);
     if (rawLines.isEmpty) return null;
-    final lines = [
-      for (final line in rawLines)
-        _PreparedLyricLine(line, [SearchField(line, cache: false)]),
-    ];
-    final pairs = [
-      for (var i = 0; i + 1 < rawLines.length; i++)
-        _PreparedLyricLine(
-          '${rawLines[i]} / ${rawLines[i + 1]}',
-          [SearchField('${rawLines[i]} ${rawLines[i + 1]}', cache: false)],
-        ),
-    ];
     final fullText = SearchNormalizer.of(rawLines.join(' '), cache: false);
-    return PreparedLyrics._(lines, pairs, fullText);
+    return PreparedLyrics._(rawLines, fullText);
   }
 
   static PreparedLyrics? _prepareLyricsCached(String rawLyrics) {
@@ -560,10 +550,28 @@ class _PreparedLyricLine {
 }
 
 class PreparedLyrics {
-  const PreparedLyrics._(this._lines, this._pairs, this.fullText);
-  final List<_PreparedLyricLine> _lines;
-  final List<_PreparedLyricLine> _pairs;
+  PreparedLyrics._(this._rawLines, this.fullText);
+  final List<String> _rawLines;
   final SearchText fullText;
+
+  late final List<_PreparedLyricLine> _lines = [
+    for (final line in _rawLines)
+      _PreparedLyricLine(line, [SearchField(line, cache: false)]),
+  ];
+
+  late final List<_PreparedLyricLine> _pairs = [
+    for (var i = 0; i + 1 < _rawLines.length; i++)
+      _PreparedLyricLine(
+        '${_rawLines[i]} / ${_rawLines[i + 1]}',
+        [SearchField('${_rawLines[i]} ${_rawLines[i + 1]}', cache: false)],
+      ),
+  ];
+
+  /// Builds the lazy line and pair fields ahead of the first lyric query.
+  void warm() {
+    _lines;
+    _pairs;
+  }
 }
 
 class _RankedLyricItem<T> {
