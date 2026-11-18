@@ -36,6 +36,8 @@ class SongMetadata {
 
   final bool hasLyrics;
 
+  final String? lyrics;
+
   static final RegExp _instrumentalPattern =
       RegExp(r'\binstrumentals?\b|\binst\.|\(inst\)', caseSensitive: false);
 
@@ -67,6 +69,7 @@ class SongMetadata {
     this.fileSize,
     this.modifiedTime,
     this.hasLyrics = false,
+    this.lyrics,
   });
 
   SongMetadata copyWith({
@@ -86,6 +89,7 @@ class SongMetadata {
     int? fileSize,
     DateTime? modifiedTime,
     bool? hasLyrics,
+    String? lyrics,
   }) {
     return SongMetadata(
       filePath: filePath ?? this.filePath,
@@ -104,6 +108,7 @@ class SongMetadata {
       fileSize: fileSize ?? this.fileSize,
       modifiedTime: modifiedTime ?? this.modifiedTime,
       hasLyrics: hasLyrics ?? this.hasLyrics,
+      lyrics: lyrics ?? this.lyrics,
     );
   }
 
@@ -133,6 +138,7 @@ class SongMetadata {
       if (fileSize != null) 'fileSize': fileSize,
       if (modifiedTime != null) 'modifiedTime': modifiedTime!.toIso8601String(),
       'hasLyrics': hasLyrics,
+      if (lyrics != null) 'lyrics': lyrics,
     };
   }
 
@@ -155,6 +161,7 @@ class SongMetadata {
           ? DateTime.parse(json['modifiedTime'] as String)
           : null,
       hasLyrics: json['hasLyrics'] as bool? ?? false,
+      lyrics: json['lyrics'] as String?,
       // albumArt is not cached - extracted lazily
     );
   }

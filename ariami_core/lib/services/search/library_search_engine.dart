@@ -133,6 +133,142 @@ class LibrarySearchEngine {
     return [for (final ranked in capped) ranked.item];
   }
 
+  /// Ranks [items] across metadata fields and plain-text lyrics. Metadata hits
+  /// always sort before lyric-only hits; [lyricSnippets] maps an item's ID to
+  /// its best matching lyric line when the song matched solely via lyrics or
+  /// the lyric match outranks its metadata match.
+  static ({List<T> items, Map<String, String> lyricSnippets}) rankWithLyrics<T>(
+    SearchQuery query,
+    Iterable<T> items, {
+    required String Function(T item) idOf,
+    required List<SearchField> Function(T item) fieldsOf,
+    required String? Function(T item) lyricsOf,
+    int? limit,
+  }) {
+    if (query.isEmpty) {
+      return (items: <T>[], lyricSnippets: const <String, String>{});
+    }
+
+    final canMatchLyrics = query.phrase.length >= 3;
+    final matches = <_RankedLyricItem<T>>[];
+    var index = 0;
+    for (final item in items) {
+      final metadataMatch = _matchItem(query, fieldsOf(item));
+      final lyricMatch =
+          canMatchLyrics ? _matchLyrics(query, lyricsOf(item)) : null;
+      if (metadataMatch != null || lyricMatch != null) {
+        matches.add(_RankedLyricItem(item, metadataMatch, lyricMatch, index));
+      }
+      index++;
+    }
+
+    matches.sort((a, b) {
+      final aHasMeta = a.metadataMatch != null;
+      final bHasMeta = b.metadataMatch != null;
+      if (aHasMeta != bHasMeta) {
+        return aHasMeta ? -1 : 1;
+      }
+      if (aHasMeta && bHasMeta) {
+        final aMeta = a.metadataMatch!;
+        final bMeta = b.metadataMatch!;
+        if (aMeta.tier.rank != bMeta.tier.rank) {
+          return bMeta.tier.rank - aMeta.tier.rank;
+        }
+        if (aMeta.primaryHit != bMeta.primaryHit) {
+          return aMeta.primaryHit ? -1 : 1;
+        }
+        final aLyricRank = a.lyricMatch?.tier.rank ?? -1;
+        final bLyricRank = b.lyricMatch?.tier.rank ?? -1;
+        if (aLyricRank != bLyricRank) {
+          return bLyricRank - aLyricRank;
+        }
+        return a.index - b.index;
+      }
+      final aLyric = a.lyricMatch!;
+      final bLyric = b.lyricMatch!;
+      if (aLyric.tier.rank != bLyric.tier.rank) {
+        return bLyric.tier.rank - aLyric.tier.rank;
+      }
+      if (aLyric.singleLine != bLyric.singleLine) {
+        return aLyric.singleLine ? -1 : 1;
+      }
+      return a.index - b.index;
+    });
+
+    final capped =
+        limit == null ? matches : matches.take(limit).toList(growable: false);
+    final lyricSnippets = <String, String>{};
+    final resultItems = <T>[];
+    for (final ranked in capped) {
+      resultItems.add(ranked.item);
+      final lyric = ranked.lyricMatch;
+      final meta = ranked.metadataMatch;
+      if (lyric != null &&
+          (meta == null || lyric.tier.rank > meta.tier.rank)) {
+        lyricSnippets[idOf(ranked.item)] = lyric.snippet;
+      }
+    }
+    return (items: resultItems, lyricSnippets: lyricSnippets);
+  }
+
+  static final Map<String, _PreparedLyrics> _lyricsCache =
+      <String, _PreparedLyrics>{};
+  static const int _lyricsCacheLimit = 10000;
+
+  static _PreparedLyrics _prepareLyrics(String rawLyrics) {
+    final cached = _lyricsCache[rawLyrics];
+    if (cached != null) return cached;
+
+    final rawLines = rawLyrics
+        .split(RegExp(r'\r?\n'))
+        .map((line) => line.trim())
+        .where((line) => line.isNotEmpty)
+        .toList(growable: false);
+    final lines = [
+      for (final line in rawLines)
+        _PreparedLyricLine(line, [SearchField(line)]),
+    ];
+    final pairs = [
+      for (var i = 0; i + 1 < rawLines.length; i++)
+        _PreparedLyricLine(
+          '${rawLines[i]} / ${rawLines[i + 1]}',
+          [SearchField('${rawLines[i]} ${rawLines[i + 1]}')],
+        ),
+    ];
+
+    final prepared = _PreparedLyrics(lines, pairs);
+    if (_lyricsCache.length >= _lyricsCacheLimit) _lyricsCache.clear();
+    _lyricsCache[rawLyrics] = prepared;
+    return prepared;
+  }
+
+  static _LyricMatch? _matchLyrics(SearchQuery query, String? rawLyrics) {
+    if (rawLyrics == null || rawLyrics.trim().isEmpty) return null;
+    final prepared = _prepareLyrics(rawLyrics);
+    _LyricMatch? best;
+
+    for (final line in prepared.lines) {
+      final match = _matchItem(query, line.fields);
+      if (match == null) continue;
+      if (best == null || match.tier.rank > best.tier.rank) {
+        best = _LyricMatch(match.tier, line.display, singleLine: true);
+        if (best.tier == SearchMatchTier.exact) return best;
+      }
+    }
+
+    if (query.tokens.length >= 2) {
+      for (final pair in prepared.pairs) {
+        final match = _matchItem(query, pair.fields);
+        if (match == null) continue;
+        if (best == null || match.tier.rank > best.tier.rank) {
+          best = _LyricMatch(match.tier, pair.display, singleLine: false);
+          if (best.tier == SearchMatchTier.exact) return best;
+        }
+      }
+    }
+    return best;
+  }
+
   /// Whether [fields] match [query] at any tier. For order-preserving
   /// filters (find-in-page style surfaces) that want the engine's matching —
   /// normalization, transliteration, layout correction, fuzz — without its
@@ -347,5 +483,37 @@ class _RankedItem<T> {
   const _RankedItem(this.item, this.match, this.index);
   final T item;
   final _ItemMatch match;
+  final int index;
+}
+
+class _LyricMatch {
+  const _LyricMatch(this.tier, this.snippet, {required this.singleLine});
+  final SearchMatchTier tier;
+  final String snippet;
+  final bool singleLine;
+}
+
+class _PreparedLyricLine {
+  const _PreparedLyricLine(this.display, this.fields);
+  final String display;
+  final List<SearchField> fields;
+}
+
+class _PreparedLyrics {
+  const _PreparedLyrics(this.lines, this.pairs);
+  final List<_PreparedLyricLine> lines;
+  final List<_PreparedLyricLine> pairs;
+}
+
+class _RankedLyricItem<T> {
+  const _RankedLyricItem(
+    this.item,
+    this.metadataMatch,
+    this.lyricMatch,
+    this.index,
+  );
+  final T item;
+  final _ItemMatch? metadataMatch;
+  final _LyricMatch? lyricMatch;
   final int index;
 }

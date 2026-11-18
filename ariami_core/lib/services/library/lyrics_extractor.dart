@@ -28,23 +28,37 @@ class LyricsExtractor {
   /// other formats through the tags the metadata probe already read
   /// ([knownTags], lowercased ffprobe keys).
   static Future<bool> hasLyrics(String filePath,
-      {Map<String, String>? knownTags}) async {
-    try {
-      if (findSidecarFile(filePath, '.lrc') != null ||
-          findSidecarFile(filePath, '.txt') != null) {
-        return true;
-      }
-      if (knownTags != null &&
-          knownTags.entries.any((tag) =>
-              _isLyricsTagKey(tag.key) && tag.value.trim().isNotEmpty)) {
-        return true;
-      }
-      if (p.extension(filePath).toLowerCase() == '.mp3') {
-        final id3 = await _readId3v2Lyrics(File(filePath), '');
-        return id3.synced != null || id3.text != null;
-      }
-    } catch (_) {}
-    return false;
+          {Map<String, String>? knownTags}) async =>
+      await extractSearchableLyrics(filePath, knownTags: knownTags) != null;
+
+  /// Scan-time extraction of plain, timestamp-stripped lyric lines for search.
+  /// Never spawns an external process; uses [knownTags] when provided.
+  static Future<String?> extractSearchableLyrics(
+    String filePath, {
+    Map<String, String>? knownTags,
+  }) async {
+    final lyrics = await _resolveLyrics(
+      filePath,
+      knownTags: knownTags,
+      requireAudioFileExists: false,
+    );
+    final text = lyrics?.searchableText;
+    return (text == null || text.isEmpty) ? null : text;
+  }
+
+  /// Synchronous sidecar-only fallback for failed metadata extraction paths.
+  static String? extractSidecarSearchableLyrics(String filePath) {
+    for (final ext in const ['.lrc', '.txt']) {
+      final file = findSidecarFile(filePath, ext);
+      if (file == null) continue;
+      try {
+        final raw = _decodeFileBytes(file.readAsBytesSync());
+        if (raw.trim().isEmpty) continue;
+        final text = LrcParser.parse(raw).searchableText;
+        if (text.isNotEmpty) return text;
+      } catch (_) {}
+    }
+    return null;
   }
 
   /// Modification time (ms) of the sidecar lyrics file (.lrc, else .txt), or
@@ -68,15 +82,29 @@ class LyricsExtractor {
   Future<SongLyrics?> extractLyrics(
     String filePath, {
     String songId = '',
+  }) =>
+      _resolveLyrics(
+        filePath,
+        songId: songId,
+        requireAudioFileExists: true,
+        fallbackProbe: _externalToolsEnabled ? _probeLyricsWithFfprobe : null,
+      );
+
+  static Future<SongLyrics?> _resolveLyrics(
+    String filePath, {
+    String songId = '',
+    Map<String, String>? knownTags,
+    bool requireAudioFileExists = true,
+    Future<String?> Function(String filePath)? fallbackProbe,
   }) async {
     try {
       final file = File(filePath);
-      if (!await file.exists()) return null;
+      if (requireAudioFileExists && !await file.exists()) return null;
 
       SongLyrics? parse(String? text, String source) {
         if (text == null || text.trim().isEmpty) return null;
         final parsed = LrcParser.parse(text, songId: songId, source: source);
-        return parsed.lines.isEmpty ? null : parsed;
+        return parsed.searchableText.isEmpty ? null : parsed;
       }
 
       final lrc = parse(await _readSidecar(filePath, '.lrc'), 'sidecar_lrc');
@@ -85,11 +113,22 @@ class LyricsExtractor {
       String? embeddedText;
       if (p.extension(filePath).toLowerCase() == '.mp3') {
         final id3 = await _readId3v2Lyrics(file, songId);
-        if (id3.synced != null) return id3.synced;
+        if (id3.synced != null && id3.synced!.searchableText.isNotEmpty) {
+          return id3.synced;
+        }
         embeddedText = id3.text;
       }
-      if (embeddedText == null && _externalToolsEnabled) {
-        embeddedText = await _probeLyricsWithFfprobe(filePath);
+      if (embeddedText == null && knownTags != null) {
+        for (final entry in knownTags.entries) {
+          final key = entry.key.toLowerCase().trim();
+          if (_isLyricsTagKey(key) && entry.value.trim().isNotEmpty) {
+            embeddedText = entry.value;
+            break;
+          }
+        }
+      }
+      if (embeddedText == null && fallbackProbe != null) {
+        embeddedText = await fallbackProbe(filePath);
       }
 
       final embeddedSynced = parse(embeddedText, 'embedded_synced');
@@ -118,19 +157,24 @@ class LyricsExtractor {
     return null;
   }
 
-  static bool _isLyricsTagKey(String key) =>
+  static bool isLyricsTagKey(String key) =>
       key.startsWith('lyrics') || key == 'unsyncedlyrics' || key == '©lyr';
+
+  static bool _isLyricsTagKey(String key) => isLyricsTagKey(key);
+
+  static String _decodeFileBytes(List<int> bytes) {
+    try {
+      return utf8.decode(bytes);
+    } on FormatException {
+      return _decodeText(bytes, 0);
+    }
+  }
 
   static Future<String?> _readSidecar(String audioFilePath, String ext) async {
     final file = findSidecarFile(audioFilePath, ext);
     if (file == null) return null;
     try {
-      final bytes = await file.readAsBytes();
-      try {
-        return utf8.decode(bytes);
-      } on FormatException {
-        return _decodeText(bytes, 0);
-      }
+      return _decodeFileBytes(await file.readAsBytes());
     } catch (_) {
       return null;
     }

@@ -230,6 +230,7 @@ class _LibrarySyncDatabaseReads {
       isDeleted: (row['is_deleted'] as int? ?? 0) == 1,
       hasLyrics: (row['has_lyrics'] as int? ?? 0) == 1,
       isInstrumental: (row['is_instrumental'] as int? ?? 0) == 1,
+      lyrics: row['lyrics'] as String?,
     );
   }
 

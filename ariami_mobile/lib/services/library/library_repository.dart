@@ -157,6 +157,7 @@ class LibraryRepository {
                 trackNumber: song.trackNumber,
                 hasLyrics: song.hasLyrics,
                 isInstrumental: song.isInstrumental,
+                lyrics: song.lyrics,
               ),
             )
             .toList(),
@@ -299,6 +300,7 @@ class LibraryRepository {
             trackNumber: row.trackNumber,
             hasLyrics: row.hasLyrics,
             isInstrumental: row.isInstrumental,
+            lyrics: row.lyrics,
           ),
         )
         .toList();
@@ -317,6 +319,7 @@ class LibraryRepository {
       trackNumber: row.trackNumber,
       hasLyrics: row.hasLyrics,
       isInstrumental: row.isInstrumental,
+      lyrics: row.lyrics,
     );
   }
 
@@ -334,6 +337,7 @@ class LibraryRepository {
             trackNumber: row.trackNumber,
             hasLyrics: row.hasLyrics,
             isInstrumental: row.isInstrumental,
+            lyrics: row.lyrics,
           ),
         )
         .toList();
@@ -510,6 +514,7 @@ class LibraryRepository {
               trackNumber: song.trackNumber,
               hasLyrics: song.hasLyrics,
               isInstrumental: song.isInstrumental,
+              lyrics: song.lyrics,
             ),
           ],
           executor: executor,

@@ -43,9 +43,18 @@ extension _MetadataExtractorProbesPart on MetadataExtractor {
         if (tagMap is! Map) return;
         for (final entry in tagMap.entries) {
           final key = entry.key.toString().toLowerCase().trim();
-          final value = _fixEncoding(entry.value);
-          if (key.isEmpty || value == null || value.isEmpty) continue;
-          tags.putIfAbsent(key, () => value);
+          if (key.isEmpty || entry.value == null) continue;
+          final String? value;
+          if (LyricsExtractor.isLyricsTagKey(key)) {
+            // Preserve line breaks in lyrics tags instead of running sanitizeTagText.
+            final raw = entry.value.toString().replaceAll('\u0000', '').trim();
+            value = raw.isEmpty ? null : (repairLatin1Mojibake(raw) ?? raw);
+          } else {
+            value = _fixEncoding(entry.value);
+          }
+          if (value == null || value.isEmpty) continue;
+          final resolved = value;
+          tags.putIfAbsent(key, () => resolved);
         }
       }
 

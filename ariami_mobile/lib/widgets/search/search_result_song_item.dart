@@ -28,6 +28,7 @@ class SearchResultSongItem extends StatefulWidget {
   final VoidCallback? onRemove;
   final bool showRemoveFromRecent;
   final bool isInRecentSearch;
+  final String? lyricSnippet;
 
   const SearchResultSongItem({
     super.key,
@@ -42,6 +43,7 @@ class SearchResultSongItem extends StatefulWidget {
     this.onRemove,
     this.showRemoveFromRecent = false,
     this.isInRecentSearch = false,
+    this.lyricSnippet,
   });
 
   @override
@@ -151,6 +153,25 @@ class _SearchResultSongItemState extends State<SearchResultSongItem> {
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                             ),
+                            if (widget.lyricSnippet != null &&
+                                widget.lyricSnippet!.isNotEmpty) ...[
+                              const SizedBox(height: 2),
+                              Text(
+                                '“${widget.lyricSnippet}”',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontStyle: FontStyle.italic,
+                                  color: Theme.of(context)
+                                          .textTheme
+                                          .bodySmall
+                                          ?.color
+                                          ?.withValues(alpha: 0.7) ??
+                                      Colors.grey[600],
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ],
                           ],
                         ),
                       ),

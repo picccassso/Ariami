@@ -64,6 +64,12 @@ class SongLyrics {
   bool get isSynced => type == LyricsType.synced;
   bool get isPlain => type == LyricsType.plain;
 
+  /// Plain newline-separated lyric lines with timestamps stripped for search indexing.
+  String get searchableText => lines
+      .map((l) => l.text.trim())
+      .where((t) => t.isNotEmpty)
+      .join('\n');
+
   Map<String, dynamic> toJson() => {
         'songId': songId,
         'type': type.name,

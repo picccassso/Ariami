@@ -76,6 +76,7 @@ extension _LibraryManagerApiPart on LibraryManager {
       'trackNumber': song.trackNumber,
       'hasLyrics': song.hasLyrics,
       'isInstrumental': song.resolveInstrumental(instrumentalOverrides[songId]),
+      if (song.lyrics != null) 'lyrics': song.lyrics,
     };
   }
 
@@ -163,6 +164,7 @@ extension _LibraryManagerApiPart on LibraryManager {
       'trackNumber': song.trackNumber,
       'hasLyrics': song.hasLyrics,
       'isInstrumental': song.resolveInstrumental(instrumentalOverrides[songId]),
+      if (song.lyrics != null) 'lyrics': song.lyrics,
     };
   }
 }

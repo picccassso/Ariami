@@ -39,9 +39,10 @@ CREATE TABLE songs (
           .toSet();
       expect(columns.contains('has_lyrics'), isTrue);
       expect(columns.contains('is_instrumental'), isTrue);
+      expect(columns.contains('lyrics'), isTrue);
     });
 
-    test('CatalogRepository upserts and reads hasLyrics correctly', () {
+    test('CatalogRepository upserts and reads hasLyrics and lyrics correctly', () {
       final db = sqlite3.openInMemory();
       addTearDown(db.close);
 
@@ -56,6 +57,7 @@ CREATE TABLE songs (
         durationSeconds: 200,
         updatedToken: 1,
         hasLyrics: true,
+        lyrics: 'Line one\nLine two',
       );
 
       final songWithoutLyrics = CatalogSongRecord(
@@ -74,10 +76,12 @@ CREATE TABLE songs (
       final fetched1 = repo.getSongById('song-with-lyrics');
       expect(fetched1, isNotNull);
       expect(fetched1!.hasLyrics, isTrue);
+      expect(fetched1.lyrics, 'Line one\nLine two');
 
       final fetched2 = repo.getSongById('song-without-lyrics');
       expect(fetched2, isNotNull);
       expect(fetched2!.hasLyrics, isFalse);
+      expect(fetched2.lyrics, isNull);
 
       final page = repo.listSongsPage();
       expect(page.items.length, 2);

@@ -195,6 +195,7 @@ class SongModel {
   final int? trackNumber;
   final bool hasLyrics;
   final bool isInstrumental;
+  final String? lyrics;
 
   SongModel({
     required this.id,
@@ -206,6 +207,7 @@ class SongModel {
     this.trackNumber,
     this.hasLyrics = false,
     this.isInstrumental = false,
+    this.lyrics,
   });
 
   factory SongModel.fromJson(Map<String, dynamic> json) {
@@ -221,6 +223,7 @@ class SongModel {
       trackNumber: json['trackNumber'] as int?,
       hasLyrics: json['hasLyrics'] as bool? ?? false,
       isInstrumental: json['isInstrumental'] as bool? ?? false,
+      lyrics: EncodingUtils.fixEncoding(json['lyrics'] as String?),
     );
   }
 
@@ -235,6 +238,7 @@ class SongModel {
       'trackNumber': trackNumber,
       'hasLyrics': hasLyrics,
       'isInstrumental': isInstrumental,
+      if (lyrics != null) 'lyrics': lyrics,
     };
   }
 }

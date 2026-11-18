@@ -17,6 +17,7 @@ void main() {
         artist: 'Artist',
         duration: 120,
         hasLyrics: true,
+        lyrics: 'First verse line\nSecond verse line',
       );
 
       const song2 = LibrarySongRow(
@@ -32,14 +33,17 @@ void main() {
       final read1 = await db.getSongById('s_lyrics_1');
       expect(read1, isNotNull);
       expect(read1!.hasLyrics, isTrue);
+      expect(read1.lyrics, 'First verse line\nSecond verse line');
 
       final read2 = await db.getSongById('s_lyrics_2');
       expect(read2, isNotNull);
       expect(read2!.hasLyrics, isFalse);
+      expect(read2.lyrics, isNull);
 
       final allSongs = await db.listSongs();
       final songMap = {for (final s in allSongs) s.id: s};
       expect(songMap['s_lyrics_1']?.hasLyrics, isTrue);
+      expect(songMap['s_lyrics_1']?.lyrics, 'First verse line\nSecond verse line');
       expect(songMap['s_lyrics_2']?.hasLyrics, isFalse);
     });
 
@@ -53,6 +57,7 @@ void main() {
         artist: 'Artist',
         duration: 210,
         hasLyrics: true,
+        lyrics: 'Staged chorus line',
       );
 
       await db.upsertBootstrapStagingSongs([stagingSong]);
@@ -61,6 +66,7 @@ void main() {
       final song = await db.getSongById('s_staging_1');
       expect(song, isNotNull);
       expect(song!.hasLyrics, isTrue);
+      expect(song.lyrics, 'Staged chorus line');
     });
   });
 }

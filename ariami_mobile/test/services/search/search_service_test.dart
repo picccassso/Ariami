@@ -409,5 +409,28 @@ void main() {
       expect(songs.length, 1);
       expect(songs.first.id, 'new');
     });
+
+    test('search matches songs by lyrics and returns lyric snippet', () {
+      final results = service.search(
+        'silver lining',
+        [
+          SongModel(
+            id: 's-lyric',
+            title: 'Cloudburst',
+            artist: 'Skyline',
+            duration: 180,
+            hasLyrics: true,
+            lyrics: 'Rain falls down\nFind the silver lining inside\nFade out',
+          ),
+        ],
+        const <AlbumModel>[],
+      );
+
+      expect(results.songs.map((s) => s.id), ['s-lyric']);
+      expect(
+        results.lyricSnippets['s-lyric'],
+        'Find the silver lining inside',
+      );
+    });
   });
 }

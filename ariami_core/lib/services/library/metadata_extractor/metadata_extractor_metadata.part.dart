@@ -211,8 +211,11 @@ extension _MetadataExtractorMetadataPart on MetadataExtractor {
       // Example: "01 - Song Title.mp3" => 1
       trackNumber ??= inferTrackNumberFromFilename(filePath);
 
-      final hasLyrics =
-          await LyricsExtractor.hasLyrics(filePath, knownTags: probedTags);
+      final lyrics = await LyricsExtractor.extractSearchableLyrics(
+        filePath,
+        knownTags: probedTags,
+      );
+      final hasLyrics = lyrics != null;
 
       var songMetadata = SongMetadata(
         filePath: filePath,
@@ -231,6 +234,7 @@ extension _MetadataExtractorMetadataPart on MetadataExtractor {
         fileSize: fileSize,
         modifiedTime: modifiedTime,
         hasLyrics: hasLyrics,
+        lyrics: lyrics,
       );
 
       if (songMetadata.title == null || songMetadata.title!.isEmpty) {
@@ -245,14 +249,16 @@ extension _MetadataExtractorMetadataPart on MetadataExtractor {
       );
       final file = File(filePath);
       final fileStat = await file.stat();
+      final fallbackLyrics =
+          LyricsExtractor.extractSidecarSearchableLyrics(filePath);
 
       return _parseFromFilename(
         SongMetadata(
           filePath: filePath,
           fileSize: fileStat.size,
           modifiedTime: fileStat.modified,
-          hasLyrics: LyricsExtractor.findSidecarFile(filePath, '.lrc') != null ||
-              LyricsExtractor.findSidecarFile(filePath, '.txt') != null,
+          hasLyrics: fallbackLyrics != null,
+          lyrics: fallbackLyrics,
         ),
       );
     }

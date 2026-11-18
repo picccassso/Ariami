@@ -69,7 +69,8 @@ class MetadataCache {
   /// v7: Deterministic source precedence, stricter field validation, bounded
   ///     tag parsing, and cross-format artwork fallback require re-extraction.
   /// v8: Added hasLyrics field and lyrics sidecar mtime tracking for invalidation.
-  static const int schemaVersion = 8;
+  /// v9: Added searchable lyrics text for local lyric search indexing.
+  static const int schemaVersion = 9;
 
   /// Maximum number of entries (sanity limit ~50MB)
   static const int maxEntries = 100000;

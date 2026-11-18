@@ -8,9 +8,8 @@ part 'library_sync_database_writes.dart';
 
 class LibrarySyncDatabase {
   static const String _databaseName = 'library_sync.db';
-  // v9 has no schema change: it re-runs the upgrade path on existing installs
-  // so their sync cursor is reset (see onUpgrade).
-  static const int _databaseVersion = 9;
+  // v9 had no schema change; v10 adds lyrics for local lyric search.
+  static const int _databaseVersion = 10;
 
   static const String _albumsTable = 'albums';
   static const String _songsTable = 'songs';

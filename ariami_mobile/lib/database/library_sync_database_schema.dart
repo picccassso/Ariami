@@ -29,7 +29,8 @@ class _LibrarySyncDatabaseSchema {
         track_number INTEGER,
         is_deleted INTEGER NOT NULL DEFAULT 0,
         has_lyrics INTEGER NOT NULL DEFAULT 0,
-        is_instrumental INTEGER NOT NULL DEFAULT 0
+        is_instrumental INTEGER NOT NULL DEFAULT 0,
+        lyrics TEXT
       )
     ''');
 
@@ -108,10 +109,11 @@ class _LibrarySyncDatabaseSchema {
       await _migratePlaylistSongTablesToPositionPrimaryKey(db);
     }
     if (oldVersion < 6) {
-      await _addGenreColumnIfMissing(db, LibrarySyncDatabase._songsTable);
-      await _addGenreColumnIfMissing(
+      await _addTextColumnIfMissing(db, LibrarySyncDatabase._songsTable, 'genre');
+      await _addTextColumnIfMissing(
         db,
         LibrarySyncDatabase._bootstrapSongsTable,
+        'genre',
       );
     }
     for (final (version, column) in const [
@@ -124,6 +126,14 @@ class _LibrarySyncDatabaseSchema {
         LibrarySyncDatabase._bootstrapSongsTable,
       ]) {
         await _addFlagColumnIfMissing(db, table, column);
+      }
+    }
+    if (oldVersion < 10) {
+      for (final table in const [
+        LibrarySyncDatabase._songsTable,
+        LibrarySyncDatabase._bootstrapSongsTable,
+      ]) {
+        await _addTextColumnIfMissing(db, table, 'lyrics');
       }
     }
 
@@ -143,10 +153,17 @@ class _LibrarySyncDatabaseSchema {
     );
   }
 
-  Future<void> _addGenreColumnIfMissing(Database db, String table) async {
+  Future<void> _addTextColumnIfMissing(
+    Database db,
+    String table,
+    String column,
+  ) async {
     final columns = await db.rawQuery('PRAGMA table_info($table)');
-    if (columns.any((column) => column['name'] == 'genre')) return;
-    await db.execute('ALTER TABLE $table ADD COLUMN genre TEXT');
+    if (columns.isEmpty ||
+        columns.any((existing) => existing['name'] == column)) {
+      return;
+    }
+    await db.execute('ALTER TABLE $table ADD COLUMN $column TEXT');
   }
 
   Future<void> _addFlagColumnIfMissing(
@@ -155,7 +172,10 @@ class _LibrarySyncDatabaseSchema {
     String column,
   ) async {
     final columns = await db.rawQuery('PRAGMA table_info($table)');
-    if (columns.any((existing) => existing['name'] == column)) return;
+    if (columns.isEmpty ||
+        columns.any((existing) => existing['name'] == column)) {
+      return;
+    }
     await db.execute(
       'ALTER TABLE $table ADD COLUMN $column INTEGER NOT NULL DEFAULT 0',
     );
@@ -213,7 +233,8 @@ class _LibrarySyncDatabaseSchema {
         track_number INTEGER,
         is_deleted INTEGER NOT NULL DEFAULT 0,
         has_lyrics INTEGER NOT NULL DEFAULT 0,
-        is_instrumental INTEGER NOT NULL DEFAULT 0
+        is_instrumental INTEGER NOT NULL DEFAULT 0,
+        lyrics TEXT
       )
     ''');
 

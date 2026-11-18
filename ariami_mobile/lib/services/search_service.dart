@@ -39,12 +39,18 @@ class SearchService {
     final uniqueAlbums = deduplicateAlbums(albums);
     final albumById = {for (final album in uniqueAlbums) album.id: album};
 
-    final rankedSongs = LibrarySearchEngine.rank(
+    final rankedSongs = LibrarySearchEngine.rankWithLyrics(
       parsed,
       uniqueSongs,
-      (song) => _songSearchFields(song, albumById),
+      idOf: (song) => song.id,
+      fieldsOf: (song) => _songSearchFields(song, albumById),
+      lyricsOf: (song) => song.lyrics,
     );
-    final displayUniqueRankedSongs = _deduplicateDisplaySongs(rankedSongs);
+    final lyricSnippets = Map<String, String>.of(rankedSongs.lyricSnippets);
+    final displayUniqueRankedSongs = _deduplicateDisplaySongs(
+      rankedSongs.items,
+      lyricSnippets: lyricSnippets,
+    );
 
     final rankedAlbums = LibrarySearchEngine.rank(
       parsed,
@@ -62,6 +68,7 @@ class SearchService {
       songs: displayUniqueRankedSongs,
       albums: rankedAlbums,
       playlists: rankedPlaylists,
+      lyricSnippets: lyricSnippets,
     );
   }
 
@@ -161,7 +168,10 @@ class SearchService {
   ///
   /// This intentionally ignores album/track IDs so the same audible track
   /// doesn't appear multiple times if ingested through multiple sources.
-  List<SongModel> _deduplicateDisplaySongs(List<SongModel> songs) {
+  List<SongModel> _deduplicateDisplaySongs(
+    List<SongModel> songs, {
+    Map<String, String>? lyricSnippets,
+  }) {
     if (songs.length < 2) return songs;
 
     final unique = <String, SongModel>{};
@@ -172,7 +182,17 @@ class SearchService {
         unique[key] = song;
         orderedKeys.add(key);
       } else {
-        unique[key] = _pickPreferredSong(unique[key]!, song);
+        final existing = unique[key]!;
+        final preferred = _pickPreferredSong(existing, song);
+        if (lyricSnippets != null) {
+          final snippet = lyricSnippets[preferred.id] ??
+              lyricSnippets[existing.id] ??
+              lyricSnippets[song.id];
+          if (snippet != null) {
+            lyricSnippets[preferred.id] = snippet;
+          }
+        }
+        unique[key] = preferred;
       }
     }
 
@@ -218,6 +238,7 @@ class SearchService {
     if (song.albumId != null && song.albumId!.trim().isNotEmpty) score += 2;
     if (song.duration > 0) score += 1;
     if (song.trackNumber != null) score += 1;
+    if (song.lyrics != null && song.lyrics!.trim().isNotEmpty) score += 1;
     return score;
   }
 
@@ -376,11 +397,13 @@ class SearchResults {
   final List<SongModel> songs;
   final List<AlbumModel> albums;
   final List<PlaylistModel> playlists;
+  final Map<String, String> lyricSnippets;
 
   SearchResults({
     required this.songs,
     required this.albums,
     this.playlists = const <PlaylistModel>[],
+    this.lyricSnippets = const <String, String>{},
   });
 
   bool get isEmpty => songs.isEmpty && albums.isEmpty && playlists.isEmpty;

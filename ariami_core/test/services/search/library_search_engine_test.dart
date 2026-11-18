@@ -3,11 +3,12 @@ import 'package:test/test.dart';
 
 /// A minimal stand-in for a client model (song/album/playlist).
 class _Item {
-  const _Item(this.id, this.title, [this.artist, this.albumTitle]);
+  const _Item(this.id, this.title, [this.artist, this.albumTitle, this.lyrics]);
   final String id;
   final String title;
   final String? artist;
   final String? albumTitle;
+  final String? lyrics;
 }
 
 List<SearchField> _fieldsOf(_Item item) => [
@@ -219,6 +220,56 @@ void main() {
     test('empty query matches nothing (callers treat empty as show-all)', () {
       expect(matches('', const _Item('x', 'Halo')), isFalse);
       expect(matches('   ', const _Item('x', 'Halo')), isFalse);
+    });
+  });
+
+  group('LibrarySearchEngine.rankWithLyrics', () {
+    ({List<String> ids, Map<String, String> snippets}) searchLyrics(
+      String query,
+      List<_Item> items,
+    ) {
+      final result = LibrarySearchEngine.rankWithLyrics(
+        SearchQuery.parse(query),
+        items,
+        idOf: (i) => i.id,
+        fieldsOf: _fieldsOf,
+        lyricsOf: (i) => i.lyrics,
+      );
+      return (
+        ids: [for (final item in result.items) item.id],
+        snippets: result.lyricSnippets,
+      );
+    }
+
+    test('matches single line and adjacent 2-line phrase, requires >= 3 chars', () {
+      const items = [
+        _Item('single', 'Track A', 'Artist', null, 'Line one\nDancing in the moonlight\nLine three'),
+        _Item('pair', 'Track B', 'Artist', null, 'First half of\nthe chorus line'),
+      ];
+
+      expect(searchLyrics('da', items).ids, isEmpty);
+
+      final singleHit = searchLyrics('moonlight', items);
+      expect(singleHit.ids, ['single']);
+      expect(singleHit.snippets['single'], 'Dancing in the moonlight');
+
+      final pairHit = searchLyrics('of the chorus', items);
+      expect(pairHit.ids, ['pair']);
+      expect(pairHit.snippets['pair'], 'First half of / the chorus line');
+    });
+
+    test('metadata hits rank above lyric-only hits; snippet emitted when lyric outranks or metadata missed', () {
+      const items = [
+        _Item('lyric-only', 'Sunset', 'Other', null, 'Remembering midnight rain'),
+        _Item('meta-substr', 'In the Midnight', 'Other', null, 'Midnight'),
+        _Item('meta-exact', 'Midnight', 'Other', null, 'Midnight'),
+      ];
+
+      final res = searchLyrics('midnight', items);
+      expect(res.ids, ['meta-exact', 'meta-substr', 'lyric-only']);
+      expect(res.snippets.containsKey('meta-exact'), isFalse);
+      expect(res.snippets['meta-substr'], 'Midnight');
+      expect(res.snippets['lyric-only'], 'Remembering midnight rain');
     });
   });
 }

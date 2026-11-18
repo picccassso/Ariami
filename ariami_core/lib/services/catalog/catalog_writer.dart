@@ -199,6 +199,7 @@ ON CONFLICT(artwork_key, variant) DO UPDATE SET
             updatedToken: tokenCursor,
             hasLyrics: snapshot.hasLyrics,
             isInstrumental: snapshot.isInstrumental,
+            lyrics: snapshot.lyrics,
           ),
         );
         insertChangeEvent(
@@ -216,6 +217,7 @@ ON CONFLICT(artwork_key, variant) DO UPDATE SET
             trackNumber: snapshot.trackNumber,
             hasLyrics: snapshot.hasLyrics,
             isInstrumental: snapshot.isInstrumental,
+            lyrics: snapshot.lyrics,
           ),
           occurredEpochMs: occurredEpochMs,
         );
@@ -486,6 +488,7 @@ ON CONFLICT(artwork_key, variant) DO UPDATE SET
       artworkKey: albumId,
       hasLyrics: song.hasLyrics,
       isInstrumental: song.resolveInstrumental(instrumentalOverrides[id]),
+      lyrics: song.lyrics,
     );
   }
 
@@ -592,6 +595,7 @@ class _SongSnapshot {
     required this.artworkKey,
     required this.hasLyrics,
     required this.isInstrumental,
+    this.lyrics,
   });
 
   final String id;
@@ -607,6 +611,7 @@ class _SongSnapshot {
   final String? artworkKey;
   final bool hasLyrics;
   final bool isInstrumental;
+  final String? lyrics;
 }
 
 class _PlaylistSnapshot {

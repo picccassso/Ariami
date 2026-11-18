@@ -34,6 +34,7 @@ extension _LibraryManagerCatalogRecordsPart on LibraryManager {
           hasLyrics: song.hasLyrics,
           isInstrumental:
               song.resolveInstrumental(instrumentalOverrides[songId]),
+          lyrics: song.lyrics,
           isDeleted: false,
         );
       }
@@ -57,6 +58,7 @@ extension _LibraryManagerCatalogRecordsPart on LibraryManager {
         updatedToken: 0,
         hasLyrics: song.hasLyrics,
         isInstrumental: song.resolveInstrumental(instrumentalOverrides[songId]),
+        lyrics: song.lyrics,
         isDeleted: false,
       );
     }

@@ -42,6 +42,7 @@ class CatalogSongRecord {
     required this.updatedToken,
     this.hasLyrics = false,
     this.isInstrumental = false,
+    this.lyrics,
     this.isDeleted = false,
   });
 
@@ -62,6 +63,7 @@ class CatalogSongRecord {
 
   /// Effective badge state, see [SongMetadata.resolveInstrumental].
   final bool isInstrumental;
+  final String? lyrics;
   final bool isDeleted;
 }
 
@@ -214,8 +216,9 @@ INSERT INTO songs (
   updated_token,
   has_lyrics,
   is_instrumental,
+  lyrics,
   is_deleted
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 ON CONFLICT(id) DO UPDATE SET
   file_path = excluded.file_path,
   title = excluded.title,
@@ -231,6 +234,7 @@ ON CONFLICT(id) DO UPDATE SET
   updated_token = excluded.updated_token,
   has_lyrics = excluded.has_lyrics,
   is_instrumental = excluded.is_instrumental,
+  lyrics = excluded.lyrics,
   is_deleted = excluded.is_deleted;
 ''',
       <Object?>[
@@ -249,6 +253,7 @@ ON CONFLICT(id) DO UPDATE SET
         song.updatedToken,
         song.hasLyrics ? 1 : 0,
         song.isInstrumental ? 1 : 0,
+        song.lyrics,
         song.isDeleted ? 1 : 0,
       ],
     );
@@ -446,6 +451,7 @@ SELECT
   updated_token,
   has_lyrics,
   is_instrumental,
+  lyrics,
   is_deleted
 FROM songs
 WHERE is_deleted = 0
@@ -472,6 +478,7 @@ SELECT
   updated_token,
   has_lyrics,
   is_instrumental,
+  lyrics,
   is_deleted
 FROM songs
 WHERE is_deleted = 0 AND id > ?
@@ -522,6 +529,7 @@ SELECT
   updated_token,
   has_lyrics,
   is_instrumental,
+  lyrics,
   is_deleted
 FROM songs
 WHERE id = ? AND is_deleted = 0
@@ -557,6 +565,7 @@ SELECT
   updated_token,
   has_lyrics,
   is_instrumental,
+  lyrics,
   is_deleted
 FROM songs
 WHERE id IN ($placeholders) AND is_deleted = 0;
@@ -592,6 +601,7 @@ SELECT
   updated_token,
   has_lyrics,
   is_instrumental,
+  lyrics,
   is_deleted
 FROM songs
 WHERE album_id IN ($placeholders) AND is_deleted = 0;
@@ -881,6 +891,7 @@ WHERE token < ?;
       updatedToken: row['updated_token'] as int,
       hasLyrics: ((row['has_lyrics'] as int?) ?? 0) == 1,
       isInstrumental: ((row['is_instrumental'] as int?) ?? 0) == 1,
+      lyrics: row['lyrics'] as String?,
       isDeleted: (row['is_deleted'] as int) == 1,
     );
   }

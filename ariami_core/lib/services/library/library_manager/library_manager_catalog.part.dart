@@ -158,6 +158,7 @@ extension _LibraryManagerCatalogPart on LibraryManager {
             updatedToken: tokenCursor,
             hasLyrics: record.hasLyrics,
             isInstrumental: record.isInstrumental,
+            lyrics: record.lyrics,
             isDeleted: false,
           ),
         );
@@ -176,6 +177,7 @@ extension _LibraryManagerCatalogPart on LibraryManager {
             trackNumber: record.trackNumber,
             hasLyrics: record.hasLyrics,
             isInstrumental: record.isInstrumental,
+            lyrics: record.lyrics,
           ),
           occurredEpochMs: occurredEpochMs,
         );
@@ -378,6 +380,7 @@ extension _LibraryManagerCatalogPart on LibraryManager {
             trackNumber: record.trackNumber,
             hasLyrics: record.hasLyrics,
             isInstrumental: !record.isInstrumental,
+            lyrics: record.lyrics,
           ),
           occurredEpochMs: occurredEpochMs,
         );

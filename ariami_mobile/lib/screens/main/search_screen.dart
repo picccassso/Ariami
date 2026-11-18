@@ -261,16 +261,27 @@ class _SearchScreenState extends State<SearchScreen> {
         .where((task) => task.status == DownloadStatus.completed)
         .toList();
 
-    final songs = downloadedTasks
-        .map((task) => SongModel(
-              id: task.songId,
-              title: task.title,
-              artist: task.artist,
-              albumId: task.albumId,
-              duration: task.duration,
-              trackNumber: task.trackNumber,
-            ))
-        .toList();
+    final songs = await Future.wait(
+      downloadedTasks.map((task) async {
+        final downloadedLyrics =
+            await _downloadManager.getDownloadedLyrics(task.songId);
+        final searchableLyrics = downloadedLyrics?.searchableText;
+        return SongModel(
+          id: task.songId,
+          title: task.title,
+          artist: task.artist,
+          albumId: task.albumId,
+          duration: task.duration,
+          trackNumber: task.trackNumber,
+          hasLyrics: downloadedLyrics != null ||
+              _downloadManager.hasDownloadedLyrics(task.songId),
+          lyrics: (searchableLyrics == null || searchableLyrics.isEmpty)
+              ? null
+              : searchableLyrics,
+        );
+      }),
+    );
+    if (!mounted) return;
 
     final albumMap = <String, List<DownloadTask>>{};
     for (final task in downloadedTasks) {
@@ -794,6 +805,7 @@ class _SearchScreenState extends State<SearchScreen> {
       isCached: false,
       isAvailable: !_isOffline || _downloadedSongIds.contains(song.id),
       isInRecentSearch: _recentSongIds.contains(song.id),
+      lyricSnippet: _searchResults?.lyricSnippets[song.id],
     );
 
     if (_searchFullCatalog &&
