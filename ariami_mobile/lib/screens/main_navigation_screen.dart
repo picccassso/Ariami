@@ -16,6 +16,8 @@ import '../widgets/common/bottom_chrome_metrics.dart';
 import '../screens/full_player_screen.dart';
 import '../services/cast/chrome_cast_service.dart';
 import '../services/playback_manager.dart';
+import '../services/theme_service.dart';
+import '../widgets/common/ambient_backdrop.dart';
 import '../services/ariami_connect_controller.dart';
 import '../utils/constants.dart';
 import '../widgets/common/queue_action_confirmation.dart';
@@ -279,11 +281,22 @@ class _MainNavigationScreenState extends State<MainNavigationScreen>
       body: Stack(
         fit: StackFit.expand,
         children: [
-          // The sleeve's two-ink ground; the glow only backs the full player
-          // and the setup screens.
+          // The sleeve's two-ink ground, or the glow while the moving
+          // background is on.
           Positioned.fill(
-            child: DecoratedBox(
-              decoration: BoxDecoration(gradient: colors.groundGradient),
+            child: ListenableBuilder(
+              listenable: Listenable.merge([ThemeService(), _playbackManager]),
+              builder: (context, _) {
+                if (!ThemeService().movingBackdrop) {
+                  return DecoratedBox(
+                    decoration: BoxDecoration(gradient: colors.groundGradient),
+                  );
+                }
+                final song = _playbackManager.currentSong;
+                return PlayerBackdrop(
+                  layoutSeed: (song?.albumId ?? song?.id ?? '').hashCode,
+                );
+              },
             ),
           ),
           useRail
