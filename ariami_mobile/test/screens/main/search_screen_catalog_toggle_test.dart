@@ -95,6 +95,18 @@ void main() {
     await tester.pump();
   }
 
+  Future<void> pumpUntil(
+    WidgetTester tester,
+    bool Function() condition,
+  ) async {
+    for (var i = 0; i < 40 && !condition(); i++) {
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 25)),
+      );
+      await tester.pump();
+    }
+  }
+
   testWidgets(
     'hides Search full server catalog toggle in full library mode',
     (tester) async {
@@ -103,11 +115,13 @@ void main() {
       expect(find.text('Search full server catalog'), findsNothing);
 
       await tester.enterText(find.byType(TextField), 'One');
-      await tester.pump(const Duration(milliseconds: 350));
+      await tester.pump(const Duration(milliseconds: 150));
+      await pumpUntil(tester, () => find.text('One More Time').evaluate().isNotEmpty);
 
       expect(find.text('Search full server catalog'), findsNothing);
       expect(find.text('One More Time'), findsOneWidget);
       expect(find.text('One Night Stand'), findsOneWidget);
+      await tester.pumpWidget(const SizedBox.shrink());
     },
   );
 
@@ -136,7 +150,8 @@ void main() {
       expect(find.text('Search full server catalog'), findsNothing);
 
       await tester.enterText(find.byType(TextField), 'One');
-      await tester.pump(const Duration(milliseconds: 350));
+      await tester.pump(const Duration(milliseconds: 150));
+      await pumpUntil(tester, () => find.text('One More Time').evaluate().isNotEmpty);
 
       expect(find.text('Search full server catalog'), findsOneWidget);
       expect(find.text('One More Time'), findsOneWidget);
@@ -144,6 +159,7 @@ void main() {
 
       await tester.tap(find.text('Search full server catalog'));
       await tester.pump();
+      await pumpUntil(tester, () => find.text('One Night Stand').evaluate().isNotEmpty);
 
       expect(find.text('One Night Stand'), findsOneWidget);
       expect(find.widgetWithText(ActionChip, 'Add'), findsOneWidget);
@@ -152,6 +168,7 @@ void main() {
       await tester.enterText(find.byType(TextField), '');
       await tester.pump();
       expect(find.text('Search full server catalog'), findsNothing);
+      await tester.pumpWidget(const SizedBox.shrink());
     },
   );
 
@@ -176,13 +193,15 @@ void main() {
 
       await pumpSearchScreen(tester);
       await tester.enterText(find.byType(TextField), 'One');
-      await tester.pump(const Duration(milliseconds: 350));
+      await tester.pump(const Duration(milliseconds: 150));
+      await pumpUntil(tester, () => find.text('One More Time').evaluate().isNotEmpty);
 
       expect(find.text('Search full server catalog'), findsOneWidget);
       expect(find.text('One Night Stand'), findsNothing);
 
       await tester.tap(find.text('Search full server catalog'));
       await tester.pump();
+      await pumpUntil(tester, () => find.text('One Night Stand').evaluate().isNotEmpty);
       expect(find.text('One Night Stand'), findsOneWidget);
 
       // Switching to unrestricted full mode hides toggle and resets its state.
@@ -213,12 +232,14 @@ void main() {
         ),
       );
       await tester.pump();
+      await pumpUntil(tester, () => find.text('One Night Stand').evaluate().isEmpty);
 
       final chip = tester.widget<FilterChip>(
         find.widgetWithText(FilterChip, 'Search full server catalog'),
       );
       expect(chip.selected, isFalse);
       expect(find.text('One Night Stand'), findsNothing);
+      await tester.pumpWidget(const SizedBox.shrink());
     },
   );
 }

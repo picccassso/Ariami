@@ -11,6 +11,8 @@
 ///   on a QWERTY layout — can find `Кино`.
 library;
 
+import 'dart:collection';
+
 /// Normalized, match-ready representation of a text field or query token.
 class SearchText {
   const SearchText({
@@ -54,9 +56,10 @@ class SearchNormalizer {
   SearchNormalizer._();
 
   // Normalization is re-run on every field of every item per search, so
-  // results are memoized; library strings repeat across searches. The cache
-  // is cleared wholesale when it grows past the cap (simple + deterministic).
-  static final Map<String, SearchText> _cache = <String, SearchText>{};
+  // results are memoized; library strings repeat across searches. Bounded LRU
+  // keeps hot metadata entries when lyrics or large queries pass through.
+  static final LinkedHashMap<String, SearchText> _cache =
+      LinkedHashMap<String, SearchText>();
   static const int _cacheLimit = 50000;
 
   /// Apostrophe-family characters are deleted (not replaced by a space) so
@@ -73,11 +76,19 @@ class SearchNormalizer {
 
   static final RegExp _cyrillic = RegExp('[Ѐ-ӿ]');
 
-  static SearchText of(String raw) {
-    final cached = _cache[raw];
-    if (cached != null) return cached;
+  static SearchText of(String raw, {bool cache = true}) {
+    if (!cache) {
+      return _cache[raw] ?? _normalize(raw);
+    }
+    final cached = _cache.remove(raw);
+    if (cached != null) {
+      _cache[raw] = cached;
+      return cached;
+    }
     final result = _normalize(raw);
-    if (_cache.length >= _cacheLimit) _cache.clear();
+    if (_cache.length >= _cacheLimit) {
+      _cache.remove(_cache.keys.first);
+    }
     _cache[raw] = result;
     return result;
   }

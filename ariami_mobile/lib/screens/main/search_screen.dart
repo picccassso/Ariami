@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'library/library_controller.dart';
 import '../../utils/responsive.dart';
 import '../../widgets/common/mini_player_aware_bottom_sheet.dart';
 import '../../widgets/common/queue_action_confirmation.dart';
@@ -69,7 +70,8 @@ class _SearchScreenState extends State<SearchScreen> {
   final PlaylistService _playlistService = PlaylistService();
   final LibraryCurationService _curationService = LibraryCurationService();
   final SearchSettingsService _searchSettingsService = SearchSettingsService();
-  final DebouncedSearch _debouncer = DebouncedSearch();
+  final DebouncedSearch _debouncer =
+      DebouncedSearch(delay: const Duration(milliseconds: 120));
   final TextEditingController _searchController = TextEditingController();
   final FocusNode _searchFocusNode = FocusNode();
 
@@ -86,9 +88,10 @@ class _SearchScreenState extends State<SearchScreen> {
 
   bool _searchFullCatalog = false;
   bool _isLoading = false;
-  bool _isSearching = false;
   bool _isOffline = false;
   String? _errorMessage;
+  int _searchGeneration = 0;
+  Future<void>? _catalogSyncInFlight;
   StreamSubscription<OfflineMode>? _offlineSubscription;
   StreamSubscription<WsMessage>? _webSocketSubscription;
   late final DownloadStateWatcher _downloadStateWatcher;
@@ -103,7 +106,13 @@ class _SearchScreenState extends State<SearchScreen> {
     _isOffline = _offlineService.isOfflineModeEnabled;
     _searchSettingsService.initialize();
     _searchSettingsService.addListener(_onSearchSettingsChanged);
-    _loadLibrary();
+    if (!_isOffline &&
+        widget.libraryBundleLoaderForTest == null &&
+        _seedLibraryFromController()) {
+      unawaited(_syncSearchCatalog());
+    } else {
+      _loadLibrary();
+    }
     _loadRecentSongs();
     _loadDownloadedSongIds();
     // Playlists are stored locally, so they are searchable online and
@@ -160,6 +169,7 @@ class _SearchScreenState extends State<SearchScreen> {
     _debouncer.cancel();
     _offlineSubscription?.cancel();
     _webSocketSubscription?.cancel();
+    unawaited(_searchService.dispose());
     super.dispose();
   }
 
@@ -201,6 +211,39 @@ class _SearchScreenState extends State<SearchScreen> {
     unawaited(_loadLibrary());
   }
 
+  bool _seedLibraryFromController() {
+    final controller = LibraryController();
+    if (!controller.hasRawCatalog ||
+        (controller.rawSongs.isEmpty && controller.rawAlbums.isEmpty)) {
+      return false;
+    }
+
+    final rawSongs = List<SongModel>.from(controller.rawSongs);
+    final rawAlbums = List<AlbumModel>.from(controller.rawAlbums);
+    final allSongs = _searchService.deduplicateSongs(rawSongs);
+    final albums = _searchService.deduplicateAlbums(rawAlbums);
+
+    _rawSongs = allSongs;
+    _rawAlbums = albums;
+    _rawAlbumsById = {for (final album in albums) album.id: album};
+    if (_curationService.filter.isPassThrough) {
+      _searchFullCatalog = false;
+    }
+    _applyCuratedSearchLists();
+    return true;
+  }
+
+  Future<void> _syncSearchCatalog() {
+    final future = _searchService.setCatalog(
+      songs: _allSongs,
+      albums: _allAlbums,
+      playlists: _playlistService.playlists,
+      deduplicated: true,
+    );
+    _catalogSyncInFlight = future;
+    return future;
+  }
+
   Future<void> _loadLibrary() async {
     if (_offlineService.isOfflineModeEnabled) {
       setState(() {
@@ -214,16 +257,26 @@ class _SearchScreenState extends State<SearchScreen> {
     }
 
     try {
-      setState(() {
-        _isLoading = true;
-        _errorMessage = null;
-      });
+      if (_rawSongs.isEmpty && _rawAlbums.isEmpty) {
+        setState(() {
+          _isLoading = true;
+          _errorMessage = null;
+        });
+      }
 
-      final library = widget.libraryBundleLoaderForTest != null
-          ? await widget.libraryBundleLoaderForTest!()
-          : await _connectionService.libraryReadFacade.getLibraryBundle();
-      final rawSongs = List<SongModel>.from(library.songs);
-      final rawAlbums = List<AlbumModel>.from(library.albums);
+      final List<SongModel> rawSongs;
+      final List<AlbumModel> rawAlbums;
+      if (widget.libraryBundleLoaderForTest != null) {
+        final library = await widget.libraryBundleLoaderForTest!();
+        rawSongs = List<SongModel>.from(library.songs);
+        rawAlbums = List<AlbumModel>.from(library.albums);
+      } else {
+        final catalog =
+            await _connectionService.libraryReadFacade.getSearchCatalog();
+        rawSongs = List<SongModel>.from(catalog.songs);
+        rawAlbums = List<AlbumModel>.from(catalog.albums);
+      }
+      if (!mounted) return;
       final allSongs = _searchService.deduplicateSongs(rawSongs);
       final albums = _searchService.deduplicateAlbums(rawAlbums);
 
@@ -247,8 +300,10 @@ class _SearchScreenState extends State<SearchScreen> {
         _applyCuratedSearchLists();
         _isLoading = false;
       });
+      unawaited(_syncSearchCatalog());
       _refreshSearchIfNeeded();
     } catch (e) {
+      if (!mounted) return;
       setState(() {
         _isLoading = false;
         _errorMessage = 'Failed to load library: $e';
@@ -317,6 +372,7 @@ class _SearchScreenState extends State<SearchScreen> {
       };
       _isLoading = false;
     });
+    unawaited(_syncSearchCatalog());
     _refreshSearchIfNeeded();
   }
 
@@ -348,40 +404,39 @@ class _SearchScreenState extends State<SearchScreen> {
 
     if (query.isEmpty) {
       _debouncer.cancel();
+      _searchGeneration++;
       setState(() {
         _searchResults = null;
-        _isSearching = false;
       });
       return;
     }
 
-    setState(() {
-      _isSearching = true;
-    });
-
     _debouncer.run(() {
-      _performSearch(query);
+      unawaited(_performSearch(query));
     });
   }
 
-  void _performSearch(String query) {
-    if (query.trim() != _searchController.text.trim()) return;
+  Future<void> _performSearch(String query) async {
+    final trimmed = query.trim();
+    if (trimmed != _searchController.text.trim()) return;
     if (!mounted) return;
 
-    final results = _searchService.search(
-      query,
-      _allSongs,
-      _allAlbums,
-      playlists: _playlistService.playlists,
-    );
+    final generation = ++_searchGeneration;
+    await _catalogSyncInFlight;
+    if (!mounted || generation != _searchGeneration) return;
+
+    final results = await _searchService.searchAsync(query);
+    if (!mounted || generation != _searchGeneration) return;
+    if (trimmed != _searchController.text.trim()) return;
+
     setState(() {
       _searchResults = results;
-      _isSearching = false;
     });
   }
 
   void _onPlaylistsChanged() {
     if (!mounted) return;
+    unawaited(_syncSearchCatalog());
     _refreshSearchIfNeeded();
   }
 
@@ -393,6 +448,7 @@ class _SearchScreenState extends State<SearchScreen> {
       }
       _applyCuratedSearchLists();
     });
+    unawaited(_syncSearchCatalog());
     _refreshSearchIfNeeded();
   }
 
@@ -423,7 +479,7 @@ class _SearchScreenState extends State<SearchScreen> {
   void _refreshSearchIfNeeded() {
     final query = _searchController.text.trim();
     if (query.isEmpty) return;
-    _performSearch(query);
+    unawaited(_performSearch(query));
   }
 
   Future<void> _playRecentSong(SongModel song) async {
@@ -432,10 +488,10 @@ class _SearchScreenState extends State<SearchScreen> {
 
   void _clearSearch() {
     _debouncer.cancel();
+    _searchGeneration++;
     _searchController.clear();
     setState(() {
       _searchResults = null;
-      _isSearching = false;
     });
   }
 
@@ -625,6 +681,7 @@ class _SearchScreenState extends State<SearchScreen> {
                             _searchFullCatalog = selected;
                             _applyCuratedSearchLists();
                           });
+                          unawaited(_syncSearchCatalog());
                           _refreshSearchIfNeeded();
                         },
                       ),
@@ -664,15 +721,16 @@ class _SearchScreenState extends State<SearchScreen> {
   }
 
   Widget _buildSearchResults() {
-    if (_isSearching) {
-      return const Center(child: CircularProgressIndicator());
+    final results = _searchResults;
+    if (results == null) {
+      return const SizedBox.shrink();
     }
 
-    if (_searchResults == null || _searchResults!.isEmpty) {
+    if (results.isEmpty) {
       return _buildNoResultsState();
     }
 
-    final items = _buildSearchResultItems(_searchResults!);
+    final items = _buildSearchResultItems(results);
     return MiniPlayerScrollPaddingBuilder(
       builder: (context, bottomPadding) {
         return ListView.builder(

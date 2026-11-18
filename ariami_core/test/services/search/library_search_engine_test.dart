@@ -271,5 +271,64 @@ void main() {
       expect(res.snippets['meta-substr'], 'Midnight');
       expect(res.snippets['lyric-only'], 'Remembering midnight rain');
     });
+
+    test('disables fuzzy matching on lyrics while keeping fuzzy on metadata', () {
+      const items = [
+        _Item('meta-fuzzy', 'Stronger', 'Artist', null, 'Unrelated line'),
+        _Item('lyric-no-fuzzy', 'Plain Title', 'Artist', null,
+            'Dancing in the moonlight'),
+      ];
+
+      expect(searchLyrics('stringer', items).ids, ['meta-fuzzy']);
+      expect(searchLyrics('moonlighx', items).ids, isEmpty);
+    });
+  });
+
+  group('LibrarySearchWorker', () {
+    test('ranks catalog off-isolate and supports collection-only queries',
+        () async {
+      final worker = LibrarySearchWorker();
+      addTearDown(worker.dispose);
+
+      await worker.setCatalog(
+        songs: const [
+          SearchableSongEntry(
+            id: 's1',
+            title: 'Midnight',
+            artist: 'Skyline',
+            albumId: 'a1',
+            lyrics: 'Quiet streets',
+          ),
+          SearchableSongEntry(
+            id: 's2',
+            title: 'Cloudburst',
+            artist: 'Skyline',
+            lyrics: 'Rain falls down\nRemembering midnight rain',
+          ),
+        ],
+        albums: const [
+          SearchableAlbumEntry(
+            id: 'a1',
+            title: 'Midnight Echoes',
+            artist: 'Skyline',
+          ),
+        ],
+        playlists: const [
+          SearchablePlaylistEntry(id: 'p1', name: 'Midnight Drive'),
+        ],
+      );
+
+      final all = await worker.search('midnight');
+      expect(all.songIds, ['s1', 's2']);
+      expect(all.albumIds, ['a1']);
+      expect(all.playlistIds, ['p1']);
+      expect(all.lyricSnippets, {'s2': 'Remembering midnight rain'});
+
+      final collections = await worker.searchCollections('midnight');
+      expect(collections.songIds, isEmpty);
+      expect(collections.lyricSnippets, isEmpty);
+      expect(collections.albumIds, ['a1']);
+      expect(collections.playlistIds, ['p1']);
+    });
   });
 }

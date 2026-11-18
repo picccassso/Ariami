@@ -14,6 +14,12 @@ class SearchService {
   static const String _recentSongsKey = recentSongsKey;
 
   final SearchSettingsService _settingsService;
+  LibrarySearchWorker? _worker;
+  Future<void>? _setCatalogInFlight;
+  bool _disposed = false;
+  Map<String, SongModel> _songsById = const <String, SongModel>{};
+  Map<String, AlbumModel> _albumsById = const <String, AlbumModel>{};
+  Map<String, PlaylistModel> _playlistsById = const <String, PlaylistModel>{};
 
   SearchService({SearchSettingsService? settingsService})
       : _settingsService = settingsService ?? SearchSettingsService();
@@ -24,19 +30,155 @@ class SearchService {
     return _settingsService.recentSearchesLimit;
   }
 
+  Future<void> setCatalog({
+    required List<SongModel> songs,
+    required List<AlbumModel> albums,
+    List<PlaylistModel> playlists = const <PlaylistModel>[],
+    bool deduplicated = false,
+  }) async {
+    if (_disposed) return;
+
+    final uniqueSongs = deduplicated ? songs : deduplicateSongs(songs);
+    final uniqueAlbums = deduplicated ? albums : deduplicateAlbums(albums);
+    final albumsById = <String, AlbumModel>{
+      for (final album in uniqueAlbums) album.id: album,
+    };
+    _songsById = <String, SongModel>{
+      for (final song in uniqueSongs) song.id: song,
+    };
+    _albumsById = albumsById;
+    _playlistsById = <String, PlaylistModel>{
+      for (final playlist in playlists) playlist.id: playlist,
+    };
+
+    if (uniqueSongs.isEmpty &&
+        uniqueAlbums.isEmpty &&
+        playlists.isEmpty &&
+        _worker == null) {
+      return;
+    }
+
+    final worker = _worker ??= LibrarySearchWorker();
+    final future = worker.setCatalog(
+      songs: [
+        for (final song in uniqueSongs)
+          SearchableSongEntry(
+            id: song.id,
+            title: song.title,
+            artist: song.artist,
+            albumId: song.albumId,
+            albumTitle:
+                song.albumId == null ? null : albumsById[song.albumId!]?.title,
+            albumArtist:
+                song.albumId == null ? null : albumsById[song.albumId!]?.artist,
+            lyrics: song.lyrics,
+          ),
+      ],
+      albums: [
+        for (final album in uniqueAlbums)
+          SearchableAlbumEntry(
+            id: album.id,
+            title: album.title,
+            artist: album.artist,
+          ),
+      ],
+      playlists: [
+        for (final playlist in playlists)
+          SearchablePlaylistEntry(
+            id: playlist.id,
+            name: playlist.name,
+          ),
+      ],
+    );
+    _setCatalogInFlight = future;
+    try {
+      await future;
+    } finally {
+      if (identical(_setCatalogInFlight, future)) {
+        _setCatalogInFlight = null;
+      }
+    }
+  }
+
+  Future<SearchResults> searchAsync(
+    String query, {
+    int? songLimit,
+    int? albumLimit,
+    int? playlistLimit,
+  }) async {
+    final worker = _worker;
+    if (_disposed || worker == null || query.trim().isEmpty) {
+      return SearchResults(songs: [], albums: []);
+    }
+
+    final songsById = _songsById;
+    final albumsById = _albumsById;
+    final playlistsById = _playlistsById;
+    final workerResults = await worker.search(
+      query,
+      songLimit: songLimit,
+      albumLimit: albumLimit,
+      playlistLimit: playlistLimit,
+    );
+    if (workerResults.isEmpty) {
+      return SearchResults(songs: [], albums: []);
+    }
+
+    final songs = <SongModel>[
+      for (final id in workerResults.songIds)
+        if (songsById[id] case final song?) song,
+    ];
+    final lyricSnippets = Map<String, String>.of(workerResults.lyricSnippets);
+    final displaySongs = _deduplicateDisplaySongs(
+      songs,
+      lyricSnippets: lyricSnippets,
+    );
+    final albums = <AlbumModel>[
+      for (final id in workerResults.albumIds)
+        if (albumsById[id] case final album?) album,
+    ];
+    final playlists = <PlaylistModel>[
+      for (final id in workerResults.playlistIds)
+        if (playlistsById[id] case final playlist?) playlist,
+    ];
+
+    return SearchResults(
+      songs: displaySongs,
+      albums: albums,
+      playlists: playlists,
+      lyricSnippets: lyricSnippets,
+    );
+  }
+
+  Future<void> dispose() async {
+    _disposed = true;
+    final inFlight = _setCatalogInFlight;
+    if (inFlight != null) {
+      try {
+        await inFlight;
+      } catch (_) {}
+    }
+    final worker = _worker;
+    _worker = null;
+    if (worker != null) {
+      await worker.dispose();
+    }
+  }
+
   SearchResults search(
     String query,
     List<SongModel> songs,
     List<AlbumModel> albums, {
     List<PlaylistModel> playlists = const <PlaylistModel>[],
+    bool deduplicated = false,
   }) {
     final parsed = SearchQuery.parse(query);
     if (parsed.isEmpty) {
       return SearchResults(songs: [], albums: []);
     }
 
-    final uniqueSongs = deduplicateSongs(songs);
-    final uniqueAlbums = deduplicateAlbums(albums);
+    final uniqueSongs = deduplicated ? songs : deduplicateSongs(songs);
+    final uniqueAlbums = deduplicated ? albums : deduplicateAlbums(albums);
     final albumById = {for (final album in uniqueAlbums) album.id: album};
 
     final rankedSongs = LibrarySearchEngine.rankWithLyrics(

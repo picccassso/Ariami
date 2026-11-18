@@ -432,5 +432,74 @@ void main() {
         'Find the silver lining inside',
       );
     });
+
+    test('searchAsync uses worker and deduplicates display results', () async {
+      final workerService = SearchService();
+      addTearDown(workerService.dispose);
+
+      await workerService.setCatalog(
+        songs: [
+          SongModel(
+            id: 's1',
+            title: 'Cloudburst',
+            artist: 'Skyline',
+            albumId: 'a1',
+            duration: 180,
+            hasLyrics: true,
+            lyrics: 'Rain falls down\nFind the silver lining inside',
+          ),
+          SongModel(
+            id: 's2',
+            title: 'Cloudburst',
+            artist: 'Skyline',
+            duration: 180,
+          ),
+        ],
+        albums: [
+          AlbumModel(
+            id: 'a1',
+            title: 'Horizon',
+            artist: 'Skyline',
+            songCount: 1,
+            duration: 180,
+          ),
+        ],
+      );
+
+      final results = await workerService.searchAsync('silver lining');
+      expect(results.songs.map((s) => s.id), ['s1']);
+      expect(
+        results.lyricSnippets['s1'],
+        'Find the silver lining inside',
+      );
+      expect(
+        workerService
+            .search(
+              'horizon',
+              [
+                SongModel(
+                  id: 's1',
+                  title: 'Cloudburst',
+                  artist: 'Skyline',
+                  albumId: 'a1',
+                  duration: 180,
+                ),
+              ],
+              [
+                AlbumModel(
+                  id: 'a1',
+                  title: 'Horizon',
+                  artist: 'Skyline',
+                  songCount: 1,
+                  duration: 180,
+                ),
+              ],
+              deduplicated: true,
+            )
+            .songs
+            .map((s) => s.id),
+        ['s1'],
+      );
+    });
   });
 }

@@ -18,18 +18,21 @@ class SearchNavigator extends StatelessWidget {
     super.key,
     this.onBackAtRoot,
     this.reselectionRequests,
+    this.isActive = true,
   });
 
   final VoidCallback? onBackAtRoot;
 
   /// Changes whenever the already-selected Search destination is tapped.
   final ValueListenable<int>? reselectionRequests;
+  final bool isActive;
 
   @override
   Widget build(BuildContext context) {
     return NestedTabNavigator(
       navigatorKey: searchNavigatorKey,
       onBackAtRoot: onBackAtRoot,
+      isActive: isActive,
       onGenerateRoute: (settings) {
         Widget page;
 

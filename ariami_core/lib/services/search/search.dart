@@ -3,4 +3,5 @@
 library;
 
 export 'library_search_engine.dart';
+export 'library_search_worker.dart';
 export 'search_normalizer.dart';

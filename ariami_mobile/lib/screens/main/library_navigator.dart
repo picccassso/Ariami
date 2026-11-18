@@ -9,15 +9,21 @@ import 'nested_tab_navigator.dart';
 final GlobalKey<NavigatorState> libraryNavigatorKey = GlobalKey<NavigatorState>();
 
 class LibraryNavigator extends StatelessWidget {
-  const LibraryNavigator({super.key, this.onBackAtRoot});
+  const LibraryNavigator({
+    super.key,
+    this.onBackAtRoot,
+    this.isActive = true,
+  });
 
   final VoidCallback? onBackAtRoot;
+  final bool isActive;
 
   @override
   Widget build(BuildContext context) {
     return NestedTabNavigator(
       navigatorKey: libraryNavigatorKey,
       onBackAtRoot: onBackAtRoot,
+      isActive: isActive,
       onGenerateRoute: (settings) {
         Widget page;
 

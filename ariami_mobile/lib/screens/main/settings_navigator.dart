@@ -24,15 +24,21 @@ final GlobalKey<NavigatorState> settingsNavigatorKey =
 /// This allows detail screens to be shown within the tab
 /// while keeping the bottom navigation bar and mini player visible.
 class SettingsNavigator extends StatelessWidget {
-  const SettingsNavigator({super.key, this.onBackAtRoot});
+  const SettingsNavigator({
+    super.key,
+    this.onBackAtRoot,
+    this.isActive = true,
+  });
 
   final VoidCallback? onBackAtRoot;
+  final bool isActive;
 
   @override
   Widget build(BuildContext context) {
     return NestedTabNavigator(
       navigatorKey: settingsNavigatorKey,
       onBackAtRoot: onBackAtRoot,
+      isActive: isActive,
       onGenerateRoute: (settings) {
         Widget page;
 

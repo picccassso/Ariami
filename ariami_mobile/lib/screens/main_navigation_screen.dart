@@ -30,6 +30,7 @@ class MainNavigationScreen extends StatefulWidget {
 class _MainNavigationScreenState extends State<MainNavigationScreen>
     with WidgetsBindingObserver {
   int _currentIndex = 0;
+  final List<bool> _visitedTabs = <bool>[true, false, false];
   final PlaybackManager _playbackManager = PlaybackManager();
   final ChromeCastService _castService = ChromeCastService();
   final AriamiConnectController _connect = AriamiConnectController();
@@ -37,11 +38,16 @@ class _MainNavigationScreenState extends State<MainNavigationScreen>
   bool _refreshConnectOnResume = false;
   StreamSubscription<Future<void> Function()>? _queueReplacedSubscription;
 
-  void _goToLibrary() {
+  void _selectTab(int index) {
+    if (_currentIndex == index) return;
+    FocusManager.instance.primaryFocus?.unfocus();
     setState(() {
-      _currentIndex = 0;
+      _currentIndex = index;
+      _visitedTabs[index] = true;
     });
   }
+
+  void _goToLibrary() => _selectTab(0);
 
   GlobalKey<NavigatorState> get _currentNavigatorKey {
     switch (_currentIndex) {
@@ -129,15 +135,6 @@ class _MainNavigationScreenState extends State<MainNavigationScreen>
   }
 
   @override
-  void didChangeMetrics() {
-    // Rebuild when window metrics (notably the keyboard inset) change. The
-    // outer Scaffold uses resizeToAvoidBottomInset: false, so it does not
-    // rebuild on keyboard toggles on its own. Without this, the mini player
-    // overlay would stay in the tree and hover above the keyboard.
-    if (mounted) setState(() {});
-  }
-
-  @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.detached) {
       unawaited(
@@ -185,9 +182,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen>
           break;
       }
     } else {
-      setState(() {
-        _currentIndex = index;
-      });
+      _selectTab(index);
     }
   }
 
@@ -199,26 +194,55 @@ class _MainNavigationScreenState extends State<MainNavigationScreen>
     );
   }
 
+  Widget _tabSlot(int index, Widget child) {
+    final isActive = _currentIndex == index;
+    return TickerMode(
+      enabled: isActive,
+      child: ExcludeFocus(
+        excluding: !isActive,
+        child: child,
+      ),
+    );
+  }
+
   Widget _buildCurrentScreen() {
-    switch (_currentIndex) {
-      case 0:
-        return LibraryNavigator(onBackAtRoot: _exitApp);
-      case 1:
-        return SearchNavigator(
-          onBackAtRoot: _goToLibrary,
-          reselectionRequests: _searchTabReselections,
-        );
-      case 2:
-        return SettingsNavigator(onBackAtRoot: _goToLibrary);
-      default:
-        return LibraryNavigator(onBackAtRoot: _exitApp);
-    }
+    return IndexedStack(
+      index: _currentIndex,
+      children: [
+        _tabSlot(
+          0,
+          LibraryNavigator(
+            onBackAtRoot: _exitApp,
+            isActive: _currentIndex == 0,
+          ),
+        ),
+        if (_visitedTabs[1])
+          _tabSlot(
+            1,
+            SearchNavigator(
+              onBackAtRoot: _goToLibrary,
+              reselectionRequests: _searchTabReselections,
+              isActive: _currentIndex == 1,
+            ),
+          )
+        else
+          const SizedBox.shrink(),
+        if (_visitedTabs[2])
+          _tabSlot(
+            2,
+            SettingsNavigator(
+              onBackAtRoot: _goToLibrary,
+              isActive: _currentIndex == 2,
+            ),
+          )
+        else
+          const SizedBox.shrink(),
+      ],
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    final bottomNavHeight = getBottomNavigationBarTotalHeight(context);
-    final keyboardOpen = isKeyboardOpen(context);
     // Wide (tablet/landscape) layouts navigate with an extended sidebar
     // instead of a bottom bar; the mini player docks at the bottom of that
     // sidebar (Spotify-style), so the content overlay is phone-only.
@@ -234,12 +258,14 @@ class _MainNavigationScreenState extends State<MainNavigationScreen>
         ),
         // Mini player and download bar - positioned above nav bar.
         // Hidden while the keyboard is open so it doesn't hover above it.
-        if (!keyboardOpen && !useRail)
+        if (!useRail)
           Positioned(
             left: 0,
             right: 0,
-            bottom: bottomNavHeight,
-            child: _buildMiniPlayerChrome(),
+            bottom: 0,
+            child: _KeyboardAwareMiniPlayerOverlay(
+              child: _buildMiniPlayerChrome(),
+            ),
           ),
       ],
     );
@@ -401,6 +427,47 @@ class _MainNavigationScreenState extends State<MainNavigationScreen>
           ],
         ),
       ),
+    );
+  }
+}
+
+class _KeyboardAwareMiniPlayerOverlay extends StatefulWidget {
+  const _KeyboardAwareMiniPlayerOverlay({required this.child});
+
+  final Widget child;
+
+  @override
+  State<_KeyboardAwareMiniPlayerOverlay> createState() =>
+      _KeyboardAwareMiniPlayerOverlayState();
+}
+
+class _KeyboardAwareMiniPlayerOverlayState
+    extends State<_KeyboardAwareMiniPlayerOverlay> with WidgetsBindingObserver {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeMetrics() {
+    if (mounted) setState(() {});
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (isKeyboardOpen(context)) {
+      return const SizedBox.shrink();
+    }
+    return Padding(
+      padding: EdgeInsets.only(bottom: getBottomNavigationBarTotalHeight(context)),
+      child: widget.child,
     );
   }
 }

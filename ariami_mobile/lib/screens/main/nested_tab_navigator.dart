@@ -32,6 +32,7 @@ class NestedTabNavigator extends StatefulWidget {
     required this.onGenerateRoute,
     this.onBackAtRoot,
     this.initialRoute = '/',
+    this.isActive = true,
   });
 
   /// Key for the nested [Navigator] so tab taps can pop it to its root.
@@ -44,6 +45,7 @@ class NestedTabNavigator extends StatefulWidget {
   final VoidCallback? onBackAtRoot;
 
   final String initialRoute;
+  final bool isActive;
 
   @override
   State<NestedTabNavigator> createState() => _NestedTabNavigatorState();
@@ -64,7 +66,7 @@ class _NestedTabNavigatorState extends State<NestedTabNavigator> {
       // a route can be popped we drive that pop ourselves below.
       canPop: false,
       onPopInvokedWithResult: (didPop, result) async {
-        if (didPop) return;
+        if (didPop || !widget.isActive) return;
         final navigator = widget.navigatorKey.currentState;
         if (_nestedCanPop || (navigator?.canPop() ?? false)) {
           navigator?.maybePop();
@@ -85,6 +87,9 @@ class _NestedTabNavigatorState extends State<NestedTabNavigator> {
                   notification.canHandlePop;
           if (effectiveCanPop != _nestedCanPop) {
             setState(() => _nestedCanPop = effectiveCanPop);
+          }
+          if (!widget.isActive) {
+            return true;
           }
           // We always intercept back (to pop the nested stack OR run
           // onBackAtRoot), so ancestors must always believe this subtree can

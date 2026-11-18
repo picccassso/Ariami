@@ -19,6 +19,16 @@ class LibraryRepositoryBundle {
   final LibraryGenreIndex genreIndex;
 }
 
+class LibrarySearchCatalog {
+  const LibrarySearchCatalog({
+    required this.albums,
+    required this.songs,
+  });
+
+  final List<AlbumModel> albums;
+  final List<SongModel> songs;
+}
+
 class LibraryRepository {
   LibraryRepository({LibrarySyncDatabase? database})
       : _databaseFuture = database == null
@@ -114,6 +124,15 @@ class LibraryRepository {
       songs: results[1] as List<SongModel>,
       serverPlaylists: results[2] as List<ServerPlaylist>,
       genreIndex: results[3] as LibraryGenreIndex,
+    );
+  }
+
+  Future<LibrarySearchCatalog> getSearchCatalog() async {
+    final albumsFuture = getAlbums();
+    final songsFuture = getSongs();
+    return LibrarySearchCatalog(
+      albums: await albumsFuture,
+      songs: await songsFuture,
     );
   }
 

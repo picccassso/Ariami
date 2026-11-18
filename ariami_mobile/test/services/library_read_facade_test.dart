@@ -206,6 +206,21 @@ void main() {
       expect(detail.coverArt, equals('/art/album-1'));
       expect(detail.songs.map((song) => song.id).toList(), equals(['song-1']));
     });
+
+    test('getSearchCatalog returns albums and songs without playlists or genre index',
+        () async {
+      final repository = _SearchCatalogRepository();
+      final facade = LibraryReadFacade(
+        apiClientProvider: () => Object(),
+        libraryRepository: repository,
+      );
+
+      final catalog = await facade.getSearchCatalog();
+
+      expect(catalog.albums.map((a) => a.id), ['album-1']);
+      expect(catalog.songs.map((s) => s.id), ['song-1']);
+      expect(repository.bundleCalls, 0);
+    });
   });
 }
 
@@ -269,4 +284,42 @@ class _AlbumDetailRepository extends LibraryRepository {
       ),
     ];
   }
+}
+
+class _SearchCatalogRepository extends LibraryRepository {
+  _SearchCatalogRepository() : super(database: _FakeLibrarySyncDatabase());
+
+  int bundleCalls = 0;
+
+  @override
+  Future<bool> hasCompletedBootstrap() async => true;
+
+  @override
+  Future<LibraryRepositoryBundle> getLibraryBundle() async {
+    bundleCalls++;
+    throw StateError('getLibraryBundle should not be called');
+  }
+
+  @override
+  Future<List<AlbumModel>> getAlbums() async => [
+        AlbumModel(
+          id: 'album-1',
+          title: 'Album 1',
+          artist: 'Artist 1',
+          songCount: 1,
+          duration: 180,
+        ),
+      ];
+
+  @override
+  Future<List<SongModel>> getSongs() async => [
+        SongModel(
+          id: 'song-1',
+          title: 'Song 1',
+          artist: 'Artist 1',
+          albumId: 'album-1',
+          duration: 180,
+          trackNumber: 1,
+        ),
+      ];
 }

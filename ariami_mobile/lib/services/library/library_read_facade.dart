@@ -62,7 +62,8 @@ class LibraryReadFacade {
   final Duration _bootstrapWaitTimeout;
   final Duration _bootstrapPollInterval;
 
-  Future<LibraryReadDecision> resolveSource({
+  Future<({LibraryReadDecision decision, bool bootstrapComplete})>
+      _resolveSourceWithStatus({
     bool waitForBootstrap = false,
   }) async {
     final bootstrapComplete = waitForBootstrap
@@ -70,17 +71,30 @@ class LibraryReadFacade {
         : await _libraryRepository.hasCompletedBootstrap();
 
     if (bootstrapComplete) {
-      return const LibraryReadDecision(
-        source: LibraryReadSource.v2LocalStore,
-        reason: 'v2 local sync bootstrap is complete',
+      return (
+        decision: const LibraryReadDecision(
+          source: LibraryReadSource.v2LocalStore,
+          reason: 'v2 local sync bootstrap is complete',
+        ),
+        bootstrapComplete: true,
       );
     }
 
-    return const LibraryReadDecision(
-      source: LibraryReadSource.v2LocalStore,
-      reason: 'v2 local sync bootstrap is still in progress; serving the '
-          'current local catalog snapshot',
+    return (
+      decision: const LibraryReadDecision(
+        source: LibraryReadSource.v2LocalStore,
+        reason: 'v2 local sync bootstrap is still in progress; serving the '
+            'current local catalog snapshot',
+      ),
+      bootstrapComplete: false,
     );
+  }
+
+  Future<LibraryReadDecision> resolveSource({
+    bool waitForBootstrap = false,
+  }) async {
+    return (await _resolveSourceWithStatus(waitForBootstrap: waitForBootstrap))
+        .decision;
   }
 
   Future<List<AlbumModel>> getAlbums() async {
@@ -147,16 +161,22 @@ class LibraryReadFacade {
     return syncState.lastAppliedToken;
   }
 
-  Future<LibraryReadBundle> getLibraryBundle() async {
+  Future<LibrarySearchCatalog> getSearchCatalog() async {
     final decision = await resolveSource(waitForBootstrap: true);
+    _logDecision('getSearchCatalog', decision);
+    return _libraryRepository.getSearchCatalog();
+  }
+
+  Future<LibraryReadBundle> getLibraryBundle() async {
+    final resolved = await _resolveSourceWithStatus(waitForBootstrap: true);
+    final decision = resolved.decision;
     _logDecision('getLibraryBundle', decision);
 
     final localBundle = await _libraryRepository.getLibraryBundle();
     final syncHealth = _syncHealthProvider != null
         ? await _syncHealthProvider()
-        : await _defaultSyncHealth(decision);
-    final isPartialRead = !decision.reason.contains('bootstrap is complete') ||
-        syncHealth.isPartialRead;
+        : await _defaultSyncHealth(bootstrapComplete: resolved.bootstrapComplete);
+    final isPartialRead = !resolved.bootstrapComplete || syncHealth.isPartialRead;
 
     return LibraryReadBundle(
       albums: localBundle.albums,
@@ -171,9 +191,9 @@ class LibraryReadFacade {
     );
   }
 
-  Future<LibrarySyncHealth> _defaultSyncHealth(
-      LibraryReadDecision decision) async {
-    final bootstrapComplete = decision.reason.contains('bootstrap is complete');
+  Future<LibrarySyncHealth> _defaultSyncHealth({
+    required bool bootstrapComplete,
+  }) async {
     final mismatchReason = bootstrapComplete
         ? null
         : await _libraryRepository.getBootstrapPendingReason();

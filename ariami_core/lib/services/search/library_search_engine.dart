@@ -4,6 +4,8 @@
 /// their model types exposes.
 library;
 
+import 'dart:collection';
+
 import 'search_normalizer.dart';
 
 /// Relevance tiers, strongest first. An item's tier is the weakest tier any
@@ -38,8 +40,10 @@ enum SearchMatchTier {
 /// name (song/album title, playlist name) so that, within a tier, name
 /// matches rank above matches on secondary fields like artist.
 class SearchField {
-  SearchField(String raw, {this.isPrimary = false})
-      : text = SearchNormalizer.of(raw);
+  SearchField(String raw, {this.isPrimary = false, bool cache = true})
+      : text = SearchNormalizer.of(raw, cache: cache);
+
+  const SearchField.prepared(this.text, {this.isPrimary = false});
 
   final SearchText text;
   final bool isPrimary;
@@ -143,6 +147,7 @@ class LibrarySearchEngine {
     required String Function(T item) idOf,
     required List<SearchField> Function(T item) fieldsOf,
     required String? Function(T item) lyricsOf,
+    PreparedLyrics? Function(T item)? preparedLyricsOf,
     int? limit,
   }) {
     if (query.isEmpty) {
@@ -154,8 +159,11 @@ class LibrarySearchEngine {
     var index = 0;
     for (final item in items) {
       final metadataMatch = _matchItem(query, fieldsOf(item));
-      final lyricMatch =
-          canMatchLyrics ? _matchLyrics(query, lyricsOf(item)) : null;
+      final lyricMatch = canMatchLyrics
+          ? (preparedLyricsOf != null
+              ? _matchPreparedLyrics(query, preparedLyricsOf(item))
+              : _matchLyrics(query, lyricsOf(item)))
+          : null;
       if (metadataMatch != null || lyricMatch != null) {
         matches.add(_RankedLyricItem(item, metadataMatch, lyricMatch, index));
       }
@@ -211,44 +219,73 @@ class LibrarySearchEngine {
     return (items: resultItems, lyricSnippets: lyricSnippets);
   }
 
-  static final Map<String, _PreparedLyrics> _lyricsCache =
-      <String, _PreparedLyrics>{};
+  static final RegExp _lineBreak = RegExp(r'\r?\n');
+  static final LinkedHashMap<String, PreparedLyrics> _lyricsCache =
+      LinkedHashMap<String, PreparedLyrics>();
   static const int _lyricsCacheLimit = 10000;
 
-  static _PreparedLyrics _prepareLyrics(String rawLyrics) {
-    final cached = _lyricsCache[rawLyrics];
-    if (cached != null) return cached;
-
+  /// Pre-splits and normalizes [rawLyrics] into line, pair, and whole-text
+  /// representations without polluting [SearchNormalizer]'s shared cache.
+  static PreparedLyrics? prepareLyrics(String? rawLyrics) {
+    if (rawLyrics == null || rawLyrics.trim().isEmpty) return null;
     final rawLines = rawLyrics
-        .split(RegExp(r'\r?\n'))
+        .split(_lineBreak)
         .map((line) => line.trim())
         .where((line) => line.isNotEmpty)
         .toList(growable: false);
+    if (rawLines.isEmpty) return null;
     final lines = [
       for (final line in rawLines)
-        _PreparedLyricLine(line, [SearchField(line)]),
+        _PreparedLyricLine(line, [SearchField(line, cache: false)]),
     ];
     final pairs = [
       for (var i = 0; i + 1 < rawLines.length; i++)
         _PreparedLyricLine(
           '${rawLines[i]} / ${rawLines[i + 1]}',
-          [SearchField('${rawLines[i]} ${rawLines[i + 1]}')],
+          [SearchField('${rawLines[i]} ${rawLines[i + 1]}', cache: false)],
         ),
     ];
+    final fullText = SearchNormalizer.of(rawLines.join(' '), cache: false);
+    return PreparedLyrics._(lines, pairs, fullText);
+  }
 
-    final prepared = _PreparedLyrics(lines, pairs);
-    if (_lyricsCache.length >= _lyricsCacheLimit) _lyricsCache.clear();
+  static PreparedLyrics? _prepareLyricsCached(String rawLyrics) {
+    final cached = _lyricsCache.remove(rawLyrics);
+    if (cached != null) {
+      _lyricsCache[rawLyrics] = cached;
+      return cached;
+    }
+    final prepared = prepareLyrics(rawLyrics);
+    if (prepared == null) return null;
+    if (_lyricsCache.length >= _lyricsCacheLimit) {
+      _lyricsCache.remove(_lyricsCache.keys.first);
+    }
     _lyricsCache[rawLyrics] = prepared;
     return prepared;
   }
 
   static _LyricMatch? _matchLyrics(SearchQuery query, String? rawLyrics) {
     if (rawLyrics == null || rawLyrics.trim().isEmpty) return null;
-    final prepared = _prepareLyrics(rawLyrics);
+    return _matchPreparedLyrics(query, _prepareLyricsCached(rawLyrics));
+  }
+
+  static _LyricMatch? _matchPreparedLyrics(
+    SearchQuery query,
+    PreparedLyrics? prepared,
+  ) {
+    if (prepared == null) return null;
+    if (_matchItem(
+          query,
+          [SearchField.prepared(prepared.fullText)],
+          allowFuzzy: false,
+        ) ==
+        null) {
+      return null;
+    }
     _LyricMatch? best;
 
-    for (final line in prepared.lines) {
-      final match = _matchItem(query, line.fields);
+    for (final line in prepared._lines) {
+      final match = _matchItem(query, line.fields, allowFuzzy: false);
       if (match == null) continue;
       if (best == null || match.tier.rank > best.tier.rank) {
         best = _LyricMatch(match.tier, line.display, singleLine: true);
@@ -257,8 +294,8 @@ class LibrarySearchEngine {
     }
 
     if (query.tokens.length >= 2) {
-      for (final pair in prepared.pairs) {
-        final match = _matchItem(query, pair.fields);
+      for (final pair in prepared._pairs) {
+        final match = _matchItem(query, pair.fields, allowFuzzy: false);
         if (match == null) continue;
         if (best == null || match.tier.rank > best.tier.rank) {
           best = _LyricMatch(match.tier, pair.display, singleLine: false);
@@ -278,7 +315,11 @@ class LibrarySearchEngine {
     return _matchItem(query, fields) != null;
   }
 
-  static _ItemMatch? _matchItem(SearchQuery query, List<SearchField> fields) {
+  static _ItemMatch? _matchItem(
+    SearchQuery query,
+    List<SearchField> fields, {
+    bool allowFuzzy = true,
+  }) {
     // Whole-phrase pass: the strongest tiers require the full query to sit
     // at the start of one field, which per-token matching can't distinguish.
     SearchMatchTier? phraseTier;
@@ -309,7 +350,7 @@ class LibrarySearchEngine {
     SearchMatchTier? weakest;
     var primaryHit = phraseTier != null && phrasePrimary;
     for (final token in query.tokens) {
-      final best = _bestTokenMatch(token, fields);
+      final best = _bestTokenMatch(token, fields, allowFuzzy: allowFuzzy);
       if (best == null) {
         // Token failed everywhere; the phrase pass can still carry the item.
         return phraseTier == null
@@ -332,8 +373,9 @@ class LibrarySearchEngine {
 
   static _TokenMatch? _bestTokenMatch(
     SearchQueryToken token,
-    List<SearchField> fields,
-  ) {
+    List<SearchField> fields, {
+    bool allowFuzzy = true,
+  }) {
     _TokenMatch? best;
 
     void consider(SearchMatchTier? tier, bool primary) {
@@ -351,7 +393,7 @@ class LibrarySearchEngine {
 
       // Direct match against the canonical form.
       consider(
-        _directKind(token.base, text.norm, text.words),
+        _directKind(token.base, text.norm, text.words, allowFuzzy: allowFuzzy),
         field.isPrimary,
       );
       if (best?.tier == SearchMatchTier.tokenPrefix && best!.primary) {
@@ -365,22 +407,39 @@ class LibrarySearchEngine {
         if (text.hasCyrillic) {
           // Latin query vs transliterated Cyrillic field (kino → кино).
           assisted = assisted ||
-              _directKind(token.base, text.translit, text.translitWords) !=
+              _directKind(
+                    token.base,
+                    text.translit,
+                    text.translitWords,
+                    allowFuzzy: allowFuzzy,
+                  ) !=
                   null;
         }
         if (!assisted && token.translit != null) {
           // Cyrillic query vs Latin field (кино → kino).
-          assisted =
-              _directKind(token.translit!, text.norm, text.words) != null;
+          assisted = _directKind(
+                token.translit!,
+                text.norm,
+                text.words,
+                allowFuzzy: allowFuzzy,
+              ) !=
+              null;
         }
         if (!assisted) {
           for (final alternate in token.alternates) {
-            if (_directKind(alternate, text.norm, text.words) != null ||
+            if (_directKind(
+                      alternate,
+                      text.norm,
+                      text.words,
+                      allowFuzzy: allowFuzzy,
+                    ) !=
+                    null ||
                 (text.hasCyrillic &&
                     _directKind(
                           alternate,
                           text.translit,
                           text.translitWords,
+                          allowFuzzy: allowFuzzy,
                         ) !=
                         null)) {
               assisted = true;
@@ -401,14 +460,15 @@ class LibrarySearchEngine {
   static SearchMatchTier? _directKind(
     String token,
     String norm,
-    List<String> words,
-  ) {
+    List<String> words, {
+    bool allowFuzzy = true,
+  }) {
     if (token.isEmpty || norm.isEmpty) return null;
     for (final word in words) {
       if (word.startsWith(token)) return SearchMatchTier.tokenPrefix;
     }
     if (norm.contains(token)) return SearchMatchTier.substring;
-    if (_fuzzyMatches(token, words)) return SearchMatchTier.fuzzy;
+    if (allowFuzzy && _fuzzyMatches(token, words)) return SearchMatchTier.fuzzy;
     return null;
   }
 
@@ -499,10 +559,11 @@ class _PreparedLyricLine {
   final List<SearchField> fields;
 }
 
-class _PreparedLyrics {
-  const _PreparedLyrics(this.lines, this.pairs);
-  final List<_PreparedLyricLine> lines;
-  final List<_PreparedLyricLine> pairs;
+class PreparedLyrics {
+  const PreparedLyrics._(this._lines, this._pairs, this.fullText);
+  final List<_PreparedLyricLine> _lines;
+  final List<_PreparedLyricLine> _pairs;
+  final SearchText fullText;
 }
 
 class _RankedLyricItem<T> {
