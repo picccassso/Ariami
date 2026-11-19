@@ -1113,4 +1113,65 @@ void main() {
       expect(reopened.getSummary('user-a').totalPlays, 13);
     });
   });
+
+  group('canonical track merging', () {
+    test('merges duplicate songIds across reordered artists and separators', () {
+      final dayMs = DateTime.utc(2026, 4, 10, 12).millisecondsSinceEpoch;
+      final liveStore = ListeningStatsStore(
+        databasePath: '${tempDir.path}/merged.db',
+        isLiveSong: (id) => id == 'song-live',
+      )..initialize();
+      addTearDown(liveStore.close);
+
+      liveStore.applyEvents('user-a', 'dev-1', [
+        event(
+          eventId: 'e1',
+          songId: 'song-deleted',
+          plays: 1,
+          listenedMs: 180000,
+          occurredAtMs: dayMs,
+          title: 'PREACHER MAN',
+          artist: 'Ye, Kanye West',
+        ),
+        event(
+          eventId: 'e2',
+          songId: 'song-live',
+          plays: 1,
+          listenedMs: 120000,
+          occurredAtMs: dayMs + 60000,
+          title: 'Preacher Man',
+          artist: 'Kanye West feat. Ye',
+          albumId: 'alb-bully',
+          album: 'BULLY',
+        ),
+        event(
+          eventId: 'e3',
+          songId: 'song-other',
+          plays: 1,
+          listenedMs: 200000,
+          occurredAtMs: dayMs + 120000,
+          title: 'PREACHER MAN',
+          artist: 'Different Artist',
+        ),
+      ]);
+
+      final summary = liveStore.getSummary('user-a');
+      expect(summary.songs, hasLength(2));
+      expect(summary.songs.first.songId, 'song-live');
+      expect(summary.songs.first.playCount, 2);
+      expect(summary.songs.first.listenedMs, 300000);
+      expect(summary.songs.first.albumId, 'alb-bully');
+
+      final period = liveStore.getPeriodStats(
+        'user-a',
+        fromDay: '2026-04-10',
+        toDay: '2026-04-10',
+        limit: 1,
+      );
+      expect(period.songs, hasLength(1));
+      expect(period.songs.single.songId, 'song-live');
+      expect(period.songs.single.playCount, 2);
+      expect(period.songs.single.listenedMs, 300000);
+    });
+  });
 }

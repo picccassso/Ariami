@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:ariami_core/models/listening_stats_models.dart';
 import 'package:ariami_core/services/stats/credited_artist_splitter.dart';
+import 'package:ariami_core/services/stats/song_rollup_merger.dart';
 import 'package:ariami_core/services/stats/stats_local_day.dart';
 import 'package:sqlite3/sqlite3.dart';
 
@@ -21,9 +22,13 @@ part 'listening_stats_store/schema.dart';
 /// Trust model: the caller derives `userId`/`deviceId` from a validated
 /// session — nothing in the event payload identifies the user.
 class ListeningStatsStore {
-  ListeningStatsStore({required this.databasePath});
+  ListeningStatsStore({
+    required this.databasePath,
+    bool Function(String songId)? isLiveSong,
+  }) : _isLiveSong = isLiveSong;
 
   final String databasePath;
+  final bool Function(String songId)? _isLiveSong;
   Database? _database;
   final CreditedArtistSplitter _splitter = CreditedArtistSplitter();
 

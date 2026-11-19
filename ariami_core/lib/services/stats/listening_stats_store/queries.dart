@@ -73,8 +73,17 @@ extension _ListeningStatsQueries on ListeningStatsStore {
       [userId, ListeningStatsStore.dimTotal],
     ).first['n'] as int? ?? 0;
 
+    final mergedSongs = mergeSongRollups(
+      songs,
+      splitter: _splitter,
+      isLiveSong: _isLiveSong,
+    )..sort((a, b) {
+        final byMs = b.listenedMs.compareTo(a.listenedMs);
+        return byMs != 0 ? byMs : b.playCount.compareTo(a.playCount);
+      });
+
     return ListeningStatsSummary(
-      songs: songs,
+      songs: mergedSongs,
       totalListenedMs: totalListenedMs,
       totalPlays: totalPlays,
       generatedAtMs: DateTime.now().toUtc().millisecondsSinceEpoch,
@@ -138,7 +147,7 @@ extension _ListeningStatsQueries on ListeningStatsStore {
       ORDER BY last_played DESC
     ''', [userId, cutoff]);
 
-    return rows
+    final rawSongs = rows
         .map(
           (row) => ListeningSongRollup(
             songId: row['song_id'] as String,
@@ -154,6 +163,11 @@ extension _ListeningStatsQueries on ListeningStatsStore {
           ),
         )
         .toList();
+    return mergeSongRollups(
+      rawSongs,
+      splitter: _splitter,
+      isLiveSong: _isLiveSong,
+    )..sort((a, b) => (b.lastPlayedMs ?? 0).compareTo(a.lastPlayedMs ?? 0));
   }
 
   ListeningPeriodStats _getPeriodStats(
@@ -203,17 +217,36 @@ extension _ListeningStatsQueries on ListeningStatsStore {
           LIMIT ?
         ''', [userId, dim, fromDay, toDay, sqlLimit]);
 
-    final songs = topRows(ListeningStatsStore.dimSong)
-        .map(
-          (row) => ListeningSongRollup(
-            songId: row['dim_key'] as String,
-            playCount: row['play_count'] as int? ?? 0,
-            listenedMs: row['listened_ms'] as int? ?? 0,
-            songTitle: row['display'] as String?,
-            songArtist: row['display_extra'] as String?,
-          ),
-        )
-        .toList();
+    final rawSongRows = db.select('''
+          SELECT dim_key,
+                 SUM(play_count) AS play_count,
+                 SUM(listened_ms) AS listened_ms,
+                 MAX(display) AS display,
+                 MAX(display_extra) AS display_extra
+          FROM listening_daily_rollups
+          WHERE user_id = ? AND dim = ? AND local_day BETWEEN ? AND ?
+          GROUP BY dim_key
+        ''', [userId, ListeningStatsStore.dimSong, fromDay, toDay]);
+    final mergedSongs = mergeSongRollups(
+      rawSongRows.map(
+        (row) => ListeningSongRollup(
+          songId: row['dim_key'] as String,
+          playCount: row['play_count'] as int? ?? 0,
+          listenedMs: row['listened_ms'] as int? ?? 0,
+          songTitle: row['display'] as String?,
+          songArtist: row['display_extra'] as String?,
+        ),
+      ),
+      splitter: _splitter,
+      isLiveSong: _isLiveSong,
+    ).where((song) => song.playCount > 0).toList()
+      ..sort((a, b) {
+        final byMs = b.listenedMs.compareTo(a.listenedMs);
+        return byMs != 0 ? byMs : b.playCount.compareTo(a.playCount);
+      });
+    final songs = limit > 0 && mergedSongs.length > limit
+        ? mergedSongs.sublist(0, limit)
+        : mergedSongs;
     final artists = topRows(ListeningStatsStore.dimArtist)
         .map(
           (row) => ListeningArtistRollup(

@@ -68,6 +68,7 @@ export 'services/stats/listening_event_tracker.dart';
 export 'services/stats/listening_stats_store.dart';
 export 'services/stats/listening_stats_syncer.dart';
 export 'services/stats/period_stats_overlay.dart';
+export 'services/stats/song_rollup_merger.dart';
 export 'services/stats/stats_local_day.dart';
 export 'services/stats/stats_range.dart';
 export 'services/recommendations/lastfm_recommendation_client.dart';

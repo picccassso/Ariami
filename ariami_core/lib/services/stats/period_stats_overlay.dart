@@ -1,5 +1,6 @@
 import 'package:ariami_core/models/listening_stats_models.dart';
 import 'package:ariami_core/services/stats/credited_artist_splitter.dart';
+import 'package:ariami_core/services/stats/song_rollup_merger.dart';
 import 'package:ariami_core/services/stats/stats_local_day.dart';
 
 /// Display-only merge of [base] period stats with still-pending outbox events.
@@ -111,9 +112,8 @@ ListeningPeriodStats overlayPeriodStatsWithPending({
     return byPlays != 0 ? byPlays : msB.compareTo(msA);
   }
 
-  final rankedSongs = songs.values
+  final rankedSongs = mergeSongRollups(songs.values.map((s) => s.toRollup()))
       .where((s) => s.playCount > 0)
-      .map((s) => s.toRollup())
       .toList()
     ..sort((a, b) =>
         byPlaysThenMs(a.playCount, a.listenedMs, b.playCount, b.listenedMs));

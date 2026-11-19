@@ -237,7 +237,11 @@ extension AriamiHttpServerLifecycleMethods on AriamiHttpServer {
       final statsDbPath =
           '${File(usersFilePath).parent.path}/listening_stats.db';
       final store = _listeningStatsStore ??
-          ListeningStatsStore(databasePath: statsDbPath);
+          ListeningStatsStore(
+            databasePath: statsDbPath,
+            isLiveSong: (songId) =>
+                _libraryManager.getSongFilePath(songId) != null,
+          );
       store.initialize();
       _listeningStatsStore = store;
     } catch (e) {
