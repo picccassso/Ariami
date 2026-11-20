@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base href="$FLUTTER_BASE_HREF">
+  <meta charset="UTF-8">
+  <meta content="IE=Edge" http-equiv="X-UA-Compatible">
+  <meta name="description" content="Ariami - Music streaming player">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#1C1D20">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>Ariami</title>
+  <link rel="icon" href="favicon.ico" sizes="any">
+  <link rel="icon" href="icon-192.png" type="image/png" sizes="192x192">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png">
+  <link rel="manifest" href="manifest.json">
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      background-color: #1C1D20;
+      color: #E8E8E4;
+      overflow: hidden;
+    }
+    #ariami-loader {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background-color: #1C1D20;
+      z-index: 9999;
+      transition: opacity 180ms ease-out;
+    }
+    #ariami-loader.fade-out {
+      opacity: 0;
+      pointer-events: none;
+    }
+    .ariami-spinner {
+      width: 30px;
+      height: 30px;
+      border-radius: 50%;
+      border: 2.5px solid rgba(232, 232, 228, 0.14);
+      border-top-color: rgba(232, 232, 228, 0.8);
+      animation: ariami-spin 0.8s linear infinite;
+    }
+    @keyframes ariami-spin {
+      to { transform: rotate(360deg); }
+    }
+  </style>
+</head>
+<body>
+  <div id="ariami-loader">
+    <div class="ariami-spinner"></div>
+  </div>
+  <script>
+    window.addEventListener('flutter-first-frame', () => {
+      const loader = document.getElementById('ariami-loader');
+      if (!loader) return;
+      loader.classList.add('fade-out');
+      setTimeout(() => loader.remove(), 220);
+    });
+    if (window.isSecureContext && 'serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('sw.js').catch(() => {});
+      });
+    }
+  </script>
+  <script src="ariami_web_audio.js"></script>
+  <script src="ariami_web_store.js"></script>
+  <script src="flutter_bootstrap.js" async></script>
+</body>
+</html>

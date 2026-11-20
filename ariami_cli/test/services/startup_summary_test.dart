@@ -154,5 +154,47 @@ void main() {
 
       expect(lines, contains(' Music:     /mnt/music (folder missing!)'));
     });
+
+    test('includes web player URL when enabled', () {
+      final lanLines = StartupSummary.buildBanner(
+        version: '5.3.0',
+        modeLabel: 'foreground',
+        port: 8080,
+        bindHost: '0.0.0.0',
+        lanIp: '192.168.1.20',
+        tailscaleIp: '100.101.102.103',
+        dataDir: '/home/pi/.ariami_cli',
+        musicDir: '/home/pi/Music',
+        musicDirExists: true,
+        accountCount: 1,
+        hasOwnerAccount: true,
+        setupComplete: true,
+        webPlayerEnabled: true,
+      );
+      expect(
+        lanLines,
+        contains(' Web Player: http://192.168.1.20:8080/play/'),
+      );
+
+      final localLines = StartupSummary.buildBanner(
+        version: '5.3.0',
+        modeLabel: 'foreground',
+        port: 8080,
+        bindHost: '127.0.0.1',
+        lanIp: '192.168.1.20',
+        tailscaleIp: '100.101.102.103',
+        dataDir: '/home/pi/.ariami_cli',
+        musicDir: '/home/pi/Music',
+        musicDirExists: true,
+        accountCount: 1,
+        hasOwnerAccount: true,
+        setupComplete: true,
+        webPlayerEnabled: true,
+      );
+      expect(
+        localLines,
+        contains(' Web Player: http://127.0.0.1:8080/play/'),
+      );
+    });
   });
 }

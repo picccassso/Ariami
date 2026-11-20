@@ -68,11 +68,13 @@ extension AriamiHttpServerArtistImagesMethods on AriamiHttpServer {
       );
     }
 
+    final (bytes, contentType) = await _sizedCustomImage(request,
+        'artist_${session.userId}_$artistName', image.bytes, image.contentType);
     return Response.ok(
-      image.bytes,
+      bytes,
       headers: {
-        'Content-Type': image.contentType,
-        'Content-Length': image.bytes.length.toString(),
+        'Content-Type': contentType,
+        'Content-Length': bytes.length.toString(),
         'ETag': quotedEtag,
         'Cache-Control': 'public, max-age=31536000, immutable',
       },

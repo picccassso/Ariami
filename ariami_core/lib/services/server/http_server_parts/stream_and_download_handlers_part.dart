@@ -101,6 +101,23 @@ extension AriamiHttpServerStreamAndDownloadHandlersMethods on AriamiHttpServer {
       );
     }
 
+    final requestedFormat = request.url.queryParameters['format'];
+    final outputFormat = TranscodeOutputFormat.tryParse(requestedFormat);
+    if (requestedFormat != null &&
+        requestedFormat.trim().isNotEmpty &&
+        (outputFormat == null || outputFormat == TranscodeOutputFormat.opus)) {
+      return _jsonError(
+        HttpStatus.badRequest,
+        'INVALID_REQUEST',
+        'format must be one of: aac, m4a',
+      );
+    }
+    if (ticket.format != outputFormat?.name) {
+      return _streamTokenForbiddenResponse(
+        'Stream token does not match requested format',
+      );
+    }
+
     _streamTracker.startStream(streamToken);
 
     void endStreamTracker() {
@@ -129,60 +146,68 @@ extension AriamiHttpServerStreamAndDownloadHandlersMethods on AriamiHttpServer {
     }
 
     File fileToStream = originalFile;
+    final effectiveFormat = outputFormat ?? TranscodeOutputFormat.aac;
+    final wantsM4a = effectiveFormat == TranscodeOutputFormat.m4a;
+    final shouldTranscode = quality.requiresTranscoding || wantsM4a;
 
-    if (quality.requiresTranscoding && _transcodingService != null) {
+    if (shouldTranscode && _transcodingService != null) {
       final transcodeRequestedAt = DateTime.now();
       final transcodeFuture = _transcodingService!.getTranscodedFile(
         filePath,
-        path, // songId
+        path,
         quality,
         requestType: TranscodeRequestType.streaming,
+        outputFormat: effectiveFormat,
         sourceBitrateKbps: sourceBitrateKbps,
       );
 
-      // Cold initial playback can consume Sonic's ADTS AAC output while it is
-      // still being written. Completed streams and seeks retain normal file
-      // range semantics.
-      _transcodingService!.markInUse(path, quality);
-      final progressiveResponse =
-          await _streamingService.streamGrowingTranscode(
-        partialFile: _transcodingService!.streamingPartialFile(path, quality),
-        completion: transcodeFuture,
-        request: request,
-        mimeType: quality.mimeType ?? 'audio/aac',
-        partialNotBefore: transcodeRequestedAt,
-        onDone: () {
-          _transcodingService!.releaseInUse(path, quality);
-          endStreamTracker();
-        },
-      );
-      if (progressiveResponse != null) {
-        return progressiveResponse;
+      if (!wantsM4a) {
+        // Cold initial playback can consume Sonic's ADTS AAC output while it is
+        // still being written. Browsers streaming M4A need the completed moov
+        // atom for Range seeking, so M4A waits for the finished file below.
+        _transcodingService!
+            .markInUse(path, quality, outputFormat: effectiveFormat);
+        final progressiveResponse =
+            await _streamingService.streamGrowingTranscode(
+          partialFile: _transcodingService!.streamingPartialFile(path, quality),
+          completion: transcodeFuture,
+          request: request,
+          mimeType: quality.mimeType ?? 'audio/aac',
+          partialNotBefore: transcodeRequestedAt,
+          onDone: () {
+            _transcodingService!
+                .releaseInUse(path, quality, outputFormat: effectiveFormat);
+            endStreamTracker();
+          },
+        );
+        if (progressiveResponse != null) {
+          return progressiveResponse;
+        }
+        _transcodingService!
+            .releaseInUse(path, quality, outputFormat: effectiveFormat);
       }
-      _transcodingService!.releaseInUse(path, quality);
 
       final transcodedFile = await transcodeFuture;
-
       if (transcodedFile != null) {
         fileToStream = transcodedFile;
-        _transcodingService!.markInUse(path, quality);
+        _transcodingService!
+            .markInUse(path, quality, outputFormat: effectiveFormat);
         print(
-            '[HttpServer] Streaming transcoded file at ${quality.name} quality');
+            '[HttpServer] Streaming transcoded file at ${quality.name} quality (${effectiveFormat.name})');
 
         return await _streamingService.streamFile(
           fileToStream,
           request,
           onDone: () {
-            _transcodingService!.releaseInUse(path, quality);
+            _transcodingService!
+                .releaseInUse(path, quality, outputFormat: effectiveFormat);
             endStreamTracker();
           },
         );
-      } else {
-        // Transcoding failed or FFmpeg not available - fall back to original
-        print(
-            '[HttpServer] Transcoding unavailable, falling back to original file');
       }
-    } else if (quality.requiresTranscoding && _transcodingService == null) {
+      print(
+          '[HttpServer] Transcoding unavailable, falling back to original file');
+    } else if (shouldTranscode && _transcodingService == null) {
       print(
           '[HttpServer] Transcoding requested but service not configured, using original');
     }

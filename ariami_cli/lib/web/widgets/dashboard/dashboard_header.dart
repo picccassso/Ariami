@@ -16,6 +16,7 @@ class DashboardHeader extends StatelessWidget implements PreferredSizeWidget {
     required this.onRefresh,
     required this.onShowQrCode,
     required this.onSignOut,
+    this.onOpenWebPlayer,
     this.username,
     this.isRefreshing = false,
   });
@@ -25,6 +26,7 @@ class DashboardHeader extends StatelessWidget implements PreferredSizeWidget {
   final VoidCallback onRefresh;
   final VoidCallback onShowQrCode;
   final VoidCallback onSignOut;
+  final VoidCallback? onOpenWebPlayer;
   final String? username;
   final bool isRefreshing;
 
@@ -62,6 +64,40 @@ class DashboardHeader extends StatelessWidget implements PreferredSizeWidget {
                       children: [
                         const _Wordmark(),
                         const Spacer(),
+                        if (onOpenWebPlayer != null) ...[
+                          if (isCompact)
+                            IconButton(
+                              onPressed: onOpenWebPlayer,
+                              tooltip: 'Open Web Player',
+                              icon: const Icon(
+                                Icons.play_circle_outline_rounded,
+                                size: 21,
+                              ),
+                            )
+                          else
+                            OutlinedButton.icon(
+                              onPressed: onOpenWebPlayer,
+                              icon: const Icon(
+                                Icons.play_arrow_rounded,
+                                size: 17,
+                              ),
+                              label: const Text('Open Web Player'),
+                              style: OutlinedButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 8,
+                                ),
+                                minimumSize: const Size(0, 34),
+                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                textStyle: const TextStyle(
+                                  fontFamily: AppTheme.bodyFamily,
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                          const SizedBox(width: 4),
+                        ],
                         IconButton(
                           onPressed: isRefreshing ? null : onRefresh,
                           tooltip: 'Refresh',

@@ -345,6 +345,7 @@ extension AriamiHttpServerRouterMethods on AriamiHttpServer {
     router.get('/api/albums/<albumId>', _handleGetAlbumDetail);
     router.get('/api/songs', _handleGetSongs);
     router.get('/api/artwork/<albumId>', _handleGetArtwork);
+    router.post('/api/artwork/batch', _handleBatchArtwork);
     router.get('/api/song-artwork/<songId>', _handleGetSongArtwork);
     router.get('/api/lyrics/<songId|[^/]+>', _handleGetLyrics);
   }

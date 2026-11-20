@@ -15,6 +15,7 @@ class StartupSummary {
     required int accountCount,
     required bool hasOwnerAccount,
     required bool setupComplete,
+    bool webPlayerEnabled = false,
     int? pid,
   }) {
     final isLocalOnly = _isLocalOnly(bindHost);
@@ -36,6 +37,15 @@ class StartupSummary {
 
     if (!isLocalOnly && tailscaleIp != null) {
       lines.add(' Tailscale: http://$tailscaleIp:$port');
+    }
+
+    if (webPlayerEnabled) {
+      final primaryHost = (!isLocalOnly && lanIp != null)
+          ? lanIp
+          : (!isLocalOnly && tailscaleIp != null)
+              ? tailscaleIp
+              : '127.0.0.1';
+      lines.add(' Web Player: http://$primaryHost:$port/play/');
     }
 
     if (isLocalOnly) {

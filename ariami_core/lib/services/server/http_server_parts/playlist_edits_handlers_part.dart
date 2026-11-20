@@ -161,11 +161,16 @@ extension AriamiHttpServerPlaylistEditsMethods on AriamiHttpServer {
       return _badPlaylistImageResponse();
     }
     if (image == null) return Response.notFound('');
+    final (bytes, contentType) = await _sizedCustomImage(
+        request,
+        'playlist_${session.userId}_$playlistId',
+        image.bytes,
+        image.contentType);
     return Response.ok(
-      image.bytes,
+      bytes,
       headers: {
-        'Content-Type': image.contentType,
-        'Content-Length': image.bytes.length.toString(),
+        'Content-Type': contentType,
+        'Content-Length': bytes.length.toString(),
         // Clients cache-bust via the updatedAt version in the URL, so served
         // bytes are immutable for a given URL.
         'Cache-Control': 'public, max-age=31536000, immutable',

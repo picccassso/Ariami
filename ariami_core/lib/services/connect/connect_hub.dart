@@ -153,7 +153,7 @@ class AriamiConnectHub {
     // Identify is authenticated asynchronously by the server. A client may
     // have already sent connect_hello while that validation was in flight, so
     // recognized playback clients are made ready here as well.
-    if (const {'desktop', 'mobile', 'tv'}.contains(clientType)) {
+    if (const {'desktop', 'mobile', 'tv', 'web'}.contains(clientType)) {
       peer.canPlay = hello?['canPlay'] as bool? ?? true;
       _sendWelcome(socket, peer);
       if (session?.activeDeviceId == deviceId) {

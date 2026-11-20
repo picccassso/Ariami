@@ -22,6 +22,7 @@ import 'package:ariami_core/services/transcoding/transcoding_service.dart';
 import 'package:ariami_core/services/artwork/artwork_service.dart';
 import 'package:ariami_core/services/artwork/image_normalizer.dart';
 import 'package:ariami_core/models/quality_preset.dart';
+import 'package:ariami_core/models/artwork_batch_codec.dart';
 import 'package:ariami_core/models/artwork_size.dart';
 import 'package:ariami_core/models/server_origin.dart';
 import 'package:ariami_core/models/websocket_models.dart';
@@ -226,9 +227,9 @@ class AriamiHttpServer {
   late WeightedFairDownloadLimiter _downloadLimiter;
   final Map<String, int> _inFlightDownloadTranscodesByUser = <String, int>{};
 
-  // Artwork request quotas (only enforced for server-managed artwork resizing).
-  static const int _defaultMaxConcurrentArtworkPerUser = 2;
-  static const int _defaultMaxArtworkQueuePerUser = 8;
+  // Artwork request quotas (only enforced for server-managed FFmpeg resizing).
+  static const int _defaultMaxConcurrentArtworkPerUser = 4;
+  static const int _defaultMaxArtworkQueuePerUser = 24;
   final Map<String, SimpleLimiter> _artworkUserLimiters = {};
   static const int _defaultRetryAfterSeconds = 5;
   static const String _desktopDashboardAdminDeviceId =
@@ -396,6 +397,7 @@ class AriamiHttpServer {
   }
 
   String? _webAssetsPath;
+  String? _webPlayerAssetsPath;
 
   // Callback for getting Tailscale status (optional)
   Future<Map<String, dynamic>> Function()? _tailscaleStatusCallback;

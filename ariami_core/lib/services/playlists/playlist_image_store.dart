@@ -2,6 +2,7 @@ import 'dart:typed_data';
 
 import 'package:sqlite3/sqlite3.dart';
 
+import '../../models/image_limits.dart';
 import '../common/sqlite_image_store.dart';
 
 class PlaylistImageInfo {
@@ -56,7 +57,7 @@ class PlaylistImageStore extends SqliteImageStore {
         );
 
   static const int maxPlaylistIdLength = 512;
-  static const int maxImageBytes = 5 * 1024 * 1024;
+  static const int maxImageBytes = kMaxUserImageBytes;
 
   @override
   void createSchema(Database database) {

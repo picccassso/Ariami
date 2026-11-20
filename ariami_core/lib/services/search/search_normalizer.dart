@@ -41,6 +41,28 @@ class SearchText {
 
   bool get isEmpty => norm.isEmpty;
 
+  /// [parts] as one text, equal to normalizing their raw strings joined by
+  /// spaces, but sharing their word strings instead of copying them.
+  factory SearchText.join(List<SearchText> parts) {
+    final texts = [for (final t in parts) if (!t.isEmpty) t];
+    if (texts.length < 2) return texts.isEmpty ? empty : texts.single;
+    final norm = texts.map((t) => t.norm).join(' ');
+    final hasCyrillic = texts.any((t) => t.hasCyrillic);
+    return SearchText(
+      norm: norm,
+      words: [for (final t in texts) ...t.words],
+      translit:
+          hasCyrillic ? texts.map((t) => t.translit).join(' ') : norm,
+      translitWords: hasCyrillic
+          ? [
+              for (final t in texts)
+                ...(t.hasCyrillic ? t.translitWords : t.words),
+            ]
+          : const <String>[],
+      hasCyrillic: hasCyrillic,
+    );
+  }
+
   static const empty = SearchText(
     norm: '',
     words: <String>[],

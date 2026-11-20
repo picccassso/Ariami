@@ -38,6 +38,7 @@ extension _DashboardRefresh on _DashboardScreenState {
         String? ts;
         String? lanAlias;
         String? tsAlias;
+        bool webPlayerEnabled = _webPlayerEnabled;
         try {
           final infoResp =
               await _apiClient.get('/api/server-info', includeAuth: false);
@@ -47,6 +48,7 @@ extension _DashboardRefresh on _DashboardScreenState {
             ts = j['tailscaleServer'] as String?;
             lanAlias = j['lanServerAlias'] as String?;
             tsAlias = j['tailscaleServerAlias'] as String?;
+            webPlayerEnabled = j['webPlayerEnabled'] as bool? ?? false;
           }
         } catch (_) {
           // Ignore; card falls back to descriptive text only.
@@ -69,6 +71,7 @@ extension _DashboardRefresh on _DashboardScreenState {
             _dashboardLanServerAlias = lanAlias;
             _dashboardTailscaleServer = ts;
             _dashboardTailscaleServerAlias = tsAlias;
+            _webPlayerEnabled = webPlayerEnabled;
             _dashboardEndpointsUpdatedAt = DateTime.now();
             _isLoading = false;
           });

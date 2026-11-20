@@ -87,6 +87,7 @@ fi
 
 VERSION="${CLI_VERSION}"
 RELEASE_NAME="ariami-cli-${RELEASE_ARCH_NAME}-v${VERSION}"
+WEB_PLAYER_DIR="${PARENT_DIR}/ariami_web"
 SONIC_DIR="${PARENT_DIR}/sonic"
 SONIC_LIB_RELATIVE_PATH="${SONIC_TARGET_DIR#/workspace/ariami_cli/}/release/libsonic_transcoder.so"
 SONIC_LIB_LOCAL_PATH="${SCRIPT_DIR}/${SONIC_LIB_RELATIVE_PATH}"
@@ -133,6 +134,17 @@ if [ ! -f "${LAUNCHER_PATH}" ]; then
     exit 1
 fi
 
+if [ ! -f "${WEB_PLAYER_DIR}/pubspec.yaml" ]; then
+    echo "ERROR: Ariami Web source not found at ${WEB_PLAYER_DIR}"
+    exit 1
+fi
+
+WEB_PLAYER_VERSION="$(read_pubspec_version "${WEB_PLAYER_DIR}/pubspec.yaml")"
+if [ "${WEB_PLAYER_VERSION}" != "${VERSION}" ]; then
+    echo "ERROR: Ariami version mismatch — ariami_web/pubspec.yaml is ${WEB_PLAYER_VERSION}, expected ${VERSION}"
+    exit 1
+fi
+
 # Step 1: Clean previous builds
 echo "[1/7] Cleaning previous builds..."
 rm -rf build/
@@ -148,15 +160,15 @@ flutter pub get
 echo "[3/7] Building web UI on Mac..."
 flutter build web -t lib/web/main.dart
 
-# Step 4: Compile Linux binary using Docker
-echo "[4/7] Compiling ${TARGET_LABEL} binary in Docker (this may take a minute)..."
+# Step 4: Compile Linux binary and web player using Docker
+echo "[4/7] Compiling ${TARGET_LABEL} binary and web player in Docker (this may take a minute)..."
 
 docker run --rm \
   -v "${PARENT_DIR}:/workspace" \
   -w /workspace/ariami_cli \
   --platform "${DOCKER_PLATFORM}" \
   ghcr.io/cirruslabs/flutter:stable \
-  sh -c "flutter pub get && dart build cli -o ${BUILD_OUTPUT_DIR} && rm -rf ./${CLI_BUNDLE_RELATIVE_DIR} && cp -R ${BUILD_OUTPUT_DIR}/bundle ./${CLI_BUNDLE_RELATIVE_DIR} && chmod +x ./${CLI_BINARY_RELATIVE_PATH}"
+  sh -c "flutter pub get && dart build cli -o ${BUILD_OUTPUT_DIR} && rm -rf ./${CLI_BUNDLE_RELATIVE_DIR} && cp -R ${BUILD_OUTPUT_DIR}/bundle ./${CLI_BUNDLE_RELATIVE_DIR} && chmod +x ./${CLI_BINARY_RELATIVE_PATH} && cd /workspace/ariami_web && rm -rf build/web && flutter pub get && flutter build web --release --base-href /play/"
 
 if [ ! -f "${SCRIPT_DIR}/${CLI_BINARY_RELATIVE_PATH}" ]; then
     echo "ERROR: CLI binary was not produced at ${SCRIPT_DIR}/${CLI_BINARY_RELATIVE_PATH}"
@@ -168,7 +180,12 @@ if [ ! -f "${SCRIPT_DIR}/${SQLITE_LIB_RELATIVE_PATH}" ]; then
     exit 1
 fi
 
-echo "✓ ${TARGET_LABEL} binary compiled successfully"
+if [ ! -f "${WEB_PLAYER_DIR}/build/web/index.html" ]; then
+    echo "ERROR: Web player build was not produced at ${WEB_PLAYER_DIR}/build/web/index.html"
+    exit 1
+fi
+
+echo "✓ ${TARGET_LABEL} binary and web player compiled successfully"
 
 # Step 5: Build Sonic Linux library in Docker
 echo "[5/7] Building Sonic ${TARGET_LABEL} library in Docker..."
@@ -188,6 +205,7 @@ echo "✓ Sonic ${TARGET_LABEL} library built successfully"
 # Step 6: Create release directory structure
 echo "[6/7] Creating release directory structure..."
 mkdir -p "${RELEASE_NAME}/web"
+mkdir -p "${RELEASE_NAME}/web_player"
 mkdir -p "${RELEASE_NAME}/bin"
 mkdir -p "${RELEASE_NAME}/lib"
 
@@ -196,6 +214,7 @@ echo "[7/7] Copying files and creating zip archive..."
 cp "${CLI_BINARY_RELATIVE_PATH}" "${RELEASE_NAME}/bin/ariami_cli"
 cp "${SQLITE_LIB_RELATIVE_PATH}" "${RELEASE_NAME}/lib/libsqlite3.so"
 cp -r build/web/* "${RELEASE_NAME}/web/"
+cp -r "${WEB_PLAYER_DIR}/build/web/"* "${RELEASE_NAME}/web_player/"
 cp "${SONIC_LIB_RELATIVE_PATH}" "${RELEASE_NAME}/lib/libsonic_transcoder.so"
 cp "${LAUNCHER_PATH}" "${RELEASE_NAME}/ariami_cli"
 chmod +x "${RELEASE_NAME}/ariami_cli"
@@ -226,6 +245,10 @@ if ! echo "${SQLITE_INFO}" | grep -qi "${EXPECTED_FILE_ARCH}"; then
 fi
 if ! echo "${SONIC_INFO}" | grep -qi "${EXPECTED_FILE_ARCH}"; then
     echo "ERROR: Sonic library architecture mismatch; expected ${EXPECTED_FILE_ARCH}"
+    exit 1
+fi
+if [ ! -f "${RELEASE_NAME}/web_player/index.html" ]; then
+    echo "ERROR: Web player assets missing from ${RELEASE_NAME}/web_player"
     exit 1
 fi
 rm -rf "${RELEASE_NAME}"

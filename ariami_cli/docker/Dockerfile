@@ -3,11 +3,16 @@ FROM ghcr.io/cirruslabs/flutter:3.44.0 AS cli-builder
 WORKDIR /workspace
 COPY ariami_core/ /workspace/ariami_core/
 COPY ariami_cli/ /workspace/ariami_cli/
+COPY ariami_web/ /workspace/ariami_web/
 
 WORKDIR /workspace/ariami_cli
 RUN flutter pub get \
     && flutter build web -t lib/web/main.dart \
     && dart build cli -o build/cli-out
+
+WORKDIR /workspace/ariami_web
+RUN flutter pub get \
+    && flutter build web --release --base-href /play/
 
 FROM rust:1-bookworm AS sonic-builder
 
@@ -21,12 +26,13 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends ca-certificates curl ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 
-RUN mkdir -p /opt/ariami/bin /opt/ariami/lib /opt/ariami/web /data /music
+RUN mkdir -p /opt/ariami/bin /opt/ariami/lib /opt/ariami/web /opt/ariami/web_player /data /music
 
 COPY --from=cli-builder /workspace/ariami_cli/build/cli-out/bundle/bin/ariami_cli /opt/ariami/bin/ariami_cli
 COPY --from=cli-builder /workspace/ariami_cli/build/cli-out/bundle/lib/ /opt/ariami/lib/
 COPY --from=sonic-builder /workspace/sonic/target/release/libsonic_transcoder.so /opt/ariami/lib/libsonic_transcoder.so
 COPY --from=cli-builder /workspace/ariami_cli/build/web/ /opt/ariami/web/
+COPY --from=cli-builder /workspace/ariami_web/build/web/ /opt/ariami/web_player/
 COPY --from=cli-builder /workspace/ariami_cli/ariami_cli-launcher.sh /opt/ariami/ariami_cli
 COPY --from=cli-builder /workspace/ariami_cli/SETUP.txt /opt/ariami/SETUP.txt
 COPY --from=cli-builder /workspace/ariami_cli/HEADLESS.md /opt/ariami/HEADLESS.md

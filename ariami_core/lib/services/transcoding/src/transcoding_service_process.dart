@@ -44,9 +44,13 @@ extension _TranscodingServiceProcess on TranscodingService {
     }
   }
 
-  File _getCachedFile(String songId, QualityPreset quality) {
+  File _getCachedFile(
+    String songId,
+    QualityPreset quality, {
+    TranscodeOutputFormat outputFormat = TranscodeOutputFormat.aac,
+  }) {
     final qualityDir = Directory('$cacheDirectory/${quality.name}');
-    return File('${qualityDir.path}/$songId.${quality.fileExtension}');
+    return File('${qualityDir.path}/$songId.${outputFormat.fileExtension}');
   }
 
   Future<File?> _transcodeFile(

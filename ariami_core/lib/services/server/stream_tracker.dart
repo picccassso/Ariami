@@ -54,6 +54,7 @@ class StreamTracker {
     required String songId,
     required int durationSeconds,
     String? quality,
+    String? format,
     StreamDelivery delivery = StreamDelivery.http,
   }) {
     // Generate secure random token (32 bytes = 64 hex chars)
@@ -68,6 +69,7 @@ class StreamTracker {
       sessionToken: sessionToken,
       songId: songId,
       quality: quality,
+      format: format,
       delivery: delivery,
       issuedAt: now,
       expiresAt: expiresAt,
@@ -285,6 +287,7 @@ class StreamTicket {
   final String sessionToken;
   final String songId;
   final String? quality;
+  final String? format;
   final StreamDelivery delivery;
   final DateTime issuedAt;
 
@@ -298,6 +301,7 @@ class StreamTicket {
     required this.sessionToken,
     required this.songId,
     this.quality,
+    this.format,
     this.delivery = StreamDelivery.http,
     required this.issuedAt,
     required this.expiresAt,

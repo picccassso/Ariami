@@ -10,6 +10,7 @@ class FfmpegProbe {
   final ArtworkProcessRunner run;
 
   bool? _available;
+  bool? _webpAvailable;
 
   Future<bool> isAvailable() async {
     if (_available != null) return _available!;
@@ -28,5 +29,22 @@ class FfmpegProbe {
     }
 
     return _available!;
+  }
+
+  Future<bool> isWebpAvailable() async {
+    if (_webpAvailable != null) return _webpAvailable!;
+    if (!await isAvailable()) {
+      _webpAvailable = false;
+      return false;
+    }
+
+    try {
+      final result = await run('ffmpeg', ['-hide_banner', '-encoders']);
+      final out = '${result.stdout}\n${result.stderr}';
+      _webpAvailable = result.exitCode == 0 && out.contains('libwebp');
+    } catch (_) {
+      _webpAvailable = false;
+    }
+    return _webpAvailable!;
   }
 }

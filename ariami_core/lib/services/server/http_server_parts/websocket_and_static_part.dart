@@ -228,7 +228,7 @@ extension AriamiHttpServerWebSocketAndStaticMethods on AriamiHttpServer {
               userId: session.userId,
               clientType: effectiveType,
             );
-            if (const {'desktop', 'mobile', 'tv'}.contains(clientType)) {
+            if (const {'desktop', 'mobile', 'tv', 'web'}.contains(clientType)) {
               _connectHub.register(
                 webSocket,
                 userId: session.userId,
@@ -258,7 +258,7 @@ extension AriamiHttpServerWebSocketAndStaticMethods on AriamiHttpServer {
             effectiveName,
             clientType: effectiveType,
           );
-          if (const {'desktop', 'mobile', 'tv'}.contains(clientType)) {
+          if (const {'desktop', 'mobile', 'tv', 'web'}.contains(clientType)) {
             _connectHub.register(
               webSocket,
               userId: 'legacy',
@@ -450,6 +450,66 @@ extension AriamiHttpServerWebSocketAndStaticMethods on AriamiHttpServer {
       // Revalidate on every load (a cheap 304 when unchanged) so browsers
       // pick up a new web UI build without a hard refresh.
       return response.change(headers: {'cache-control': 'no-cache'});
+    };
+  }
+
+  Handler _createWebPlayerStaticHandler() {
+    final staticHandler = gzipStaticFiles(createStaticHandler(
+      _webPlayerAssetsPath!,
+      defaultDocument: 'index.html',
+      listDirectories: false,
+    ));
+
+    return (Request request) async {
+      final path = '/${request.url.path}';
+      final isGetOrHead = request.method == 'GET' || request.method == 'HEAD';
+
+      if (path == '/play') {
+        if (!isGetOrHead) {
+          return Response.notFound('Not found');
+        }
+        return Response.found(
+          '/play/${request.url.hasQuery ? '?${request.url.query}' : ''}',
+        );
+      }
+
+      if (!path.startsWith('/play/')) {
+        return Response.notFound('Not found');
+      }
+
+      final rest = path.substring('/play/'.length);
+      final targetPath = rest.isEmpty ? '/' : '/$rest';
+      var response = await staticHandler(
+        Request(
+          request.method,
+          request.requestedUri.replace(path: targetPath),
+          headers: request.headers,
+          context: request.context,
+        ),
+      );
+      if (response.statusCode == HttpStatus.notFound &&
+          isGetOrHead &&
+          rest.isNotEmpty &&
+          !p.basename(rest).contains('.')) {
+        response = await staticHandler(
+          Request(
+            request.method,
+            request.requestedUri.replace(path: '/'),
+            headers: request.headers,
+            context: request.context,
+          ),
+        );
+      }
+      return response.change(headers: {'cache-control': 'no-cache'});
+    };
+  }
+
+  Handler _createRootToWebPlayerRedirectHandler() {
+    return (Request request) {
+      if (request.url.path.isEmpty) {
+        return Response.found('/play/');
+      }
+      return Response.notFound('Not found');
     };
   }
 

@@ -59,6 +59,8 @@ class ServerRunner {
   final CliTailscaleService _tailscaleService = CliTailscaleService();
   final DaemonService _daemonService = DaemonService();
   final WebAssetsResolver _webAssetsResolver = WebAssetsResolver();
+  final WebPlayerAssetsResolver _webPlayerAssetsResolver =
+      const WebPlayerAssetsResolver();
   final ContainerEnvironment _containerEnvironment = ContainerEnvironment();
   final ServerFeatureFlagService _featureFlagService =
       ServerFeatureFlagService();
@@ -71,6 +73,7 @@ class ServerRunner {
   late final ServerHostControls _hostControls;
 
   int _serverPort = 8080;
+  bool _webPlayerEnabled = false;
 
   /// The port to tell users about. Differs from [_serverPort] only when a
   /// container publishes the server on another port; everything that binds,
@@ -246,6 +249,17 @@ class ServerRunner {
       throw StateError('Web UI assets not found');
     }
     _httpServer.setWebAssetsPath(webAssets.path!);
+
+    final scriptUri = Platform.script;
+    final playerResolution = await _webPlayerAssetsResolver.resolve(
+      scriptPath: scriptUri.scheme == 'file' ? scriptUri.toFilePath() : null,
+    );
+    if (playerResolution.found) {
+      _httpServer.setWebPlayerAssetsPath(playerResolution.path!);
+      _webPlayerEnabled = true;
+    } else {
+      _webPlayerEnabled = false;
+    }
   }
 
   void _configureNetworkCallbacks() {
@@ -379,6 +393,7 @@ class ServerRunner {
       accountCount: auth.accountCount,
       hasOwnerAccount: auth.hasOwnerAccount,
       setupComplete: setupComplete,
+      webPlayerEnabled: _webPlayerEnabled,
       pid: isServerMode ? pid : null,
     )) {
       print(line);

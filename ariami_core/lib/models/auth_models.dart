@@ -171,16 +171,19 @@ class LogoutResponse {
 class StreamTicketRequest {
   final String songId;
   final String? quality; // Optional: high, medium, low
+  final String? format; // Optional: aac, m4a
 
   StreamTicketRequest({
     required this.songId,
     this.quality,
+    this.format,
   });
 
   factory StreamTicketRequest.fromJson(Map<String, dynamic> json) {
     return StreamTicketRequest(
       songId: json['songId'] as String,
       quality: json['quality'] as String?,
+      format: json['format'] as String?,
     );
   }
 
@@ -188,6 +191,7 @@ class StreamTicketRequest {
     return {
       'songId': songId,
       if (quality != null) 'quality': quality,
+      if (format != null) 'format': format,
     };
   }
 }

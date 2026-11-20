@@ -75,6 +75,9 @@ class SearchWorkerResults {
 }
 
 class LibrarySearchWorker {
+  static const bool _inProcess =
+      bool.fromEnvironment('dart.library.js_interop');
+  _SearchIndex? _local;
   Isolate? _isolate;
   ReceivePort? _receivePort;
   SendPort? _sendPort;
@@ -120,6 +123,8 @@ class LibrarySearchWorker {
 
   Future<Object?> _sendRequest(_WorkerRequest Function(int id) build) async {
     if (_disposed) return null;
+    // Browsers have no isolates, so web searches the index in place.
+    if (_inProcess) return (_local ??= _SearchIndex()).handle(build(_nextId++));
     final SendPort port;
     try {
       port = await _ensureStarted();
@@ -181,7 +186,8 @@ class LibrarySearchWorker {
     if (_disposed) return;
     _disposed = true;
     if (_startCompleter != null && !_startCompleter!.isCompleted) {
-      _startCompleter!.completeError(StateError('LibrarySearchWorker disposed'));
+      _startCompleter!
+          .completeError(StateError('LibrarySearchWorker disposed'));
     }
     for (final completer in _pending.values) {
       if (!completer.isCompleted) completer.complete(null);
@@ -252,131 +258,128 @@ class _IndexedSong {
   final PreparedLyrics? preparedLyrics;
 }
 
+/// The catalog index and ranking, shared by the isolate and the web fallback.
+class _SearchIndex {
+  var _songs = const <_IndexedSong>[];
+  var _albums = const <_IndexedItem>[];
+  var _playlists = const <_IndexedItem>[];
+
+  /// Completes when the latest catalog build has been swapped in.
+  Future<void> _ready = Future<void>.value();
+
+  // Built in slices with event-loop yields between them: on web the index
+  // shares the UI thread, where one pass over 2k songs blocks for ~340 ms.
+  Future<void> setCatalog(_SetCatalogRequest message) async {
+    // Re-syncs (playlist edits, curation, delta syncs) keep each song's
+    // prepared lyrics when the text is unchanged.
+    final previousSongs = <String, _IndexedSong>{
+      for (final song in _songs)
+        if (song.preparedLyrics != null) song.id: song,
+    };
+    final albumById = <String, SearchableAlbumEntry>{
+      for (final album in message.albums) album.id: album,
+    };
+    final albums = [
+      for (final album in message.albums)
+        _IndexedItem(album.id, [
+          SearchField(album.title, isPrimary: true),
+          SearchField(album.artist),
+        ]),
+    ];
+    final playlists = [
+      for (final playlist in message.playlists)
+        _IndexedItem(playlist.id, [
+          SearchField(playlist.name, isPrimary: true),
+        ]),
+    ];
+    final songs = <_IndexedSong>[];
+    for (final song in message.songs) {
+      if (songs.length % 100 == 99) await Future<void>.delayed(Duration.zero);
+      final album = song.albumId == null ? null : albumById[song.albumId!];
+      final albumTitle = song.albumTitle ?? album?.title;
+      final albumArtist = song.albumArtist ?? album?.artist;
+      final previous = previousSongs[song.id];
+      songs.add(_IndexedSong(
+        song.id,
+        [
+          SearchField(song.title, isPrimary: true),
+          SearchField(song.artist),
+          if (albumTitle != null) SearchField(albumTitle),
+          if (albumArtist != null) SearchField(albumArtist),
+        ],
+        song.lyrics,
+        previous != null && previous.lyrics == song.lyrics
+            ? previous.preparedLyrics
+            : LibrarySearchEngine.prepareLyrics(song.lyrics),
+      ));
+    }
+    _albums = albums;
+    _playlists = playlists;
+    _songs = songs;
+  }
+
+  SearchWorkerResults search(_SearchRequest message) {
+    final parsed = SearchQuery.parse(message.query);
+    if (parsed.isEmpty) return SearchWorkerResults.empty;
+
+    final rankedSongs = message.includeSongs
+        ? LibrarySearchEngine.rankWithLyrics(
+            parsed,
+            _songs,
+            idOf: (s) => s.id,
+            fieldsOf: (s) => s.fields,
+            lyricsOf: (_) => null,
+            preparedLyricsOf: (s) => s.preparedLyrics,
+            limit: message.songLimit,
+          )
+        : (
+            items: const <_IndexedSong>[],
+            lyricSnippets: const <String, String>{}
+          );
+    final rankedAlbums = LibrarySearchEngine.rank(
+      parsed,
+      _albums,
+      (a) => a.fields,
+      limit: message.albumLimit,
+    );
+    final rankedPlaylists = LibrarySearchEngine.rank(
+      parsed,
+      _playlists,
+      (p) => p.fields,
+      limit: message.playlistLimit,
+    );
+    return SearchWorkerResults(
+      songIds: [for (final s in rankedSongs.items) s.id],
+      albumIds: [for (final a in rankedAlbums) a.id],
+      playlistIds: [for (final p in rankedPlaylists) p.id],
+      lyricSnippets: rankedSongs.lyricSnippets,
+    );
+  }
+
+  /// Builds run one after another; searches wait for the latest one.
+  Future<Object?> handle(_WorkerRequest request) async {
+    if (request is _SetCatalogRequest) {
+      await (_ready =
+          _ready.catchError((_) {}).then((_) => setCatalog(request)));
+      return null;
+    }
+    await _ready.catchError((_) {});
+    return request is _SearchRequest ? search(request) : null;
+  }
+}
+
 void _workerMain(SendPort replyTo) {
   final inbox = ReceivePort();
   replyTo.send(inbox.sendPort);
-
-  var indexedSongs = const <_IndexedSong>[];
-  var indexedAlbums = const <_IndexedItem>[];
-  var indexedPlaylists = const <_IndexedItem>[];
-  var catalogGeneration = 0;
-
-  // Line-level lyric fields are built in small chunks between messages so a
-  // search arriving mid-warm is answered right away.
-  void warmLyrics(int generation, int start) {
-    if (generation != catalogGeneration) return;
-    final end = start + 100 < indexedSongs.length
-        ? start + 100
-        : indexedSongs.length;
-    for (var i = start; i < end; i++) {
-      indexedSongs[i].preparedLyrics?.warm();
-    }
-    if (end < indexedSongs.length) {
-      Timer.run(() => warmLyrics(generation, end));
-    }
-  }
-
+  final index = _SearchIndex();
   inbox.listen((message) {
     if (message is _DisposeRequest) {
       inbox.close();
-      return;
-    }
-
-    if (message is _SetCatalogRequest) {
-      // Re-syncs (playlist edits, curation, delta syncs) keep each song's
-      // prepared lyrics when the text is unchanged.
-      final previousSongs = <String, _IndexedSong>{
-        for (final song in indexedSongs)
-          if (song.preparedLyrics != null) song.id: song,
-      };
-      final albumById = <String, SearchableAlbumEntry>{
-        for (final album in message.albums) album.id: album,
-      };
-      indexedAlbums = [
-        for (final album in message.albums)
-          _IndexedItem(album.id, [
-            SearchField(album.title, isPrimary: true),
-            SearchField(album.artist),
-          ]),
-      ];
-      indexedPlaylists = [
-        for (final playlist in message.playlists)
-          _IndexedItem(playlist.id, [
-            SearchField(playlist.name, isPrimary: true),
-          ]),
-      ];
-      indexedSongs = [
-        for (final song in message.songs)
-          () {
-            final album =
-                song.albumId == null ? null : albumById[song.albumId!];
-            final albumTitle = song.albumTitle ?? album?.title;
-            final albumArtist = song.albumArtist ?? album?.artist;
-            final previous = previousSongs[song.id];
-            return _IndexedSong(
-              song.id,
-              [
-                SearchField(song.title, isPrimary: true),
-                SearchField(song.artist),
-                if (albumTitle != null) SearchField(albumTitle),
-                if (albumArtist != null) SearchField(albumArtist),
-              ],
-              song.lyrics,
-              previous != null && previous.lyrics == song.lyrics
-                  ? previous.preparedLyrics
-                  : LibrarySearchEngine.prepareLyrics(song.lyrics),
-            );
-          }(),
-      ];
-      replyTo.send(_WorkerResponse(message.id, null));
-      final generation = ++catalogGeneration;
-      Timer.run(() => warmLyrics(generation, 0));
-      return;
-    }
-
-    if (message is _SearchRequest) {
-      final parsed = SearchQuery.parse(message.query);
-      if (parsed.isEmpty) {
-        replyTo.send(_WorkerResponse(message.id, SearchWorkerResults.empty));
-        return;
-      }
-
-      final rankedSongs = message.includeSongs
-          ? LibrarySearchEngine.rankWithLyrics(
-              parsed,
-              indexedSongs,
-              idOf: (s) => s.id,
-              fieldsOf: (s) => s.fields,
-              lyricsOf: (_) => null,
-              preparedLyricsOf: (s) => s.preparedLyrics,
-              limit: message.songLimit,
-            )
-          : (items: const <_IndexedSong>[], lyricSnippets: const <String, String>{});
-
-      final rankedAlbums = LibrarySearchEngine.rank(
-        parsed,
-        indexedAlbums,
-        (a) => a.fields,
-        limit: message.albumLimit,
-      );
-      final rankedPlaylists = LibrarySearchEngine.rank(
-        parsed,
-        indexedPlaylists,
-        (p) => p.fields,
-        limit: message.playlistLimit,
-      );
-
-      replyTo.send(
-        _WorkerResponse(
-          message.id,
-          SearchWorkerResults(
-            songIds: [for (final s in rankedSongs.items) s.id],
-            albumIds: [for (final a in rankedAlbums) a.id],
-            playlistIds: [for (final p in rankedPlaylists) p.id],
-            lyricSnippets: rankedSongs.lyricSnippets,
-          ),
-        ),
-      );
+    } else if (message
+        case _SetCatalogRequest(:final id) || _SearchRequest(:final id)) {
+      index
+          .handle(message as _WorkerRequest)
+          .then((result) => replyTo.send(_WorkerResponse(id, result)));
     }
   });
 }

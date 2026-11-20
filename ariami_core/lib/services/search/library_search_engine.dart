@@ -235,8 +235,10 @@ class LibrarySearchEngine {
         .where((line) => line.isNotEmpty)
         .toList(growable: false);
     if (rawLines.isEmpty) return null;
-    final fullText = SearchNormalizer.of(rawLines.join(' '), cache: false);
-    return PreparedLyrics._(rawLines, fullText);
+    final lines = [
+      for (final line in rawLines) SearchNormalizer.of(line, cache: false),
+    ];
+    return PreparedLyrics._(rawLines, lines, SearchText.join(lines));
   }
 
   static PreparedLyrics? _prepareLyricsCached(String rawLyrics) {
@@ -273,22 +275,29 @@ class LibrarySearchEngine {
       return null;
     }
     _LyricMatch? best;
-
-    for (final line in prepared._lines) {
-      final match = _matchItem(query, line.fields, allowFuzzy: false);
+    final lines = prepared._lines;
+    for (var i = 0; i < lines.length; i++) {
+      final match = _matchItem(query, [SearchField.prepared(lines[i])],
+          allowFuzzy: false);
       if (match == null) continue;
       if (best == null || match.tier.rank > best.tier.rank) {
-        best = _LyricMatch(match.tier, line.display, singleLine: true);
+        best = _LyricMatch(match.tier, prepared._rawLines[i], singleLine: true);
         if (best.tier == SearchMatchTier.exact) return best;
       }
     }
 
     if (query.tokens.length >= 2) {
-      for (final pair in prepared._pairs) {
-        final match = _matchItem(query, pair.fields, allowFuzzy: false);
+      final pairs = prepared._pairs;
+      for (var i = 0; i < pairs.length; i++) {
+        final match = _matchItem(query, [SearchField.prepared(pairs[i])],
+            allowFuzzy: false);
         if (match == null) continue;
         if (best == null || match.tier.rank > best.tier.rank) {
-          best = _LyricMatch(match.tier, pair.display, singleLine: false);
+          best = _LyricMatch(
+            match.tier,
+            '${prepared._rawLines[i]} / ${prepared._rawLines[i + 1]}',
+            singleLine: false,
+          );
           if (best.tier == SearchMatchTier.exact) return best;
         }
       }
@@ -543,35 +552,16 @@ class _LyricMatch {
   final bool singleLine;
 }
 
-class _PreparedLyricLine {
-  const _PreparedLyricLine(this.display, this.fields);
-  final String display;
-  final List<SearchField> fields;
-}
-
 class PreparedLyrics {
-  PreparedLyrics._(this._rawLines, this.fullText);
+  PreparedLyrics._(this._rawLines, this._lines, this.fullText);
   final List<String> _rawLines;
+  final List<SearchText> _lines;
   final SearchText fullText;
 
-  late final List<_PreparedLyricLine> _lines = [
-    for (final line in _rawLines)
-      _PreparedLyricLine(line, [SearchField(line, cache: false)]),
+  late final List<SearchText> _pairs = [
+    for (var i = 0; i + 1 < _lines.length; i++)
+      SearchText.join([_lines[i], _lines[i + 1]]),
   ];
-
-  late final List<_PreparedLyricLine> _pairs = [
-    for (var i = 0; i + 1 < _rawLines.length; i++)
-      _PreparedLyricLine(
-        '${_rawLines[i]} / ${_rawLines[i + 1]}',
-        [SearchField('${_rawLines[i]} ${_rawLines[i + 1]}', cache: false)],
-      ),
-  ];
-
-  /// Builds the lazy line and pair fields ahead of the first lyric query.
-  void warm() {
-    _lines;
-    _pairs;
-  }
 }
 
 class _RankedLyricItem<T> {

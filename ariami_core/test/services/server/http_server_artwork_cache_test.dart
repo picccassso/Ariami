@@ -2,7 +2,10 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:ariami_core/models/artwork_batch_codec.dart';
+import 'package:ariami_core/models/artwork_size.dart';
 import 'package:ariami_core/models/feature_flags.dart';
+import 'package:ariami_core/services/artwork/artwork_service.dart';
 import 'package:ariami_core/services/server/http_server.dart';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
@@ -143,6 +146,137 @@ void main() {
         );
         expect(songNotModifiedResponse.statusCode, 304);
         expect(songNotModifiedResponse.headers['etag'], equals(songEtag));
+      },
+      timeout: const Timeout(Duration(seconds: 45)),
+    );
+
+    test(
+      'fast-path WebP negotiation and POST /api/artwork/batch return framed results',
+      () async {
+        final musicDir =
+            await Directory(p.join(testDir.path, 'music_batch')).create();
+        final artworkBytes = base64Decode(
+          '/9j/4AAQSkZJRgABAQAAAQABAAD/2wCEAAkGBxAQEBAQEBAPEA8PDw8QDw8QDw8PDw8PFREWFhURFRUYHSggGBolGxUVITEhJSkrLi4uFx8zODMtNygtLisBCgoKDQ0NDg0NDisZFRkrKysrKysrKysrKysrKysrKysrKysrKysrKysrKysrKysrKysrKysrKysrKysrK//AABEIABQAFAMBIgACEQEDEQH/xAAXAAADAQAAAAAAAAAAAAAAAAAAAQID/8QAFhABAQEAAAAAAAAAAAAAAAAAAQAC/8QAFQEBAQAAAAAAAAAAAAAAAAAAAwX/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIRAxEAPwCfAAH/2Q==',
+        );
+        await _writeTaggedMp3Stub(
+          p.join(musicDir.path, 'a1.mp3'),
+          title: 'A1',
+          artist: 'Artist',
+          album: 'Album',
+          artworkBytes: artworkBytes,
+        );
+        await _writeTaggedMp3Stub(
+          p.join(musicDir.path, 'a2.mp3'),
+          title: 'A2',
+          artist: 'Artist',
+          album: 'Album',
+          artworkBytes: artworkBytes,
+        );
+        await _writeTaggedMp3Stub(
+          p.join(musicDir.path, 'solo.mp3'),
+          title: 'Solo',
+          artist: 'Solo Artist',
+          album: null,
+          artworkBytes: artworkBytes,
+        );
+
+        Future<ProcessResult> fakeWebpFfmpeg(
+          String executable,
+          List<String> args,
+        ) async {
+          if (args.contains('-version')) {
+            return ProcessResult(1, 0, 'ffmpeg stub', '');
+          }
+          if (args.contains('-encoders')) {
+            return ProcessResult(1, 0, ' V....D libwebp WebP image', '');
+          }
+          final outPath = args.last;
+          await File(outPath).writeAsBytes(const <int>[0x52, 0x49, 0x46, 0x46]);
+          return ProcessResult(2, 0, '', '');
+        }
+
+        server.setArtworkService(ArtworkService(
+          cacheDirectory: p.join(testDir.path, 'art_cache'),
+          processRunner: fakeWebpFfmpeg,
+        ));
+
+        await server.libraryManager.scanMusicFolder(musicDir.path);
+        final port = await startHttpTestServer(server);
+        final sessionToken = await _registerAndLogin(port);
+        final authHeaders = <String, String>{
+          'Authorization': 'Bearer $sessionToken',
+          'Accept': 'image/webp,image/jpeg,*/*',
+        };
+
+        final repository = server.libraryManager.createCatalogRepository()!;
+        final albumId = repository.listAlbumsPage(limit: 10).items.first.id;
+        final standaloneId = repository
+            .listSongsPage(limit: 20)
+            .items
+            .firstWhere((s) => s.albumId == null)
+            .id;
+
+        final webpRes = await _sendBinaryRequest(
+          method: 'GET',
+          url: Uri.parse(
+            'http://127.0.0.1:$port/api/artwork/$albumId?size=thumbnail',
+          ),
+          headers: authHeaders,
+        );
+        expect(webpRes.statusCode, 200);
+        expect(webpRes.headers['content-type'], 'image/webp');
+        expect(webpRes.headers['cache-control'], contains('immutable'));
+
+        // Unauthenticated batch must be rejected.
+        final unauthClient = HttpClient();
+        try {
+          final req = await unauthClient.postUrl(
+            Uri.parse('http://127.0.0.1:$port/api/artwork/batch'),
+          );
+          req.headers.contentType = ContentType.json;
+          req.write(jsonEncode({'albums': [albumId]}));
+          final res = await req.close();
+          expect(res.statusCode, 401);
+          await res.drain<void>();
+        } finally {
+          unauthClient.close(force: true);
+        }
+
+        // Authenticated batch returns album, standalone song, and missing item.
+        final batchClient = HttpClient();
+        try {
+          final req = await batchClient.postUrl(
+            Uri.parse('http://127.0.0.1:$port/api/artwork/batch'),
+          );
+          req.headers.contentType = ContentType.json;
+          req.headers.set('Authorization', 'Bearer $sessionToken');
+          req.write(jsonEncode({
+            'size': ArtworkSize.thumbnail.name,
+            'format': 'webp',
+            'albums': [albumId, 'nonexistent-album'],
+            'songs': [standaloneId],
+          }));
+          final res = await req.close();
+          expect(res.statusCode, 200);
+          final builder = BytesBuilder(copy: false);
+          await for (final chunk in res) {
+            builder.add(chunk);
+          }
+          final decoded = ArtworkBatchCodec.decode(builder.takeBytes());
+          final byKey = {for (final item in decoded) item.key: item};
+          expect(byKey[ArtworkBatchCodec.albumKey(albumId)]?.found, isTrue);
+          expect(
+            byKey[ArtworkBatchCodec.albumKey(albumId)]?.contentType,
+            'image/webp',
+          );
+          expect(byKey[ArtworkBatchCodec.songKey(standaloneId)]?.found, isTrue);
+          expect(
+            byKey[ArtworkBatchCodec.albumKey('nonexistent-album')]?.found,
+            isFalse,
+          );
+        } finally {
+          batchClient.close(force: true);
+        }
       },
       timeout: const Timeout(Duration(seconds: 45)),
     );

@@ -117,7 +117,10 @@ extension AriamiHttpServerMiddlewareAndMetricsMethods on AriamiHttpServer {
     return {
       'Access-Control-Allow-Origin': origin,
       'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization, Range',
+      'Access-Control-Expose-Headers':
+          'Content-Length, Content-Range, Accept-Ranges',
+      'Access-Control-Max-Age': '86400',
       'Vary': 'Origin',
     };
   }
@@ -276,6 +279,16 @@ extension AriamiHttpServerMiddlewareAndMetricsMethods on AriamiHttpServer {
         // Allow static web shell/assets when API-scoped auth is enabled.
         // API auth behavior remains unchanged.
         if (_featureFlags.enableApiScopedAuthForCliWeb && !isApiPath) {
+          return await handler(request);
+        }
+
+        // Allow bundled web player routes (and `/` redirect when no CLI web
+        // dashboard owns `/`) even when API-scoped CLI web auth is off.
+        if (!isApiPath &&
+            _webPlayerAssetsPath != null &&
+            (path == '/play' ||
+                path.startsWith('/play/') ||
+                (path == '/' && _webAssetsPath == null))) {
           return await handler(request);
         }
 
@@ -675,6 +688,9 @@ extension AriamiHttpServerMiddlewareAndMetricsMethods on AriamiHttpServer {
   String _normalizeMetricsPath(String rawPath) {
     final path = rawPath.startsWith('/') ? rawPath : '/$rawPath';
 
+    if (path == '/api/artwork/batch') {
+      return '/api/artwork/batch';
+    }
     if (path.startsWith('/api/artwork/')) {
       return '/api/artwork/:albumId';
     }

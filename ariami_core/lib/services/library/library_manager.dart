@@ -142,6 +142,14 @@ class LibraryManager {
   final LyricsExtractor _lyricsExtractor = LyricsExtractor();
 
   ArtworkService? _artworkPrecomputeService;
+  int _thumbnailPrecomputeGeneration = 0;
+
+  void setArtworkPrecomputeService(ArtworkService service) {
+    _artworkPrecomputeService = service;
+    if (_library != null) {
+      _scheduleBackgroundThumbnailPrecompute();
+    }
+  }
 
   final List<void Function()> _onScanCompleteCallbacks = [];
 
@@ -360,6 +368,12 @@ class LibraryManager {
   Future<List<int>?> getAlbumArtwork(String albumId) =>
       _getAlbumArtworkImpl(albumId);
 
+  Future<String?> getAlbumArtworkSourceStamp(String albumId) =>
+      _getAlbumArtworkSourceStampImpl(albumId);
+
+  bool albumHasArtwork(String albumId) =>
+      _library?.albums[albumId]?.hasArtwork ?? false;
+
   Future<int?> getSongDuration(String songId) => _getSongDurationImpl(songId);
 
   /// Get known song duration by song ID without triggering extraction.
@@ -374,6 +388,9 @@ class LibraryManager {
   /// Used for standalone songs that don't belong to an album
   Future<List<int>?> getSongArtwork(String songId) =>
       _getSongArtworkImpl(songId);
+
+  Future<String?> getSongArtworkSourceStamp(String songId) =>
+      _getSongArtworkSourceStampImpl(songId);
 
   /// Get lyrics for a song by song ID (lazy extraction with caching).
   ///

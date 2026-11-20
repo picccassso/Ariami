@@ -1,5 +1,8 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
+import '../services/web_api_client.dart';
 import '../services/web_auth_service.dart';
 import '../services/web_setup_service.dart';
 import '../utils/constants.dart';
@@ -18,11 +21,38 @@ class LoginScreen extends StatefulWidget {
 
 class _LoginScreenState extends State<LoginScreen> {
   final WebAuthService _authService = WebAuthService();
+  final WebApiClient _apiClient = WebApiClient();
   final TextEditingController _usernameController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
 
   bool _isLoading = false;
+  bool _webPlayerEnabled = false;
   String? _errorMessage;
+
+  @override
+  void initState() {
+    super.initState();
+    unawaited(_loadWebPlayerAvailability());
+  }
+
+  Future<void> _loadWebPlayerAvailability() async {
+    try {
+      final response =
+          await _apiClient.get('/api/server-info', includeAuth: false);
+      if (!mounted || !response.isSuccess || response.jsonBody == null) {
+        return;
+      }
+      final enabled =
+          response.jsonBody!['webPlayerEnabled'] as bool? ?? false;
+      if (enabled != _webPlayerEnabled) {
+        setState(() {
+          _webPlayerEnabled = enabled;
+        });
+      }
+    } catch (_) {
+      // Server info is optional on login; keep link hidden on error.
+    }
+  }
 
   @override
   void dispose() {
@@ -170,6 +200,19 @@ class _LoginScreenState extends State<LoginScreen> {
                     : const Text('Sign in'),
               ),
             ),
+            if (_webPlayerEnabled) ...[
+              const SizedBox(height: 14),
+              Center(
+                child: TextButton.icon(
+                  onPressed: () => openWebPlayer(newTab: false),
+                  icon: const Icon(Icons.play_arrow_rounded, size: 17),
+                  label: const Text('Open Web Player'),
+                  style: TextButton.styleFrom(
+                    foregroundColor: AppTheme.textSecondary,
+                  ),
+                ),
+              ),
+            ],
           ],
         ),
       ),

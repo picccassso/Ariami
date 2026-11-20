@@ -106,6 +106,12 @@ extension _LibraryManagerScanningPart on LibraryManager {
           'latestToken: $_latestCatalogToken)');
 
       _notifyScanComplete();
+      _scheduleBackgroundThumbnailPrecompute(
+        albumIds: update.affectedAlbumIds,
+        songIds: update.addedSongIds.followedBy(update.modifiedSongIds).where(
+              (id) => _songAlbumIdById[id] == null,
+            ),
+      );
     } catch (e, stackTrace) {
       print('[LibraryManager] ERROR applying file-change batch: $e');
       print('[LibraryManager] File-change stack trace: $stackTrace');
@@ -274,6 +280,7 @@ extension _LibraryManagerScanningPart on LibraryManager {
         _startWatchingFolder(folderPath);
 
         _notifyScanComplete();
+        _scheduleBackgroundThumbnailPrecompute();
       } else {
         _musicAvailability = MusicAvailability.scanFailed;
         _stopWatchingFolder();
@@ -305,6 +312,7 @@ extension _LibraryManagerScanningPart on LibraryManager {
     _latestScanDiagnostics = const ScanDiagnostics();
     _latestScannedFileCount = 0;
     _artworkCache.clear();
+    _thumbnailPrecomputeGeneration++;
     _durationCache.clear();
     _songArtworkCache.clear();
     _lyricsCache.clear();

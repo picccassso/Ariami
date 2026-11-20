@@ -2,6 +2,17 @@ part of 'package:ariami_core/services/transcoding/transcoding_service.dart';
 
 extension _TranscodingServiceCache on TranscodingService {
 
+  String _cacheKey(
+    String songId,
+    QualityPreset quality, [
+    TranscodeOutputFormat outputFormat = TranscodeOutputFormat.aac,
+  ]) {
+    if (outputFormat == TranscodeOutputFormat.aac) {
+      return '${songId}_${quality.name}';
+    }
+    return '${songId}_${quality.name}_${outputFormat.name}';
+  }
+
   Future<void> _ensureIndexLoaded() async {
     if (_indexLoaded) return;
     await _loadCacheIndex();
@@ -54,7 +65,8 @@ extension _TranscodingServiceCache on TranscodingService {
         if (entity is File &&
             (entity.path.endsWith('.aac') || entity.path.endsWith('.m4a'))) {
           final stat = await entity.stat();
-          final relPath = entity.path.substring(cacheDirectory.length + 1);
+          final relPath =
+              p.relative(entity.path, from: cacheDirectory).replaceAll('\\', '/');
           final key = _pathToKey(relPath);
 
           _cacheIndex[key] = _CacheIndexEntry(
@@ -77,11 +89,16 @@ extension _TranscodingServiceCache on TranscodingService {
 
   String _pathToKey(String relPath) {
     // "medium/songId.aac" -> "songId_medium"
-    final parts = relPath.split('/');
+    // "medium/songId.m4a" -> "songId_medium_m4a"
+    final parts = relPath.replaceAll('\\', '/').split('/');
     if (parts.length >= 2) {
       final quality = parts[0];
       final filename = parts[1];
-      final songId = filename.replaceFirst(RegExp(r'\.(aac|m4a)$'), '');
+      if (filename.endsWith('.m4a')) {
+        final songId = filename.substring(0, filename.length - 4);
+        return '${songId}_${quality}_m4a';
+      }
+      final songId = filename.replaceFirst(RegExp(r'\.aac$'), '');
       return '${songId}_$quality';
     }
     return relPath;
@@ -144,14 +161,20 @@ extension _TranscodingServiceCache on TranscodingService {
     }
   }
 
-  void _markInUse(String songId, QualityPreset quality) {
-    final lockKey = '${songId}_${quality.name}';
-    _inUse.add(lockKey);
+  void _markInUse(
+    String songId,
+    QualityPreset quality, {
+    TranscodeOutputFormat outputFormat = TranscodeOutputFormat.aac,
+  }) {
+    _inUse.add(_cacheKey(songId, quality, outputFormat));
   }
 
-  void _releaseInUse(String songId, QualityPreset quality) {
-    final lockKey = '${songId}_${quality.name}';
-    _inUse.remove(lockKey);
+  void _releaseInUse(
+    String songId,
+    QualityPreset quality, {
+    TranscodeOutputFormat outputFormat = TranscodeOutputFormat.aac,
+  }) {
+    _inUse.remove(_cacheKey(songId, quality, outputFormat));
   }
 
   void _removeFromIndex(String key) {
@@ -260,30 +283,43 @@ extension _TranscodingServiceCache on TranscodingService {
 
   Future<void> _invalidateSong(String songId) async {
     for (final quality in QualityPreset.values) {
-      if (!quality.requiresTranscoding) continue;
-
-      final lockKey = '${songId}_${quality.name}';
-      final cachedFile = _getCachedFile(songId, quality);
-      final partialFile = File('${cachedFile.path}.partial');
-
-      if (await cachedFile.exists()) {
-        try {
-          await cachedFile.delete();
-          _removeFromIndex(lockKey);
-          print('TranscodingService: Invalidated $songId at ${quality.name}');
-        } catch (e) {
-          print('TranscodingService: Failed to invalidate $songId: $e');
+      for (final outputFormat in const [
+        TranscodeOutputFormat.aac,
+        TranscodeOutputFormat.m4a,
+      ]) {
+        if (!quality.requiresTranscoding &&
+            outputFormat == TranscodeOutputFormat.aac) {
+          continue;
         }
-      } else if (_cacheIndex.containsKey(lockKey)) {
-        _removeFromIndex(lockKey);
-      }
 
-      if (await partialFile.exists()) {
-        try {
-          await partialFile.delete();
-        } catch (e) {
-          print(
-              'TranscodingService: Failed to remove partial output for $songId: $e');
+        final lockKey = _cacheKey(songId, quality, outputFormat);
+        final cachedFile = _getCachedFile(
+          songId,
+          quality,
+          outputFormat: outputFormat,
+        );
+        final partialFile = File('${cachedFile.path}.partial');
+
+        if (await cachedFile.exists()) {
+          try {
+            await cachedFile.delete();
+            _removeFromIndex(lockKey);
+            print(
+                'TranscodingService: Invalidated $songId at ${quality.name} (${outputFormat.name})');
+          } catch (e) {
+            print('TranscodingService: Failed to invalidate $songId: $e');
+          }
+        } else if (_cacheIndex.containsKey(lockKey)) {
+          _removeFromIndex(lockKey);
+        }
+
+        if (await partialFile.exists()) {
+          try {
+            await partialFile.delete();
+          } catch (e) {
+            print(
+                'TranscodingService: Failed to remove partial output for $songId: $e');
+          }
         }
       }
     }

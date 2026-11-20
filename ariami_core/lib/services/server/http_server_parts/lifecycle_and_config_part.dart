@@ -13,8 +13,12 @@ class _ServerInfoAuthSnapshot {
 extension AriamiHttpServerLifecycleMethods on AriamiHttpServer {
   bool get isRunning => _server != null;
 
-  void setWebAssetsPath(String path) {
+  void setWebAssetsPath(String? path) {
     _webAssetsPath = path;
+  }
+
+  void setWebPlayerAssetsPath(String? path) {
+    _webPlayerAssetsPath = path;
   }
 
   /// Set the transcoding service for quality-based streaming.
@@ -31,6 +35,7 @@ extension AriamiHttpServerLifecycleMethods on AriamiHttpServer {
   /// The artwork service handles FFmpeg-based resizing and caching.
   void setArtworkService(ArtworkService service) {
     _artworkService = service;
+    _libraryManager.setArtworkPrecomputeService(service);
   }
 
   /// Set callback for getting Tailscale status (optional).
@@ -401,11 +406,16 @@ extension AriamiHttpServerLifecycleMethods on AriamiHttpServer {
 
     final router = _buildRouter();
 
-    final Handler cascadeHandler = Cascade()
-        .add(router.call) // API routes have priority
+    var cascade = Cascade().add(router.call); // API routes have priority
+    if (_webPlayerAssetsPath != null) {
+      cascade = cascade.add(_createWebPlayerStaticHandler());
+    }
+    final Handler cascadeHandler = cascade
         .add(_webAssetsPath != null
             ? _createStaticHandler()
-            : _notFoundHandler())
+            : (_webPlayerAssetsPath != null
+                ? _createRootToWebPlayerRedirectHandler()
+                : _notFoundHandler()))
         .handler;
 
     final handler = const Pipeline()
@@ -434,6 +444,9 @@ extension AriamiHttpServerLifecycleMethods on AriamiHttpServer {
       print('Advertised IP for QR code: $advertisedIp');
       if (_webAssetsPath != null) {
         print('Serving web UI from: $_webAssetsPath');
+      }
+      if (_webPlayerAssetsPath != null) {
+        print('Serving web player from: $_webPlayerAssetsPath');
       }
       _metricsService.start();
       if (_tailscaleIp != null && _tailscaleIp!.isNotEmpty) {
@@ -666,6 +679,7 @@ extension AriamiHttpServerLifecycleMethods on AriamiHttpServer {
       'authRequired': _authRequired,
       'legacyMode': _legacyMode,
       'supportsListeningSourceReset': true,
+      'webPlayerEnabled': _webPlayerAssetsPath != null,
       'hasUsers': authSnapshot.hasUsers,
       'registeredUsers': authSnapshot.registeredUsers,
       'downloadLimits': {

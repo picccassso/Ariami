@@ -13,6 +13,7 @@ import '../services/web_auth_service.dart';
 import '../services/web_setup_service.dart';
 import '../services/web_websocket_service.dart';
 import '../utils/constants.dart';
+import '../utils/web_navigation.dart';
 import '../widgets/dashboard/change_music_folder_dialog.dart';
 import '../widgets/dashboard/dashboard_activity_tab.dart';
 import '../widgets/dashboard/dashboard_header.dart';
@@ -133,6 +134,7 @@ class _DashboardScreenState extends State<DashboardScreen>
   DateTime? _dashboardEndpointsUpdatedAt;
   bool _isRefreshingAddresses = false;
   bool _setupComplete = false;
+  bool _webPlayerEnabled = false;
 
   Timer? _refreshTimer;
   Timer? _userActivityRefreshTimer;
@@ -212,6 +214,8 @@ class _DashboardScreenState extends State<DashboardScreen>
           tabs: _dashboardTabs,
           username: _currentUsername,
           isRefreshing: _isRefreshingStats,
+          onOpenWebPlayer:
+              _webPlayerEnabled ? () => openWebPlayer(newTab: true) : null,
           onRefresh: _manualRefresh,
           onShowQrCode: _viewQRCode,
           onSignOut: _signOut,

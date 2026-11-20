@@ -9,6 +9,16 @@ import 'ffmpeg_probe.dart';
 
 export 'ffmpeg_probe.dart' show ArtworkProcessRunner;
 
+enum ArtworkFormat {
+  jpeg('image/jpeg', 'jpg'),
+  webp('image/webp', 'webp');
+
+  const ArtworkFormat(this.contentType, this.extension);
+
+  final String contentType;
+  final String extension;
+}
+
 /// Service for processing and caching album artwork at different sizes.
 ///
 /// Uses FFmpeg for image resizing and maintains a cache of processed images
@@ -47,21 +57,39 @@ class ArtworkService {
 
   Future<bool> isFFmpegAvailable() => _ffmpeg.isAvailable();
 
-  /// Get artwork at the specified size.
-  ///
-  /// Returns the processed artwork bytes, or the original if:
-  /// - Size is [ArtworkSize.full] (no processing needed)
-  /// - FFmpeg is not available
-  /// - Processing fails
-  ///
-  /// [albumId] - Unique identifier for the album (used for cache filename).
-  /// [originalArtwork] - Original artwork bytes.
-  /// [size] - Target size preset.
+  Future<bool> isWebpAvailable() => _ffmpeg.isWebpAvailable();
+
+  /// Fast-path disk cache lookup using [sourceStamp] (path/mtime/size) without
+  /// extracting or hashing the full-size original artwork.
+  Future<Uint8List?> getCachedArtwork(
+    String albumId,
+    ArtworkSize size, {
+    required String sourceStamp,
+    ArtworkFormat format = ArtworkFormat.jpeg,
+  }) async {
+    if (!size.requiresProcessing || sourceStamp.isEmpty) return null;
+    final cachedFile = _getCachedFile(albumId, size, format: format);
+    if (!await cachedFile.exists()) return null;
+    try {
+      final stampFile = _getSourceStampFile(cachedFile);
+      if (!await stampFile.exists()) return null;
+      final cachedStamp = (await stampFile.readAsString()).trim();
+      if (cachedStamp != sourceStamp) return null;
+      await _touchFile(cachedFile);
+      final bytes = await cachedFile.readAsBytes();
+      return bytes.isNotEmpty ? bytes : null;
+    } catch (_) {
+      return null;
+    }
+  }
+
   Future<Uint8List> getArtwork(
     String albumId,
     List<int> originalArtwork,
-    ArtworkSize size,
-  ) async {
+    ArtworkSize size, {
+    ArtworkFormat format = ArtworkFormat.jpeg,
+    String? sourceStamp,
+  }) async {
     final originalBytes = originalArtwork is Uint8List
         ? originalArtwork
         : Uint8List.fromList(originalArtwork);
@@ -70,7 +98,12 @@ class ArtworkService {
       return originalBytes;
     }
 
-    final cachedFile = _getCachedFile(albumId, size);
+    final effectiveFormat = format == ArtworkFormat.webp &&
+            await isWebpAvailable()
+        ? ArtworkFormat.webp
+        : ArtworkFormat.jpeg;
+
+    final cachedFile = _getCachedFile(albumId, size, format: effectiveFormat);
     if (await cachedFile.exists()) {
       try {
         final sourceDigest = _sourceDigest(originalBytes);
@@ -79,29 +112,31 @@ class ArtworkService {
             ? (await digestFile.readAsString()).trim()
             : null;
         if (cachedDigest == sourceDigest) {
-          print('[ArtworkService] Cache hit for $albumId at ${size.name}');
+          if (sourceStamp != null && sourceStamp.isNotEmpty) {
+            final stampFile = _getSourceStampFile(cachedFile);
+            if (!await stampFile.exists()) {
+              await stampFile.writeAsString(sourceStamp);
+            }
+          }
           await _touchFile(cachedFile);
           return await cachedFile.readAsBytes();
         }
 
-        print('[ArtworkService] Source changed for $albumId at ${size.name}; '
-            'regenerating cached artwork');
         await cachedFile.delete();
         if (await digestFile.exists()) await digestFile.delete();
+        final stampFile = _getSourceStampFile(cachedFile);
+        if (await stampFile.exists()) await stampFile.delete();
       } catch (e) {
         print('[ArtworkService] Error reading cached file: $e');
       }
     }
 
     if (!await isFFmpegAvailable()) {
-      print(
-          '[ArtworkService] Cannot resize - FFmpeg not available, returning original');
       return originalBytes;
     }
 
-    final lockKey = '${albumId}_${size.name}';
+    final lockKey = '${albumId}_${size.name}_${effectiveFormat.extension}';
     if (_processingLocks.containsKey(lockKey)) {
-      print('[ArtworkService] Waiting for existing processing of $albumId');
       final result = await _processingLocks[lockKey]!.future;
       return result ?? originalBytes;
     }
@@ -110,12 +145,15 @@ class ArtworkService {
     _processingLocks[lockKey] = completer;
 
     try {
-      print(
-          '[ArtworkService] Processing $albumId to ${size.name} (${size.maxDimension}x${size.maxDimension})');
-      final result = await _processArtwork(albumId, originalBytes, size);
+      final result = await _processArtwork(
+        albumId,
+        originalBytes,
+        size,
+        format: effectiveFormat,
+        sourceStamp: sourceStamp,
+      );
 
       if (result != null) {
-        // Cleanup cache if needed (async, don't wait)
         _cleanupCacheIfNeeded();
         completer.complete(result);
         return result;
@@ -138,9 +176,17 @@ class ArtworkService {
   Future<Uint8List> precomputeArtworkVariant(
     String artworkKey,
     List<int> originalArtwork,
-    ArtworkSize size,
-  ) async {
-    return getArtwork(artworkKey, originalArtwork, size);
+    ArtworkSize size, {
+    ArtworkFormat format = ArtworkFormat.jpeg,
+    String? sourceStamp,
+  }) async {
+    return getArtwork(
+      artworkKey,
+      originalArtwork,
+      size,
+      format: format,
+      sourceStamp: sourceStamp,
+    );
   }
 
   /// Returns the expected storage path for a variant.
@@ -151,21 +197,32 @@ class ArtworkService {
     String artworkKey,
     ArtworkSize size, {
     String? originalReferencePath,
+    ArtworkFormat format = ArtworkFormat.jpeg,
   }) {
     if (!size.requiresProcessing) {
       return originalReferencePath ?? '';
     }
-    return _getCachedFile(artworkKey, size).path;
+    return _getCachedFile(artworkKey, size, format: format).path;
   }
 
-  File _getCachedFile(String albumId, ArtworkSize size) {
+  File _getCachedFile(
+    String albumId,
+    ArtworkSize size, {
+    ArtworkFormat format = ArtworkFormat.jpeg,
+  }) {
     final safeId = albumId.replaceAll(RegExp(r'[^\w\-]'), '_');
-    final sizeDir = Directory('$cacheDirectory/${size.name}');
-    return File('${sizeDir.path}/$safeId.jpg');
+    final dirPath = format == ArtworkFormat.webp
+        ? '$cacheDirectory/${size.name}/webp'
+        : '$cacheDirectory/${size.name}';
+    return File('$dirPath/$safeId.${format.extension}');
   }
 
   File _getSourceDigestFile(File cachedFile) {
     return File('${cachedFile.path}.source-md5');
+  }
+
+  File _getSourceStampFile(File cachedFile) {
+    return File('${cachedFile.path}.source-stamp');
   }
 
   String _sourceDigest(List<int> bytes) => md5.convert(bytes).toString();
@@ -188,63 +245,76 @@ class ArtworkService {
   Future<Uint8List?> _processArtwork(
     String albumId,
     Uint8List originalArtwork,
-    ArtworkSize size,
-  ) async {
-    final outputFile = _getCachedFile(albumId, size);
+    ArtworkSize size, {
+    ArtworkFormat format = ArtworkFormat.jpeg,
+    String? sourceStamp,
+  }) async {
+    final outputFile = _getCachedFile(albumId, size, format: format);
     final outputDir = outputFile.parent;
     if (!await outputDir.exists()) {
       await outputDir.create(recursive: true);
     }
 
+    final safeId = albumId.replaceAll(RegExp(r'[^\w\-]'), '_');
     final tempDir = Directory.systemTemp;
-    final tempInput = File('${tempDir.path}/ariami_artwork_input_$albumId');
-    final tempOutput =
-        File('${tempDir.path}/ariami_artwork_output_$albumId.jpg');
+    final tempInput = File(
+      '${tempDir.path}/ariami_artwork_in_${safeId}_${size.name}_${format.extension}',
+    );
+    final tempOutput = File(
+      '${tempDir.path}/ariami_artwork_out_${safeId}_${size.name}.${format.extension}',
+    );
 
     try {
       await tempInput.writeAsBytes(originalArtwork);
 
       final maxDim = size.maxDimension!;
-      final args = [
-        '-y', // Overwrite output
-        '-i', tempInput.path, // Input file
-        '-vf',
-        'scale=$maxDim:$maxDim:force_original_aspect_ratio=decrease', // Scale preserving aspect ratio
-        '-q:v', '3', // JPEG quality (2-5 is good, lower = better quality)
-        tempOutput.path, // Output file
-      ];
-
-      print('[ArtworkService] Running: ffmpeg ${args.join(' ')}');
+      final scaleFilter =
+          'scale=$maxDim:$maxDim:force_original_aspect_ratio=decrease';
+      final args = format == ArtworkFormat.webp
+          ? [
+              '-y',
+              '-i',
+              tempInput.path,
+              '-vf',
+              scaleFilter,
+              '-c:v',
+              'libwebp',
+              '-quality',
+              size == ArtworkSize.thumbnail ? '78' : '82',
+              '-compression_level',
+              '4',
+              tempOutput.path,
+            ]
+          : [
+              '-y',
+              '-i',
+              tempInput.path,
+              '-vf',
+              scaleFilter,
+              '-q:v',
+              size == ArtworkSize.thumbnail ? '5' : '3',
+              tempOutput.path,
+            ];
 
       final result = await _processRunner('ffmpeg', args).timeout(
         const Duration(seconds: 10),
-        onTimeout: () {
-          print('[ArtworkService] Resize timeout');
-          return ProcessResult(-1, -1, '', 'Timeout');
-        },
+        onTimeout: () => ProcessResult(-1, -1, '', 'Timeout'),
       );
 
       if (result.exitCode == 0 && await tempOutput.exists()) {
         final thumbnailBytes = await tempOutput.readAsBytes();
-        final originalSize = originalArtwork.length;
-        final newSize = thumbnailBytes.length;
-
-        print('[ArtworkService] Resize complete: '
-            '${(originalSize / 1024).round()} KB -> ${(newSize / 1024).round()} KB '
-            '(${((1 - newSize / originalSize) * 100).round()}% reduction)');
-
         await outputFile.writeAsBytes(thumbnailBytes);
         await _getSourceDigestFile(outputFile).writeAsString(
           _sourceDigest(originalArtwork),
           flush: true,
         );
-
+        if (sourceStamp != null && sourceStamp.isNotEmpty) {
+          await _getSourceStampFile(outputFile).writeAsString(
+            sourceStamp,
+            flush: true,
+          );
+        }
         return thumbnailBytes;
-      }
-
-      print('[ArtworkService] FFmpeg failed (exit ${result.exitCode})');
-      if (result.stderr.toString().isNotEmpty) {
-        print('[ArtworkService] stderr: ${result.stderr}');
       }
 
       return null;
@@ -261,9 +331,6 @@ class ArtworkService {
     }
   }
 
-  /// Cleanup cache if it exceeds the maximum size.
-  ///
-  /// Uses LRU (Least Recently Used) eviction strategy.
   Future<void> _cleanupCacheIfNeeded() async {
     try {
       final cacheDir = Directory(cacheDirectory);
@@ -272,7 +339,8 @@ class ArtworkService {
       final files = <_CachedArtworkInfo>[];
 
       await for (final entity in cacheDir.list(recursive: true)) {
-        if (entity is File && entity.path.endsWith('.jpg')) {
+        if (entity is File &&
+            (entity.path.endsWith('.jpg') || entity.path.endsWith('.webp'))) {
           final stat = await entity.stat();
           files.add(_CachedArtworkInfo(
             file: entity,
@@ -283,14 +351,7 @@ class ArtworkService {
       }
 
       int totalSize = files.fold(0, (sum, f) => sum + f.size);
-
-      if (totalSize <= maxCacheSizeBytes) {
-        return; // Under limit, no cleanup needed
-      }
-
-      print('[ArtworkService] Cache cleanup needed '
-          '(${(totalSize / 1024 / 1024).round()} MB / '
-          '${(maxCacheSizeBytes / 1024 / 1024).round()} MB)');
+      if (totalSize <= maxCacheSizeBytes) return;
 
       files.sort((a, b) => a.lastAccessed.compareTo(b.lastAccessed));
 
@@ -301,15 +362,11 @@ class ArtworkService {
           await fileInfo.file.delete();
           final digestFile = _getSourceDigestFile(fileInfo.file);
           if (await digestFile.exists()) await digestFile.delete();
+          final stampFile = _getSourceStampFile(fileInfo.file);
+          if (await stampFile.exists()) await stampFile.delete();
           totalSize -= fileInfo.size;
-          print('[ArtworkService] Evicted ${fileInfo.file.path}');
-        } catch (e) {
-          print('[ArtworkService] Failed to delete ${fileInfo.file.path}: $e');
-        }
+        } catch (_) {}
       }
-
-      print('[ArtworkService] Cache size now '
-          '${(totalSize / 1024 / 1024).round()} MB');
     } catch (e) {
       print('[ArtworkService] Cache cleanup error - $e');
     }

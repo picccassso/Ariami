@@ -1193,6 +1193,7 @@ class _FakeTranscodingService extends TranscodingService {
     String songId,
     QualityPreset quality, {
     TranscodeRequestType requestType = TranscodeRequestType.streaming,
+    TranscodeOutputFormat outputFormat = TranscodeOutputFormat.aac,
     int? sourceBitrateKbps,
   }) async {
     getTranscodedFileCalls++;

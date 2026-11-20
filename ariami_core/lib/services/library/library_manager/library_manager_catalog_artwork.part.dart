@@ -233,6 +233,88 @@ extension _LibraryManagerCatalogArtworkPart on LibraryManager {
       return DateTime.now().millisecondsSinceEpoch;
     }
   }
+
+  void _scheduleBackgroundThumbnailPrecompute({
+    Iterable<String>? albumIds,
+    Iterable<String>? songIds,
+  }) {
+    final library = _library;
+    final artworkService = _artworkPrecomputeService;
+    if (library == null || artworkService == null) return;
+
+    final generation = ++_thumbnailPrecomputeGeneration;
+    final targetAlbumIds = (albumIds ??
+            library.albums.values
+                .where((a) => a.isValid && a.hasArtwork)
+                .map((a) => a.id))
+        .toList(growable: false);
+    final targetSongIds = (songIds ??
+            library.standaloneSongs.map((s) => generateSongId(s.filePath)))
+        .toList(growable: false);
+    if (targetAlbumIds.isEmpty && targetSongIds.isEmpty) return;
+
+    unawaited(() async {
+      await Future<void>.delayed(const Duration(seconds: 5));
+      if (generation != _thumbnailPrecomputeGeneration) return;
+      if (!await artworkService.isFFmpegAvailable()) return;
+      final format = await artworkService.isWebpAvailable()
+          ? ArtworkFormat.webp
+          : ArtworkFormat.jpeg;
+
+      for (final albumId in targetAlbumIds) {
+        if (generation != _thumbnailPrecomputeGeneration) return;
+        final stamp = await _getAlbumArtworkSourceStampImpl(albumId);
+        if (stamp == null) continue;
+        final cached = await artworkService.getCachedArtwork(
+          albumId,
+          ArtworkSize.thumbnail,
+          sourceStamp: stamp,
+          format: format,
+        );
+        if (cached != null) continue;
+
+        final bytes = await _getAlbumArtworkImpl(albumId);
+        if (bytes == null || generation != _thumbnailPrecomputeGeneration) {
+          continue;
+        }
+        await artworkService.getArtwork(
+          albumId,
+          bytes,
+          ArtworkSize.thumbnail,
+          format: format,
+          sourceStamp: stamp,
+        );
+        await Future<void>.delayed(const Duration(milliseconds: 100));
+      }
+
+      for (final songId in targetSongIds) {
+        if (generation != _thumbnailPrecomputeGeneration) return;
+        final stamp = await _getSongArtworkSourceStampImpl(songId);
+        if (stamp == null) continue;
+        final cacheKey = 'song_$songId';
+        final cached = await artworkService.getCachedArtwork(
+          cacheKey,
+          ArtworkSize.thumbnail,
+          sourceStamp: stamp,
+          format: format,
+        );
+        if (cached != null) continue;
+
+        final bytes = await _getSongArtworkImpl(songId);
+        if (bytes == null || generation != _thumbnailPrecomputeGeneration) {
+          continue;
+        }
+        await artworkService.getArtwork(
+          cacheKey,
+          bytes,
+          ArtworkSize.thumbnail,
+          format: format,
+          sourceStamp: stamp,
+        );
+        await Future<void>.delayed(const Duration(milliseconds: 100));
+      }
+    }());
+  }
 }
 
 class _AlbumArtworkSource {

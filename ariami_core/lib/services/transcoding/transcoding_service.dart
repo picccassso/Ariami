@@ -183,13 +183,15 @@ class TranscodingService {
     String songId,
     QualityPreset quality, {
     TranscodeRequestType requestType = TranscodeRequestType.streaming,
+    TranscodeOutputFormat outputFormat = TranscodeOutputFormat.aac,
     int? sourceBitrateKbps,
   }) async {
     // Keep requestType for API compatibility; downloads should use getDownloadTranscode().
     if (requestType == TranscodeRequestType.download) {
       // No-op: cached transcodes are streaming-only.
     }
-    if (!quality.requiresTranscoding) {
+    if (!quality.requiresTranscoding &&
+        outputFormat != TranscodeOutputFormat.m4a) {
       return null;
     }
 
@@ -198,7 +200,7 @@ class TranscodingService {
       return null;
     }
 
-    final lockKey = '${songId}_${quality.name}';
+    final lockKey = _cacheKey(songId, quality, outputFormat);
 
     if (_shouldSkipDueToFailure(lockKey)) {
       final record = _failures[lockKey]!;
@@ -210,7 +212,11 @@ class TranscodingService {
 
     await _ensureIndexLoaded();
 
-    final cachedFile = _getCachedFile(songId, quality);
+    final cachedFile = _getCachedFile(
+      songId,
+      quality,
+      outputFormat: outputFormat,
+    );
     if (await cachedFile.exists()) {
       print('TranscodingService: Cache hit for $songId at ${quality.name}');
       _recordAccess(lockKey);
@@ -221,21 +227,25 @@ class TranscodingService {
       }
     }
 
-    final targetBitrate = quality.bitrate;
-    final knownBitrate = sourceBitrateKbps;
-    if (knownBitrate != null && knownBitrate > 0 && targetBitrate != null) {
-      if (knownBitrate <= targetBitrate) {
-        print('TranscodingService: Skipping transcode - known source bitrate '
-            '($knownBitrate kbps) <= target ($targetBitrate kbps)');
-        return null;
-      }
-    } else {
-      // Fast-path: check if source bitrate is already low enough.
-      final props = await _getAudioProperties(sourcePath);
-      if (props != null && props.shouldSkipTranscode(quality)) {
-        print('TranscodingService: Skipping transcode - source bitrate '
-            '(${props.bitrate! ~/ 1000} kbps) <= target (${quality.bitrate} kbps)');
-        return null; // Signal to serve original file
+    final bypassFastPath = quality == QualityPreset.high &&
+        outputFormat == TranscodeOutputFormat.m4a;
+    if (!bypassFastPath) {
+      final targetBitrate = quality.bitrate;
+      final knownBitrate = sourceBitrateKbps;
+      if (knownBitrate != null && knownBitrate > 0 && targetBitrate != null) {
+        if (knownBitrate <= targetBitrate) {
+          print('TranscodingService: Skipping transcode - known source bitrate '
+              '($knownBitrate kbps) <= target ($targetBitrate kbps)');
+          return null;
+        }
+      } else {
+        // Fast-path: check if source bitrate is already low enough.
+        final props = await _getAudioProperties(sourcePath);
+        if (props != null && props.shouldSkipTranscode(quality)) {
+          print('TranscodingService: Skipping transcode - source bitrate '
+              '(${props.bitrate! ~/ 1000} kbps) <= target (${quality.bitrate} kbps)');
+          return null; // Signal to serve original file
+        }
       }
     }
 
@@ -257,6 +267,7 @@ class TranscodingService {
         sourcePath: sourcePath,
         songId: songId,
         quality: quality,
+        outputFormat: outputFormat,
         completer: Completer<File?>(),
         sourceBitrateKbps: sourceBitrateKbps,
       );
@@ -272,12 +283,20 @@ class TranscodingService {
       print('TranscodingService: Transcoding $songId to ${quality.name} '
           '($typeLabel running: $_runningStreamingCount, '
           'queued: ${taskQueue.length})');
-      final result = await _transcodeFile(sourcePath, cachedFile.path, quality);
+      final result = await runTranscode(
+        sourcePath,
+        cachedFile.path,
+        quality,
+        outputFormat: outputFormat,
+      );
 
       if (result != null) {
         final size = await result.length();
         _addToIndex(
-            lockKey, '${quality.name}/$songId.${quality.fileExtension}', size);
+          lockKey,
+          '${quality.name}/$songId.${outputFormat.fileExtension}',
+          size,
+        );
 
         _clearFailure(lockKey);
 
@@ -302,17 +321,41 @@ class TranscodingService {
     }
   }
 
+  /// Executes the underlying transcode step; test subclasses may override.
+  Future<File?> runTranscode(
+    String sourcePath,
+    String outputPath,
+    QualityPreset quality, {
+    TranscodeOutputFormat outputFormat = TranscodeOutputFormat.aac,
+  }) =>
+      _transcodeFile(
+        sourcePath,
+        outputPath,
+        quality,
+        outputFormat: outputFormat,
+      );
+
   /// Final cache file used by lower-quality streaming.
   ///
   /// Exposed so the HTTP layer can begin a cold stream from Sonic's growing
   /// partial output instead of waiting for the complete song to be transcoded.
-  File streamingCacheFile(String songId, QualityPreset quality) =>
-      _getCachedFile(songId, quality);
+  File streamingCacheFile(
+    String songId,
+    QualityPreset quality, {
+    TranscodeOutputFormat outputFormat = TranscodeOutputFormat.aac,
+  }) =>
+      _getCachedFile(songId, quality, outputFormat: outputFormat);
 
   /// In-progress output paired with [streamingCacheFile]. The file is renamed
   /// atomically to the final path when transcoding completes.
-  File streamingPartialFile(String songId, QualityPreset quality) =>
-      File('${_getCachedFile(songId, quality).path}.partial');
+  File streamingPartialFile(
+    String songId,
+    QualityPreset quality, {
+    TranscodeOutputFormat outputFormat = TranscodeOutputFormat.aac,
+  }) =>
+      File(
+        '${_getCachedFile(songId, quality, outputFormat: outputFormat).path}.partial',
+      );
 
   void _processNextStreamingQueue() {
     if (_streamingQueue.isEmpty || _runningStreamingCount >= maxConcurrency) {
@@ -325,6 +368,7 @@ class TranscodingService {
       task.songId,
       task.quality,
       requestType: TranscodeRequestType.streaming,
+      outputFormat: task.outputFormat,
       sourceBitrateKbps: task.sourceBitrateKbps,
     ).then((file) => task.completer.complete(file)).catchError((e) {
       print('TranscodingService: Queued streaming task error - $e');
@@ -503,12 +547,20 @@ class TranscodingService {
     }
   }
 
-  void markInUse(String songId, QualityPreset quality) {
-    _markInUse(songId, quality);
+  void markInUse(
+    String songId,
+    QualityPreset quality, {
+    TranscodeOutputFormat outputFormat = TranscodeOutputFormat.aac,
+  }) {
+    _markInUse(songId, quality, outputFormat: outputFormat);
   }
 
-  void releaseInUse(String songId, QualityPreset quality) {
-    _releaseInUse(songId, quality);
+  void releaseInUse(
+    String songId,
+    QualityPreset quality, {
+    TranscodeOutputFormat outputFormat = TranscodeOutputFormat.aac,
+  }) {
+    _releaseInUse(songId, quality, outputFormat: outputFormat);
   }
 
   Future<int> getCacheSize() => _getCacheSize();

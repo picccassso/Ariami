@@ -7,6 +7,9 @@ enum ArtworkSize {
   /// Thumbnail for list views (200x200 max)
   thumbnail,
 
+  /// Medium for grid cards (640x640 max)
+  medium,
+
   /// Full quality for detail views (original size)
   full;
 
@@ -15,17 +18,21 @@ enum ArtworkSize {
     switch (this) {
       case ArtworkSize.thumbnail:
         return 200;
+      case ArtworkSize.medium:
+        return 640;
       case ArtworkSize.full:
         return null;
     }
   }
 
-  bool get requiresProcessing => this == ArtworkSize.thumbnail;
+  bool get requiresProcessing => this != ArtworkSize.full;
 
   String get displayName {
     switch (this) {
       case ArtworkSize.thumbnail:
         return 'Thumbnail';
+      case ArtworkSize.medium:
+        return 'Medium';
       case ArtworkSize.full:
         return 'Full';
     }
@@ -41,6 +48,8 @@ enum ArtworkSize {
       case 'thumbnail':
       case 'thumb':
         return ArtworkSize.thumbnail;
+      case 'medium':
+        return ArtworkSize.medium;
       case 'full':
       case 'original':
       default:

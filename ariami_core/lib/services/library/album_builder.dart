@@ -7,6 +7,7 @@ import 'package:ariami_core/services/library/album_art_detection.dart';
 import 'package:ariami_core/services/library/album_grouping.dart';
 import 'package:ariami_core/services/library/album_identity.dart';
 import 'package:ariami_core/services/library/metadata_extractor.dart';
+import 'package:ariami_core/services/library/track_number_inference.dart';
 
 /// Resolves artwork source path and whether artwork is confirmed present.
 ({String? artworkPath, bool hasArtwork}) resolveAlbumArtworkSources(
@@ -49,6 +50,7 @@ class AlbumBuilder {
   ///
   /// Returns a LibraryStructure with albums and standalone songs
   LibraryStructure buildLibrary(List<SongMetadata> songs) {
+    songs = repairCollidingTrackNumbers(songs);
     final albums = <String, Album>{};
     final standaloneSongs = <SongMetadata>[];
 

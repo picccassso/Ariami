@@ -50,6 +50,57 @@ extension _LibraryManagerDurationPart on LibraryManager {
     return source?.artworkBytes;
   }
 
+  Future<String?> _getAlbumArtworkSourceStampImpl(String albumId) async {
+    final album = _library?.albums[albumId];
+    if (album == null) return null;
+
+    final sidecar = album.artworkPath;
+    if (sidecar != null && _isImageFilePath(sidecar)) {
+      try {
+        final stat = await File(sidecar).stat();
+        if (stat.type != FileSystemEntityType.notFound) {
+          return '$sidecar|${stat.modified.millisecondsSinceEpoch}|${stat.size}';
+        }
+      } catch (_) {}
+    }
+
+    if (album.songs.isNotEmpty) {
+      final first = album.songs.first;
+      final mtime = first.modifiedTime?.millisecondsSinceEpoch ?? 0;
+      final size = first.fileSize ?? 0;
+      if (mtime > 0 || size > 0) {
+        return '${first.filePath}|$mtime|$size';
+      }
+      try {
+        final stat = await File(first.filePath).stat();
+        if (stat.type != FileSystemEntityType.notFound) {
+          return '${first.filePath}|${stat.modified.millisecondsSinceEpoch}|${stat.size}';
+        }
+      } catch (_) {}
+    }
+    return null;
+  }
+
+  Future<String?> _getSongArtworkSourceStampImpl(String songId) async {
+    final song = _findSongMetadataById(songId);
+    if (song != null) {
+      final mtime = song.modifiedTime?.millisecondsSinceEpoch ?? 0;
+      final size = song.fileSize ?? 0;
+      if (mtime > 0 || size > 0) {
+        return '${song.filePath}|$mtime|$size';
+      }
+    }
+    final filePath = song?.filePath ?? getSongFilePath(songId);
+    if (filePath == null) return null;
+    try {
+      final stat = await File(filePath).stat();
+      if (stat.type != FileSystemEntityType.notFound) {
+        return '$filePath|${stat.modified.millisecondsSinceEpoch}|${stat.size}';
+      }
+    } catch (_) {}
+    return null;
+  }
+
   Future<int?> _getSongDurationImpl(String songId) async {
     if (_durationCache.containsKey(songId)) {
       return _durationCache[songId];

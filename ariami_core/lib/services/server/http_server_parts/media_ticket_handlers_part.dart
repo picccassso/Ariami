@@ -20,6 +20,27 @@ extension AriamiHttpServerMediaTicketHandlersMethods on AriamiHttpServer {
             HttpStatus.badRequest, 'INVALID_REQUEST', 'songId is required');
       }
 
+      final rawFormat = data['format'];
+      if (rawFormat != null && rawFormat is! String) {
+        return _jsonError(
+          HttpStatus.badRequest,
+          'INVALID_REQUEST',
+          'format must be one of: aac, m4a',
+        );
+      }
+      final requestedFormat = (rawFormat as String?)?.trim().toLowerCase();
+      final outputFormat = TranscodeOutputFormat.tryParse(requestedFormat);
+      if (requestedFormat != null &&
+          requestedFormat.isNotEmpty &&
+          (outputFormat == null ||
+              outputFormat == TranscodeOutputFormat.opus)) {
+        return _jsonError(
+          HttpStatus.badRequest,
+          'INVALID_REQUEST',
+          'format must be one of: aac, m4a',
+        );
+      }
+
       final availability = _libraryManager.musicAvailability;
       if (availability.needsAttention ||
           (_libraryManager.isScanning && _libraryManager.library == null)) {
@@ -54,6 +75,7 @@ extension AriamiHttpServerMediaTicketHandlersMethods on AriamiHttpServer {
         songId: songId,
         durationSeconds: durationSeconds,
         quality: quality,
+        format: outputFormat?.name,
       );
 
       // Describe the source file alongside the ticket (cached values only)
