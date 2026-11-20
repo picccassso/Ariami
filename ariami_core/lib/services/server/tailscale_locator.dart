@@ -14,9 +14,16 @@ class TailscaleLocator {
     r'C:\Program Files (x86)\Tailscale\tailscale.exe', // Windows 32-bit
   ];
 
-  /// Get the Tailscale IP via `tailscale ip -4`, falling back to scanning
-  /// network interfaces for the CGNAT range. [log] receives detection notes.
+  /// Get the Tailscale IP by checking Tailscale network interfaces first
+  /// (avoiding repeated subprocess spawns), falling back to `tailscale ip -4`
+  /// and then any CGNAT interface.
   static Future<String?> getTailscaleIp({void Function(String)? log}) async {
+    final namedInterfaceIp = await _viaNetworkInterface(tailscaleNamedOnly: true);
+    if (namedInterfaceIp != null) {
+      log?.call('Tailscale IP (via interface): $namedInterfaceIp');
+      return namedInterfaceIp;
+    }
+
     final cliIp = await _viaCli();
     if (cliIp != null) {
       log?.call('Tailscale IP (via CLI): $cliIp');
@@ -100,9 +107,14 @@ class TailscaleLocator {
     return null;
   }
 
-  static Future<String?> _viaNetworkInterface() async {
+  static Future<String?> _viaNetworkInterface({
+    bool tailscaleNamedOnly = false,
+  }) async {
     try {
       for (final interface in await _listInterfaces()) {
+        if (tailscaleNamedOnly && !_isTailscaleInterface(interface.name)) {
+          continue;
+        }
         for (final addr in interface.addresses) {
           if (isTailscaleCgnatIp(addr.address)) {
             return addr.address;

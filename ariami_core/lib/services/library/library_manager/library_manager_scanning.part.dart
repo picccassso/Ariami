@@ -141,6 +141,8 @@ extension _LibraryManagerScanningPart on LibraryManager {
       if (_metadataCache != null) {
         await _metadataCache!.load();
         cacheData = _metadataCache!.exportForIsolate();
+        // Release the main-isolate copy while the scanner isolate runs.
+        _metadataCache!.unload();
         print('[LibraryManager] Loaded ${cacheData.length} cached entries');
       }
 
@@ -254,6 +256,7 @@ extension _LibraryManagerScanningPart on LibraryManager {
         if (_metadataCache != null && result.updatedCache != null) {
           _metadataCache!.importFromIsolate(result.updatedCache!);
           await _metadataCache!.save();
+          _metadataCache!.unload();
           print(
               '[LibraryManager] Cache stats: ${result.cacheHits} hits, ${result.cacheMisses} extractions');
         }
@@ -329,6 +332,7 @@ extension _LibraryManagerScanningPart on LibraryManager {
       return;
     }
 
+    await metadataCache.ensureLoaded();
     var changed = false;
 
     for (final entry in update.extractedMetadata.entries) {
@@ -361,5 +365,6 @@ extension _LibraryManagerScanningPart on LibraryManager {
     if (changed) {
       await metadataCache.save();
     }
+    metadataCache.unload();
   }
 }

@@ -20,6 +20,7 @@ import 'package:ariami_core/services/library/duplicate_detector.dart';
 import 'package:ariami_core/services/library/natural_path_order.dart';
 import 'package:ariami_core/services/library/playlist_folder_classifier.dart';
 import 'package:ariami_core/services/library/track_number_inference.dart';
+import 'package:ariami_core/utils/device_model.dart';
 
 enum ScanMessageType {
   progress,
@@ -123,16 +124,19 @@ class LibraryScannerIsolate {
   /// Lower-power devices (fewer cores) get smaller batches to avoid
   /// overwhelming the system and prevent SD card stalls on Pi devices.
   /// Higher-core systems can process more files concurrently.
-  static int _calculateBatchSize() {
+  static Future<int> _calculateBatchSize() async {
+    if (await DeviceModel.isLowPowerRaspberryPi()) {
+      return 4;
+    }
     final cores = Platform.numberOfProcessors;
     if (cores <= 2) {
-      return 4; // Very low-power devices (Pi 3, older systems) - prevent SD card stalls
+      return 4;
     } else if (cores <= 4) {
-      return 8; // Mid-range (Pi 4/5, typical laptops)
+      return 8;
     } else if (cores <= 8) {
-      return 15; // Powerful desktops
+      return 15;
     } else {
-      return 25; // High-end workstations
+      return 25;
     }
   }
 
@@ -341,7 +345,7 @@ class LibraryScannerIsolate {
       final songs = <SongMetadata>[];
       final cacheHitPaths = <String>{};
 
-      final batchSize = _calculateBatchSize();
+      final batchSize = await _calculateBatchSize();
       for (var i = 0; i < totalFiles; i += batchSize) {
         final batchEnd =
             (i + batchSize < totalFiles) ? i + batchSize : totalFiles;

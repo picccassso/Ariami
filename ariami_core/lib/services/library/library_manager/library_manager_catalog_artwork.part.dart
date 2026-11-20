@@ -261,8 +261,20 @@ extension _LibraryManagerCatalogArtworkPart on LibraryManager {
           ? ArtworkFormat.webp
           : ArtworkFormat.jpeg;
 
+      final itemDelay = await DeviceModel.isLowPowerRaspberryPi()
+          ? const Duration(milliseconds: 350)
+          : const Duration(milliseconds: 100);
+
+      Future<bool> waitWhileBusy() async {
+        while (_isServerBusy?.call() == true) {
+          if (generation != _thumbnailPrecomputeGeneration) return false;
+          await Future<void>.delayed(const Duration(seconds: 2));
+        }
+        return generation == _thumbnailPrecomputeGeneration;
+      }
+
       for (final albumId in targetAlbumIds) {
-        if (generation != _thumbnailPrecomputeGeneration) return;
+        if (!await waitWhileBusy()) return;
         final stamp = await _getAlbumArtworkSourceStampImpl(albumId);
         if (stamp == null) continue;
         final cached = await artworkService.getCachedArtwork(
@@ -284,11 +296,11 @@ extension _LibraryManagerCatalogArtworkPart on LibraryManager {
           format: format,
           sourceStamp: stamp,
         );
-        await Future<void>.delayed(const Duration(milliseconds: 100));
+        await Future<void>.delayed(itemDelay);
       }
 
       for (final songId in targetSongIds) {
-        if (generation != _thumbnailPrecomputeGeneration) return;
+        if (!await waitWhileBusy()) return;
         final stamp = await _getSongArtworkSourceStampImpl(songId);
         if (stamp == null) continue;
         final cacheKey = 'song_$songId';
@@ -311,7 +323,7 @@ extension _LibraryManagerCatalogArtworkPart on LibraryManager {
           format: format,
           sourceStamp: stamp,
         );
-        await Future<void>.delayed(const Duration(milliseconds: 100));
+        await Future<void>.delayed(itemDelay);
       }
     }());
   }

@@ -34,6 +34,7 @@ abstract class SqliteStore {
       database.execute('PRAGMA journal_mode=WAL;');
       database.execute('PRAGMA synchronous=NORMAL;');
       database.execute('PRAGMA busy_timeout=5000;');
+      database.execute('PRAGMA cache_size=-512;');
       createSchema(database);
       _database = database;
     } catch (_) {

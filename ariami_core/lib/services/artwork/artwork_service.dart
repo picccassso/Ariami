@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:collection';
 import 'dart:io';
 import 'dart:typed_data';
 
@@ -35,21 +36,27 @@ class ArtworkService {
   /// Minimum age before a cache hit updates mtime again.
   final Duration touchThrottle;
 
+  /// Maximum concurrent FFmpeg artwork resize processes.
+  final int maxConcurrency;
+
   final ArtworkProcessRunner _processRunner;
   late final FfmpegProbe _ffmpeg = FfmpegProbe(_processRunner);
 
   /// Lock to prevent concurrent processing of the same artwork
   final Map<String, Completer<Uint8List?>> _processingLocks = {};
+  final Queue<Completer<void>> _slotWaiters = Queue();
+  int _activeProcesses = 0;
 
-  /// Creates a new ArtworkService.
-  ///
-  /// [cacheDirectory] - Base directory for storing processed artwork.
-  /// [maxCacheSizeMB] - Maximum cache size in megabytes (default 256).
+  int _cachedTotalSize = 0;
+  bool _cacheSizeLoaded = false;
+  bool _cleanupInFlight = false;
+
   ArtworkService({
     required this.cacheDirectory,
     int maxCacheSizeMB = 256,
     this.touchOnCacheHit = true,
     this.touchThrottle = Duration.zero,
+    this.maxConcurrency = 4,
     ArtworkProcessRunner? processRunner,
   })  : maxCacheSizeBytes = maxCacheSizeMB * 1024 * 1024,
         _processRunner = processRunner ??
@@ -154,7 +161,12 @@ class ArtworkService {
       );
 
       if (result != null) {
-        _cleanupCacheIfNeeded();
+        if (_cacheSizeLoaded) {
+          _cachedTotalSize += result.length;
+        }
+        if (!_cacheSizeLoaded || _cachedTotalSize > maxCacheSizeBytes) {
+          unawaited(_cleanupCacheIfNeeded());
+        }
         completer.complete(result);
         return result;
       }
@@ -242,6 +254,24 @@ class ArtworkService {
     }
   }
 
+  Future<void> _acquireSlot() async {
+    if (_activeProcesses < maxConcurrency) {
+      _activeProcesses++;
+      return;
+    }
+    final waiter = Completer<void>();
+    _slotWaiters.add(waiter);
+    await waiter.future;
+  }
+
+  void _releaseSlot() {
+    if (_slotWaiters.isNotEmpty) {
+      _slotWaiters.removeFirst().complete();
+    } else if (_activeProcesses > 0) {
+      _activeProcesses--;
+    }
+  }
+
   Future<Uint8List?> _processArtwork(
     String albumId,
     Uint8List originalArtwork,
@@ -249,22 +279,22 @@ class ArtworkService {
     ArtworkFormat format = ArtworkFormat.jpeg,
     String? sourceStamp,
   }) async {
+    await _acquireSlot();
     final outputFile = _getCachedFile(albumId, size, format: format);
     final outputDir = outputFile.parent;
-    if (!await outputDir.exists()) {
-      await outputDir.create(recursive: true);
-    }
-
     final safeId = albumId.replaceAll(RegExp(r'[^\w\-]'), '_');
-    final tempDir = Directory.systemTemp;
     final tempInput = File(
-      '${tempDir.path}/ariami_artwork_in_${safeId}_${size.name}_${format.extension}',
+      '${Directory.systemTemp.path}/ariami_artwork_in_${safeId}_${size.name}_${format.extension}',
     );
     final tempOutput = File(
-      '${tempDir.path}/ariami_artwork_out_${safeId}_${size.name}.${format.extension}',
+      '${outputFile.path}.tmp.${format.extension}',
     );
 
     try {
+      if (!await outputDir.exists()) {
+        await outputDir.create(recursive: true);
+      }
+
       await tempInput.writeAsBytes(originalArtwork);
 
       final maxDim = size.maxDimension!;
@@ -303,16 +333,12 @@ class ArtworkService {
 
       if (result.exitCode == 0 && await tempOutput.exists()) {
         final thumbnailBytes = await tempOutput.readAsBytes();
-        await outputFile.writeAsBytes(thumbnailBytes);
+        await tempOutput.rename(outputFile.path);
         await _getSourceDigestFile(outputFile).writeAsString(
           _sourceDigest(originalArtwork),
-          flush: true,
         );
         if (sourceStamp != null && sourceStamp.isNotEmpty) {
-          await _getSourceStampFile(outputFile).writeAsString(
-            sourceStamp,
-            flush: true,
-          );
+          await _getSourceStampFile(outputFile).writeAsString(sourceStamp);
         }
         return thumbnailBytes;
       }
@@ -322,6 +348,7 @@ class ArtworkService {
       print('[ArtworkService] Processing error - $e');
       return null;
     } finally {
+      _releaseSlot();
       try {
         if (await tempInput.exists()) await tempInput.delete();
       } catch (_) {}
@@ -332,9 +359,15 @@ class ArtworkService {
   }
 
   Future<void> _cleanupCacheIfNeeded() async {
+    if (_cleanupInFlight) return;
+    _cleanupInFlight = true;
     try {
       final cacheDir = Directory(cacheDirectory);
-      if (!await cacheDir.exists()) return;
+      if (!await cacheDir.exists()) {
+        _cachedTotalSize = 0;
+        _cacheSizeLoaded = true;
+        return;
+      }
 
       final files = <_CachedArtworkInfo>[];
 
@@ -351,6 +384,8 @@ class ArtworkService {
       }
 
       int totalSize = files.fold(0, (sum, f) => sum + f.size);
+      _cachedTotalSize = totalSize;
+      _cacheSizeLoaded = true;
       if (totalSize <= maxCacheSizeBytes) return;
 
       files.sort((a, b) => a.lastAccessed.compareTo(b.lastAccessed));
@@ -367,8 +402,11 @@ class ArtworkService {
           totalSize -= fileInfo.size;
         } catch (_) {}
       }
+      _cachedTotalSize = totalSize;
     } catch (e) {
       print('[ArtworkService] Cache cleanup error - $e');
+    } finally {
+      _cleanupInFlight = false;
     }
   }
 
@@ -379,6 +417,8 @@ class ArtworkService {
         await cacheDir.delete(recursive: true);
         print('[ArtworkService] Cache cleared');
       }
+      _cachedTotalSize = 0;
+      _cacheSizeLoaded = true;
     } catch (e) {
       print('[ArtworkService] Error clearing cache - $e');
     }

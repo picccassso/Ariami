@@ -3,7 +3,7 @@ import 'package:shelf/shelf.dart';
 
 /// Service for streaming audio files with HTTP range request support
 class StreamingService {
-  static const Duration _growingFilePollInterval = Duration(milliseconds: 15);
+  static const Duration _growingFilePollInterval = Duration(milliseconds: 40);
 
   /// Stream an audio file by file path
   /// Supports HTTP range requests for seeking

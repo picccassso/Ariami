@@ -86,10 +86,10 @@ class TranscodeSlotsPolicy {
       final onPi3 = isRaspberryPi3 ??
           await DeviceModel.isRaspberryPiGeneration(3, readFile: readFile);
       if (onPi3) {
-        return 3;
+        return 2;
       }
       // Unrecognised / older Pi: use the most conservative supported default.
-      return 3;
+      return 2;
     }
 
     return desktopDefaultSlots;

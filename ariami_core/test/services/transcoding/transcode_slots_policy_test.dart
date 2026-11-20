@@ -69,7 +69,7 @@ void main() {
         isRaspberryPi3: true,
       );
 
-      expect(defaultSlots, 3);
+      expect(defaultSlots, 2);
     });
 
     test('resolveDefault returns desktop default on macOS', () async {

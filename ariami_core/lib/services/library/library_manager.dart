@@ -27,6 +27,7 @@ import 'package:ariami_core/services/library/metadata_extractor.dart';
 import 'package:ariami_core/services/library/library_scanner_isolate.dart';
 import 'package:ariami_core/services/library/metadata_cache.dart';
 import 'package:ariami_core/services/library/playlist_decision_store.dart';
+import 'package:ariami_core/utils/device_model.dart';
 
 part 'library_manager/library_manager_api.part.dart';
 part 'library_manager/library_manager_availability.part.dart';
@@ -42,9 +43,13 @@ part 'library_manager/library_manager_scanning.part.dart';
 /// Evicts least recently used entries when capacity is exceeded.
 class LruCache<K, V> {
   final int maxSize;
+  final int? maxBytes;
+  final int Function(V value)? _sizeOf;
   final LinkedHashMap<K, V> _cache = LinkedHashMap<K, V>();
+  int _currentBytes = 0;
 
-  LruCache(this.maxSize);
+  LruCache(this.maxSize, {this.maxBytes, int Function(V value)? sizeOf})
+      : _sizeOf = sizeOf;
 
   V? operator [](K key) {
     if (!_cache.containsKey(key)) return null;
@@ -57,18 +62,30 @@ class LruCache<K, V> {
 
   void operator []=(K key, V value) {
     if (_cache.containsKey(key)) {
-      _cache.remove(key);
+      final previous = _cache.remove(key) as V;
+      _currentBytes -= _sizeOf?.call(previous) ?? 0;
+    }
+    final entryBytes = _sizeOf?.call(value) ?? 0;
+    if (maxBytes != null && entryBytes > maxBytes!) {
+      return;
     }
     _cache[key] = value;
-    while (_cache.length > maxSize) {
-      _cache.remove(_cache.keys.first);
+    _currentBytes += entryBytes;
+    while (_cache.length > maxSize ||
+        (maxBytes != null && _currentBytes > maxBytes! && _cache.isNotEmpty)) {
+      final evictedKey = _cache.keys.first;
+      final evictedValue = _cache.remove(evictedKey) as V;
+      _currentBytes -= _sizeOf?.call(evictedValue) ?? 0;
     }
   }
 
   /// Check if key exists without updating access order
   bool containsKey(K key) => _cache.containsKey(key);
 
-  void clear() => _cache.clear();
+  void clear() {
+    _cache.clear();
+    _currentBytes = 0;
+  }
 
   int get length => _cache.length;
 }
@@ -126,14 +143,25 @@ class LibraryManager {
   final Map<String, String> _songPathById = {};
   final Map<String, String?> _songAlbumIdById = {};
 
-  /// Cache for lazily extracted album artwork (LRU, max 50 albums ~25MB)
-  final LruCache<String, List<int>?> _artworkCache = LruCache(50);
+  static int get _artworkCacheMaxBytes =>
+      DeviceModel.isRaspberryPi() ? 16 * 1024 * 1024 : 64 * 1024 * 1024;
+
+  /// Cache for lazily extracted album artwork (count + byte bounded)
+  final LruCache<String, List<int>?> _artworkCache = LruCache(
+    50,
+    maxBytes: _artworkCacheMaxBytes,
+    sizeOf: (v) => v?.length ?? 0,
+  );
 
   /// Cache for lazily extracted song durations (LRU, max 2000 songs ~16KB)
   final LruCache<String, int?> _durationCache = LruCache(2000);
 
-  /// Cache for lazily extracted song artwork for standalone songs (LRU, max 100 ~50MB)
-  final LruCache<String, List<int>?> _songArtworkCache = LruCache(100);
+  /// Cache for lazily extracted song artwork for standalone songs (count + byte bounded)
+  final LruCache<String, List<int>?> _songArtworkCache = LruCache(
+    100,
+    maxBytes: _artworkCacheMaxBytes,
+    sizeOf: (v) => v?.length ?? 0,
+  );
 
   /// Cache for lazily extracted lyrics (LRU, max 200 songs ~100KB)
   final LruCache<String, SongLyrics?> _lyricsCache = LruCache(200);
@@ -142,7 +170,12 @@ class LibraryManager {
   final LyricsExtractor _lyricsExtractor = LyricsExtractor();
 
   ArtworkService? _artworkPrecomputeService;
+  bool Function()? _isServerBusy;
   int _thumbnailPrecomputeGeneration = 0;
+
+  void setBusyCheck(bool Function()? callback) {
+    _isServerBusy = callback;
+  }
 
   void setArtworkPrecomputeService(ArtworkService service) {
     _artworkPrecomputeService = service;

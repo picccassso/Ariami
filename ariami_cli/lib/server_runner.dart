@@ -191,6 +191,7 @@ class ServerRunner {
 
       await _mediaServicesConfigurator.configure(
         isPi: isPi,
+        isPi5: isPi5,
         cachePolicy: cachePolicy,
         transcodeSlotsSnapshot:
             await _setupCallbacks.getTranscodeSlotsSnapshot(),

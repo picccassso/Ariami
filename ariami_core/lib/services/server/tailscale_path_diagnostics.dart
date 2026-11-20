@@ -17,12 +17,15 @@ class TailscalePathDiagnostics {
     TailscaleProcessRunner? processRunner,
     void Function(String message)? logger,
     this.interval = const Duration(minutes: 1),
+    bool Function()? shouldSample,
   })  : _processRunner = processRunner ?? Process.run,
-        _logger = logger ?? print;
+        _logger = logger ?? print,
+        _shouldSample = shouldSample;
 
   final TailscaleProcessRunner _processRunner;
   final void Function(String message) _logger;
   final Duration interval;
+  final bool Function()? _shouldSample;
   Timer? _timer;
   bool _sampling = false;
 
@@ -53,6 +56,7 @@ class TailscalePathDiagnostics {
 
   Future<void> sample() async {
     if (_sampling) return;
+    if (_shouldSample != null && !_shouldSample()) return;
     _sampling = true;
     try {
       ProcessResult? result;

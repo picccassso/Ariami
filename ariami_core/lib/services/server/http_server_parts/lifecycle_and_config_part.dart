@@ -27,6 +27,7 @@ extension AriamiHttpServerLifecycleMethods on AriamiHttpServer {
   /// The transcoding service handles Sonic-based transcoding and caching.
   void setTranscodingService(TranscodingService service) {
     _transcodingService = service;
+    _libraryManager.setBusyCheck(() => _transcodingService?.isBusy ?? false);
   }
 
   /// Set the artwork service for thumbnail generation.

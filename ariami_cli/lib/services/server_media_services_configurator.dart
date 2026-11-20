@@ -12,6 +12,7 @@ class ServerMediaServicesConfigurator {
 
   Future<void> configure({
     required bool isPi,
+    bool isPi5 = false,
     required CachePolicy cachePolicy,
     required TranscodeSlotsSnapshot transcodeSlotsSnapshot,
   }) async {
@@ -44,6 +45,7 @@ class ServerMediaServicesConfigurator {
       maxCacheSizeMB: cachePolicy.artworkCacheSizeMB,
       touchOnCacheHit: cachePolicy.touchArtworkOnCacheHit,
       touchThrottle: cachePolicy.artworkTouchThrottle,
+      maxConcurrency: (isPi && !isPi5) ? 2 : 4,
     );
     _httpServer.setArtworkService(artworkService);
     print('Artwork cache: $artworkCachePath');

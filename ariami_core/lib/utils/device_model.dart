@@ -65,6 +65,22 @@ class DeviceModel {
     return model != null && model.contains('raspberry pi $generation');
   }
 
+  /// True on Raspberry Pi hosts older than Pi 5 (Pi 3/4 and unrecognized ARM
+  /// Linux boards) where tighter CPU/SD concurrency caps help prevent stalls.
+  static Future<bool> isLowPowerRaspberryPi({
+    bool? isLinux,
+    List<String> paths = defaultModelPaths,
+    Future<String?> Function(String path)? readFile,
+  }) async {
+    if (!isRaspberryPi()) return false;
+    return !await isRaspberryPiGeneration(
+      5,
+      isLinux: isLinux,
+      paths: paths,
+      readFile: readFile,
+    );
+  }
+
   static Future<String?> _readFileOrNull(String path) async {
     try {
       final file = File(path);

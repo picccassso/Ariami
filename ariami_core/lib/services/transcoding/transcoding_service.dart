@@ -100,6 +100,15 @@ class TranscodingService {
 
   int _runningDownloadCount = 0;
 
+  int get _totalRunning => _runningStreamingCount + _runningDownloadCount;
+
+  int get _maxTotalConcurrency => max(maxConcurrency, maxDownloadConcurrency);
+
+  bool get isBusy =>
+      _totalRunning > 0 ||
+      _streamingQueue.isNotEmpty ||
+      _downloadQueue.isNotEmpty;
+
   final Queue<_TranscodeTask> _streamingQueue = Queue();
 
   final Queue<_TranscodeTask> _downloadQueue = Queue();
@@ -255,14 +264,13 @@ class TranscodingService {
     }
 
     // Cached transcodes are for streaming only. Downloads use getDownloadTranscode().
-    final runningCount = _runningStreamingCount;
-    final maxForType = maxConcurrency;
     final taskQueue = _streamingQueue;
     final typeLabel = 'streaming';
 
-    if (runningCount >= maxForType) {
+    if (_runningStreamingCount >= maxConcurrency ||
+        _totalRunning >= _maxTotalConcurrency) {
       print('TranscodingService: Queuing $songId for $typeLabel '
-          '(running: $runningCount, max: $maxForType)');
+          '(running: $_runningStreamingCount/$_totalRunning, max: $maxConcurrency/$_maxTotalConcurrency)');
       final task = _TranscodeTask(
         sourcePath: sourcePath,
         songId: songId,
@@ -358,7 +366,9 @@ class TranscodingService {
       );
 
   void _processNextStreamingQueue() {
-    if (_streamingQueue.isEmpty || _runningStreamingCount >= maxConcurrency) {
+    if (_streamingQueue.isEmpty ||
+        _runningStreamingCount >= maxConcurrency ||
+        _totalRunning >= _maxTotalConcurrency) {
       return;
     }
 
@@ -378,7 +388,9 @@ class TranscodingService {
 
   void _processNextDownloadQueue() {
     if (_downloadQueue.isEmpty ||
-        _runningDownloadCount >= maxDownloadConcurrency) {
+        _streamingQueue.isNotEmpty ||
+        _runningDownloadCount >= maxDownloadConcurrency ||
+        _totalRunning >= _maxTotalConcurrency) {
       return;
     }
 
@@ -405,7 +417,9 @@ class TranscodingService {
       task.completer.complete(null);
     } finally {
       _runningDownloadCount--;
+      _processNextStreamingQueue();
       _processNextDownloadQueue();
+      _processNextWarmupQueue();
     }
   }
 
@@ -452,8 +466,9 @@ class TranscodingService {
   void _processNextWarmupQueue() {
     if (_warmupQueue.isEmpty ||
         _runningWarmupCount >= 1 ||
-        _runningStreamingCount > 0 ||
-        _streamingQueue.isNotEmpty) {
+        _totalRunning > 0 ||
+        _streamingQueue.isNotEmpty ||
+        _downloadQueue.isNotEmpty) {
       return;
     }
 
@@ -508,9 +523,11 @@ class TranscodingService {
     // Download requests should produce the requested quality deterministically
     // and avoid per-file ffprobe process overhead in bulk jobs.
 
-    if (_runningDownloadCount >= maxDownloadConcurrency) {
+    if (_runningDownloadCount >= maxDownloadConcurrency ||
+        _totalRunning >= _maxTotalConcurrency ||
+        _streamingQueue.isNotEmpty) {
       print('TranscodingService: Queuing download transcode $songId '
-          '(running: $_runningDownloadCount, max: $maxDownloadConcurrency)');
+          '(running: $_runningDownloadCount/$_totalRunning, max: $maxDownloadConcurrency/$_maxTotalConcurrency)');
       final task = _TranscodeTask(
         sourcePath: sourcePath,
         songId: songId,
@@ -542,6 +559,7 @@ class TranscodingService {
       return null;
     } finally {
       _runningDownloadCount--;
+      _processNextStreamingQueue();
       _processNextDownloadQueue();
       _processNextWarmupQueue();
     }

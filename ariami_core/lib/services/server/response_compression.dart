@@ -1,6 +1,11 @@
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:shelf/shelf.dart';
+
+// Level 3 compresses JSON nearly as tightly as default level 6 while using
+// ~2-3x less CPU on ARM Cortex-A53.
+final _fastGzip = GZipCodec(level: 3);
 
 /// Compress JSON API responses when the client advertises gzip support.
 ///
@@ -22,7 +27,7 @@ Middleware gzipJsonResponses() {
         return response;
       }
 
-      return _withGzipBody(response, gzip.encode(await _readBody(response)));
+      return _withGzipBody(response, _fastGzip.encode(await _readBody(response)));
     };
   };
 }
@@ -60,8 +65,13 @@ bool _acceptsGzip(Request request) =>
         .contains('gzip') ??
     false;
 
-Future<List<int>> _readBody(Response response) =>
-    response.read().expand((chunk) => chunk).toList();
+Future<Uint8List> _readBody(Response response) async {
+  final builder = BytesBuilder(copy: false);
+  await for (final chunk in response.read()) {
+    builder.add(chunk);
+  }
+  return builder.takeBytes();
+}
 
 Response _withGzipBody(Response response, List<int> compressed) {
   final existingVary = response.headers[HttpHeaders.varyHeader];

@@ -7,6 +7,7 @@ extension _LibraryManagerDurationPart on LibraryManager {
     bool saveNow = false,
   }) async {
     if (_metadataCache == null) return;
+    await _metadataCache!.ensureLoaded();
     final updated = song.copyWith(duration: duration);
     final mtime = song.modifiedTime?.millisecondsSinceEpoch;
     final size = song.fileSize;
@@ -18,6 +19,7 @@ extension _LibraryManagerDurationPart on LibraryManager {
     );
     if (saveNow) {
       await _metadataCache!.save();
+      _metadataCache!.unload();
     }
   }
 

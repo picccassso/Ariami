@@ -148,8 +148,13 @@ class AriamiHttpServer {
   final Map<WebSocketChannel, String> _webSocketDeviceIds = {};
   final Map<WebSocketChannel, String> _webSocketSessionTokens = {};
   final AriamiConnectHub _connectHub = AriamiConnectHub();
-  final TailscalePathDiagnostics _tailscalePathDiagnostics =
-      TailscalePathDiagnostics();
+  late final TailscalePathDiagnostics _tailscalePathDiagnostics =
+      TailscalePathDiagnostics(
+    shouldSample: () =>
+        _connectionManager.clientCount > 0 ||
+        _webSocketClients.isNotEmpty ||
+        _streamTracker.activeStreamCount > 0,
+  );
 
   /// User-chosen device display names, overlaid on the names clients report
   /// when they identify. Initialized in [initializeAuth] beside sessions.

@@ -80,10 +80,24 @@ class MetadataCache {
   final Map<String, CachedMetadataEntry> _entries = {};
 
   bool _isDirty = false;
+  bool _isLoaded = false;
 
   MetadataCache(this.cachePath);
 
   int get length => _entries.length;
+
+  /// Releases in-memory cache entries after saving so the server does not keep
+  /// a duplicate copy of the entire library metadata alongside [LibraryStructure].
+  void unload() {
+    _entries.clear();
+    _isDirty = false;
+    _isLoaded = false;
+  }
+
+  Future<void> ensureLoaded() async {
+    if (_isLoaded) return;
+    await load();
+  }
 
   /// Load cache from disk
   ///
@@ -126,6 +140,7 @@ class MetadataCache {
       }
 
       _isDirty = false;
+      _isLoaded = true;
       print('[MetadataCache] Loaded ${_entries.length} entries from cache');
       return true;
     } catch (e) {
@@ -256,6 +271,7 @@ class MetadataCache {
       lyricsSidecarMtime: lyricsSidecarMtime ?? LyricsExtractor.getSidecarMtime(filePath),
     );
     _isDirty = true;
+    _isLoaded = true;
     _enforceLimit();
   }
 
@@ -353,6 +369,7 @@ class MetadataCache {
       );
     }
     _isDirty = true;
+    _isLoaded = true;
     _enforceLimit();
   }
 
