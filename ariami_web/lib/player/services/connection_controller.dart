@@ -59,6 +59,7 @@ class ConnectionController extends ChangeNotifier {
         _sameOriginUri = host?.sameOriginUri;
 
   static const _deviceIdKey = 'player_device_id';
+  static const _lastSchemeKey = 'player_last_scheme';
   static const _lastHostKey = 'player_last_host';
   static const _lastPortKey = 'player_last_port';
   static const _lastTargetKey = 'player_last_target';
@@ -133,6 +134,7 @@ class ConnectionController extends ChangeNotifier {
   bool _isRefreshingAccount = false;
   bool _isDisconnecting = false;
   bool _isDisposed = false;
+  String get pendingScheme => _pendingScheme;
   String? get pendingHost => _pendingHost;
   int get pendingPort => _pendingPort;
   bool get hasPendingPairingCode => _pairingCode != null;
@@ -231,17 +233,19 @@ class ConnectionController extends ChangeNotifier {
   Future<void> connectRemote(
     String host,
     int port, {
+    String scheme = 'http',
     String? knownLan,
     String? knownTailscale,
     bool offlineFallbackOnFailure = false,
   }) async {
     _currentTarget = _remoteTarget;
-    _pendingScheme = 'http';
+    _pendingScheme = scheme;
     _pendingHost = host;
     _pendingPort = port;
     _setStage(ConnectionStage.connecting);
     try {
       await _connectTo(
+        scheme: scheme,
         host: host,
         port: port,
         knownLan: knownLan,
@@ -286,10 +290,12 @@ class ConnectionController extends ChangeNotifier {
     }
     final host = _pendingHost ?? prefs.getString(_lastHostKey);
     final port = prefs.getInt(_lastPortKey) ?? _pendingPort;
+    final scheme = prefs.getString(_lastSchemeKey) ?? _pendingScheme;
     if (host != null && host.isNotEmpty) {
       await connectRemote(
         host,
         port,
+        scheme: scheme,
         knownLan: prefs.getString(_lastLanKey),
         knownTailscale: prefs.getString(_lastTailscaleKey),
         offlineFallbackOnFailure: true,
@@ -330,6 +336,7 @@ class ConnectionController extends ChangeNotifier {
     _setCheckInFlight(true);
     try {
       await _connectTo(
+        scheme: prefs.getString(_lastSchemeKey) ?? _pendingScheme,
         host: host,
         port: prefs.getInt(_lastPortKey) ?? _pendingPort,
         knownLan: prefs.getString(_lastLanKey),
@@ -376,30 +383,33 @@ class ConnectionController extends ChangeNotifier {
     }
   }
 
-  /// Starts the mobile-style pairing flow using an owner-issued invite code.
+  /// Connects to a server using an optional owner-issued invite code.
+  /// An 8-character invite code is required only for [PairingAction.register].
   Future<void> pairWithServer(
     String host,
     int port,
     String inviteCode, {
+    String scheme = 'http',
     required PairingAction action,
   }) async {
     _currentTarget = _remoteTarget;
+    _pendingScheme = scheme;
     _pendingHost = host;
     _pendingPort = port;
     final normalizedCode =
         inviteCode.toUpperCase().replaceAll(RegExp(r'[^A-Z0-9]'), '');
-    if (normalizedCode.length != 8) {
+    if (action == PairingAction.register && normalizedCode.length != 8) {
       _setStage(
         ConnectionStage.error,
-        error: 'Enter the 8-character code shown by the server owner.',
+        error: 'Enter the 8-character invite code shown by the server owner.',
       );
       return;
     }
-    _pairingCode = normalizedCode;
+    _pairingCode = normalizedCode.length == 8 ? normalizedCode : null;
     _setStage(ConnectionStage.connecting);
 
     try {
-      await _prepareRemoteClient(host: host, port: port);
+      await _prepareRemoteClient(scheme: scheme, host: host, port: port);
       _setStage(
         action == PairingAction.login
             ? ConnectionStage.needsAuth
@@ -495,6 +505,7 @@ class ConnectionController extends ChangeNotifier {
     required String typedHost,
   }) async {
     await _setOrRemove(prefs, _lastTargetKey, _currentTarget);
+    await _setOrRemove(prefs, _lastSchemeKey, info.scheme);
     await _setOrRemove(prefs, _lastHostKey, typedHost);
     if (prefs.getInt(_lastPortKey) != info.port) {
       await prefs.setInt(_lastPortKey, info.port);
@@ -1123,10 +1134,12 @@ class ConnectionController extends ChangeNotifier {
     if (targetName == _remoteTarget) {
       final host = prefs.getString(_lastHostKey);
       final port = prefs.getInt(_lastPortKey);
+      final scheme = prefs.getString(_lastSchemeKey) ?? 'http';
       if (host != null && port != null) {
         await connectRemote(
           host,
           port,
+          scheme: scheme,
           knownLan: prefs.getString(_lastLanKey),
           knownTailscale: prefs.getString(_lastTailscaleKey),
           offlineFallbackOnFailure: true,

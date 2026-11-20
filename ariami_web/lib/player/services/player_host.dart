@@ -292,6 +292,22 @@ abstract class PlayerExtraSettings {
   Widget? buildServerDashboard(BuildContext context, String sectionId) => null;
 }
 
+class DiscoveredLanServer {
+  const DiscoveredLanServer({
+    required this.name,
+    required this.host,
+    required this.port,
+    this.version = '',
+  });
+
+  final String name;
+  final String host;
+  final int port;
+  final String version;
+
+  String get address => '$host:$port';
+}
+
 class PlayerAudioState {
   const PlayerAudioState({
     required this.isPlayingHere,
@@ -348,6 +364,7 @@ class PlayerHost {
     this.setupCompletionOverlayBuilder,
     this.takeSetupJustCompleted,
     this.onSignInResetServer,
+    this.discoverLanServers,
     this.checkUpdateLabel,
     this.onOpenUpdates,
   })  : sessionTokenStore = sessionTokenStore ?? PrefsSessionTokenStore(),
@@ -405,6 +422,7 @@ class PlayerHost {
   )? setupCompletionOverlayBuilder;
   final bool Function()? takeSetupJustCompleted;
   final Future<void> Function(BuildContext context)? onSignInResetServer;
+  final Stream<DiscoveredLanServer> Function()? discoverLanServers;
 
   final String? checkUpdateLabel;
   final VoidCallback? onOpenUpdates;
