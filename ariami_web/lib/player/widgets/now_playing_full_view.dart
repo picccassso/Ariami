@@ -79,9 +79,8 @@ Future<void> showFullNowPlaying(BuildContext context) {
         // cover-art theme never followed song changes.
         child: Consumer<ThemeController>(
           builder: (context, theme, child) {
-            final data = theme.themeMode == ThemeMode.light
-                ? theme.lightTheme
-                : theme.darkTheme;
+            final data =
+                theme.resolveTheme(MediaQuery.platformBrightnessOf(context));
             return AnimatedTheme(
               data: data,
               duration: const Duration(milliseconds: 400),

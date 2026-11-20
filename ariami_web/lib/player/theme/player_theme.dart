@@ -64,11 +64,16 @@ class PlayerTheme {
   /// Times and counts: tabular figures so columns of numbers line up.
   static const List<FontFeature> tabular = [FontFeature.tabularFigures()];
 
-  static ThemeData neutral({required Brightness brightness}) {
+  static ThemeData neutral({
+    required Brightness brightness,
+    bool amoled = false,
+  }) {
     final isDark = brightness == Brightness.dark;
     return _build(
       brightness: brightness,
-      colors: isDark ? PlayerColors.dark : PlayerColors.light,
+      colors: isDark
+          ? (amoled ? PlayerColors.amoled : PlayerColors.dark)
+          : PlayerColors.light,
     );
   }
 
@@ -80,9 +85,14 @@ class PlayerTheme {
   /// A dark theme printed in [seed]'s tone. [ambient] supplies the glow
   /// colours the full-screen player's backdrop and visualizer use (e.g.
   /// several artwork swatches); when omitted they come from the seed.
-  static ThemeData colorSource(Color seed, {List<Color>? ambient}) => _build(
+  static ThemeData colorSource(
+    Color seed, {
+    List<Color>? ambient,
+    bool amoled = false,
+  }) =>
+      _build(
         brightness: Brightness.dark,
-        colors: PlayerColors.fromSeed(seed, ambient: ambient),
+        colors: PlayerColors.fromSeed(seed, ambient: ambient, amoled: amoled),
       );
 
   static ThemeData _build({
@@ -494,6 +504,24 @@ class PlayerColors extends ThemeExtension<PlayerColors> {
     glowC: Color(0xFF1F1F24),
   );
 
+  static const PlayerColors amoled = PlayerColors(
+    base: Color(0xFF000000),
+    baseB: Color(0xFF000000),
+    panel: Color(0x00000000),
+    surface: Color(0xFF000000),
+    surfaceHigh: Color(0xFF111214),
+    surfaceHover: Color(0x14E8E8E4),
+    popover: Color(0xFF141518),
+    border: Color(0xFF232529),
+    textPrimary: Color(0xFFE8E8E4),
+    textSecondary: Color(0xFF8D8F95),
+    band: Color(0xFF000000),
+    fill: Color(0xFF26282C),
+    glowA: Color(0xFF2E2E36),
+    glowB: Color(0xFF1E1E24),
+    glowC: Color(0xFF121216),
+  );
+
   static const PlayerColors light = PlayerColors(
     base: Color(0xFFEBECE8),
     baseB: Color(0xFFEBECE8),
@@ -521,11 +549,19 @@ class PlayerColors extends ThemeExtension<PlayerColors> {
   ///
   /// A near-grey seed (a black-and-white cover) falls back to graphite, so it
   /// never comes out as a muddy tint.
-  factory PlayerColors.fromSeed(Color seed, {List<Color>? ambient}) {
+  factory PlayerColors.fromSeed(
+    Color seed, {
+    List<Color>? ambient,
+    bool amoled = false,
+  }) {
     final glows = ambientGlows(seed, ambient);
     final hsl = HSLColor.fromColor(seed);
     if (hsl.saturation < 0.1) {
-      return dark.copyWith(glowA: glows[0], glowB: glows[1], glowC: glows[2]);
+      return (amoled ? PlayerColors.amoled : dark).copyWith(
+        glowA: glows[0],
+        glowB: glows[1],
+        glowC: glows[2],
+      );
     }
     final inks = <HSLColor>[
       for (final c in ambient ?? const <Color>[]) HSLColor.fromColor(c),
@@ -545,18 +581,18 @@ class PlayerColors extends ThemeExtension<PlayerColors> {
     Color ground(double l) => deep(hsl, l);
     const ink0 = Color(0xFFF0F1F4);
     return PlayerColors(
-      base: ground(0.15),
-      baseB: deep(second, 0.15),
+      base: amoled ? PlayerTheme.black : ground(0.15),
+      baseB: amoled ? PlayerTheme.black : deep(second, 0.15),
       panel: const Color(0x00000000),
-      surface: ground(0.15),
-      surfaceHigh: ground(0.2),
+      surface: amoled ? PlayerTheme.black : ground(0.15),
+      surfaceHigh: ground(amoled ? 0.08 : 0.2),
       surfaceHover: ink0.withValues(alpha: 0.07),
-      popover: ground(0.21),
-      border: ink0.withValues(alpha: 0.11),
+      popover: ground(amoled ? 0.1 : 0.21),
+      border: ink0.withValues(alpha: amoled ? 0.14 : 0.11),
       textPrimary: ink0,
       textSecondary: ink0.withValues(alpha: 0.68),
       // The bar sits where the ground has blended into the second ink.
-      band: deep(second, 0.18),
+      band: amoled ? PlayerTheme.black : deep(second, 0.18),
       fill: third
           .withSaturation(third.saturation.clamp(0.35, 0.65))
           .withLightness(0.34)

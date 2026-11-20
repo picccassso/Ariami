@@ -182,6 +182,15 @@ class _AppearanceSectionState extends State<AppearanceSection> {
           ],
           const SizedBox(height: 20),
           _SwitchRow(
+            title: 'AMOLED black',
+            description:
+                'Use a pure black background instead of dark grey for dark '
+                'and colour themes.',
+            value: theme.amoledBlack,
+            onChanged: theme.setAmoledBlack,
+          ),
+          const SizedBox(height: 16),
+          _SwitchRow(
             title: 'Moving background',
             description:
                 'The full-screen player\'s background drifts and pulses '

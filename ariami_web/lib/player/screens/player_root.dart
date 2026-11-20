@@ -353,9 +353,7 @@ class _PlayerRootState extends State<PlayerRoot> {
           );
           final data = forceDark
               ? PlayerTheme.setup()
-              : theme.themeMode == ThemeMode.light
-                  ? theme.lightTheme
-                  : theme.darkTheme;
+              : theme.resolveTheme(MediaQuery.platformBrightnessOf(context));
           return AnimatedTheme(
             data: data,
             duration: const Duration(milliseconds: 400),

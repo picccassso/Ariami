@@ -28,6 +28,7 @@ class ThemeController extends ChangeNotifier {
   static const _sourceKey = 'player_appearance_source';
   static const _presetKey = 'player_preset_color';
   static const _customKey = 'player_custom_color';
+  static const _amoledBlackKey = 'player_amoled_black';
   static const _movingBackdropKey = 'player_moving_backdrop';
   static const _musicVisualizerKey = 'player_music_visualizer';
 
@@ -48,6 +49,7 @@ class ThemeController extends ChangeNotifier {
   Color _dynamicColor = const Color(0xFF6E7A86); // neutral until art loads
   List<Color>? _dynamicAmbient;
   List<Color> _artworkColors = const [];
+  bool _amoledBlack = false;
   bool _movingBackdrop = false;
   bool _musicVisualizer = false;
 
@@ -61,6 +63,7 @@ class ThemeController extends ChangeNotifier {
   Color get presetColor => _presetColor;
   Color get customColor => _customColor;
 
+  bool get amoledBlack => _amoledBlack;
   bool get movingBackdrop => _movingBackdrop;
 
   /// Whether the full-screen player's backdrop becomes the music visualizer
@@ -115,11 +118,26 @@ class ThemeController extends ChangeNotifier {
 
   ThemeData get lightTheme => _isNeutral
       ? PlayerTheme.neutral(brightness: Brightness.light)
-      : PlayerTheme.colorSource(seedColor, ambient: _ambient);
+      : PlayerTheme.colorSource(
+          seedColor,
+          ambient: _ambient,
+          amoled: _amoledBlack,
+        );
 
   ThemeData get darkTheme => _isNeutral
-      ? PlayerTheme.neutral(brightness: Brightness.dark)
-      : PlayerTheme.colorSource(seedColor, ambient: _ambient);
+      ? PlayerTheme.neutral(brightness: Brightness.dark, amoled: _amoledBlack)
+      : PlayerTheme.colorSource(
+          seedColor,
+          ambient: _ambient,
+          amoled: _amoledBlack,
+        );
+
+  ThemeData resolveTheme(Brightness platformBrightness) {
+    final useLight = themeMode == ThemeMode.light ||
+        (themeMode == ThemeMode.system &&
+            platformBrightness == Brightness.light);
+    return useLight ? lightTheme : darkTheme;
+  }
 
   Future<void> load() async {
     final prefs = await SharedPreferences.getInstance();
@@ -133,6 +151,7 @@ class ThemeController extends ChangeNotifier {
     if (preset != null) _presetColor = Color(preset);
     final custom = prefs.getInt(_customKey);
     if (custom != null) _customColor = Color(custom);
+    _amoledBlack = prefs.getBool(_amoledBlackKey) ?? false;
     _movingBackdrop = prefs.getBool(_movingBackdropKey) ?? false;
     _musicVisualizer = prefs.getBool(_musicVisualizerKey) ?? false;
     notifyListeners();
@@ -177,6 +196,13 @@ class ThemeController extends ChangeNotifier {
     _schedulePersist();
   }
 
+  void setAmoledBlack(bool enabled) {
+    if (_amoledBlack == enabled) return;
+    _amoledBlack = enabled;
+    notifyListeners();
+    _schedulePersist();
+  }
+
   void setMovingBackdrop(bool enabled) {
     if (_movingBackdrop == enabled) return;
     _movingBackdrop = enabled;
@@ -204,6 +230,7 @@ class ThemeController extends ChangeNotifier {
     await prefs.setInt(_sourceKey, _source.index);
     await prefs.setInt(_presetKey, _presetColor.toARGB32());
     await prefs.setInt(_customKey, _customColor.toARGB32());
+    await prefs.setBool(_amoledBlackKey, _amoledBlack);
     await prefs.setBool(_movingBackdropKey, _movingBackdrop);
     await prefs.setBool(_musicVisualizerKey, _musicVisualizer);
   }

@@ -104,9 +104,8 @@ Future<void> showSpotlightModal(
         child: theme != null
             ? Consumer<ThemeController>(
                 builder: (context, themeCtrl, child) {
-                  final data = themeCtrl.themeMode == ThemeMode.light
-                      ? themeCtrl.lightTheme
-                      : themeCtrl.darkTheme;
+                  final data = themeCtrl
+                      .resolveTheme(MediaQuery.platformBrightnessOf(context));
                   return AnimatedTheme(
                     data: data,
                     duration: const Duration(milliseconds: 400),
