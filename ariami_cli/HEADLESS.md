@@ -22,8 +22,8 @@ quarantine flag once: `xattr -dr com.apple.quarantine <extracted dir>`.
 ## Quick Start Over SSH
 
 ```bash
-unzip ariami-cli-raspberry-pi-arm64-v5.3.0.zip   # or the linux-x64 zip
-cd ariami-cli-raspberry-pi-arm64-v5.3.0
+unzip ariami-cli-raspberry-pi-arm64-v5.4.0.zip   # or the linux-x64 zip
+cd ariami-cli-raspberry-pi-arm64-v5.4.0
 chmod +x ariami_cli
 ./ariami_cli start --no-browser
 ```
