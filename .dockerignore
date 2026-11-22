@@ -4,10 +4,13 @@
 !ariami_cli/**
 !ariami_core/
 !ariami_core/**
+!ariami_web/
+!ariami_web/**
 !sonic/
 !sonic/**
 
 ariami_cli/build/
+ariami_web/build/
 ariami_cli/*.zip
 ariami_cli/**/*.zip
 sonic/target/
