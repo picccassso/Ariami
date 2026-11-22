@@ -89,6 +89,14 @@ jobs:
         working-directory: ariami_cli
         run: flutter build web -t lib/web/main.dart
 
+      - name: Get web player dependencies
+        working-directory: ariami_web
+        run: flutter pub get
+
+      - name: Build web player
+        working-directory: ariami_web
+        run: flutter build web --release --base-href /play/
+
       - name: Build CLI
         working-directory: ariami_cli
         run: dart build cli -o build/cli-out
@@ -100,11 +108,12 @@ jobs:
       - name: Assemble CLI bundle
         run: |
           rm -rf "${RELEASE_NAME}" "${RELEASE_NAME}.zip"
-          mkdir -p "${RELEASE_NAME}/bin" "${RELEASE_NAME}/lib" "${RELEASE_NAME}/web"
+          mkdir -p "${RELEASE_NAME}/bin" "${RELEASE_NAME}/lib" "${RELEASE_NAME}/web" "${RELEASE_NAME}/web_player"
 
           cp ariami_cli/build/cli-out/bundle/bin/ariami_cli "${RELEASE_NAME}/bin/ariami_cli"
           cp -R ariami_cli/build/cli-out/bundle/lib/. "${RELEASE_NAME}/lib/"
           cp -R ariami_cli/build/web/. "${RELEASE_NAME}/web/"
+          cp -R ariami_web/build/web/. "${RELEASE_NAME}/web_player/"
           cp sonic/target/release/libsonic_transcoder.so "${RELEASE_NAME}/lib/libsonic_transcoder.so"
           cp ariami_cli/ariami_cli-launcher.sh "${RELEASE_NAME}/ariami_cli"
           cp ariami_cli/SETUP.txt "${RELEASE_NAME}/SETUP.txt"
@@ -115,6 +124,8 @@ jobs:
         run: |
           test -f "${RELEASE_NAME}/bin/ariami_cli"
           test -f "${RELEASE_NAME}/lib/libsonic_transcoder.so"
+          test -f "${RELEASE_NAME}/web/index.html"
+          test -f "${RELEASE_NAME}/web_player/index.html"
 
           for artifact in "${RELEASE_NAME}/bin/ariami_cli" "${RELEASE_NAME}"/lib/*.so; do
             file "$artifact"
@@ -232,6 +243,14 @@ jobs:
         working-directory: ariami_cli
         run: flutter build web -t lib/web/main.dart
 
+      - name: Get web player dependencies
+        working-directory: ariami_web
+        run: flutter pub get
+
+      - name: Build web player
+        working-directory: ariami_web
+        run: flutter build web --release --base-href /play/
+
       - name: Build CLI
         working-directory: ariami_cli
         run: dart build cli -o build/cli-out
@@ -243,11 +262,12 @@ jobs:
       - name: Assemble CLI bundle
         run: |
           rm -rf "${RELEASE_NAME}" "${RELEASE_NAME}.zip"
-          mkdir -p "${RELEASE_NAME}/bin" "${RELEASE_NAME}/lib" "${RELEASE_NAME}/web"
+          mkdir -p "${RELEASE_NAME}/bin" "${RELEASE_NAME}/lib" "${RELEASE_NAME}/web" "${RELEASE_NAME}/web_player"
 
           cp ariami_cli/build/cli-out/bundle/bin/ariami_cli "${RELEASE_NAME}/bin/ariami_cli"
           cp -R ariami_cli/build/cli-out/bundle/lib/. "${RELEASE_NAME}/lib/"
           cp -R ariami_cli/build/web/. "${RELEASE_NAME}/web/"
+          cp -R ariami_web/build/web/. "${RELEASE_NAME}/web_player/"
           cp sonic/target/release/libsonic_transcoder.so "${RELEASE_NAME}/lib/libsonic_transcoder.so"
           cp ariami_cli/ariami_cli-launcher.sh "${RELEASE_NAME}/ariami_cli"
           cp ariami_cli/SETUP.txt "${RELEASE_NAME}/SETUP.txt"
@@ -258,6 +278,8 @@ jobs:
         run: |
           test -f "${RELEASE_NAME}/bin/ariami_cli"
           test -f "${RELEASE_NAME}/lib/libsonic_transcoder.so"
+          test -f "${RELEASE_NAME}/web/index.html"
+          test -f "${RELEASE_NAME}/web_player/index.html"
 
           for artifact in "${RELEASE_NAME}/bin/ariami_cli" "${RELEASE_NAME}"/lib/*.so; do
             file "$artifact"
@@ -358,6 +380,14 @@ jobs:
         working-directory: ariami_cli
         run: flutter build web -t lib/web/main.dart
 
+      - name: Get web player dependencies
+        working-directory: ariami_web
+        run: flutter pub get
+
+      - name: Build web player
+        working-directory: ariami_web
+        run: flutter build web --release --base-href /play/
+
       - name: Build CLI
         working-directory: ariami_cli
         run: dart build cli -o build/cli-out
@@ -369,11 +399,12 @@ jobs:
       - name: Assemble CLI bundle
         run: |
           rm -rf "${RELEASE_NAME}" "${RELEASE_NAME}.zip"
-          mkdir -p "${RELEASE_NAME}/bin" "${RELEASE_NAME}/lib" "${RELEASE_NAME}/web"
+          mkdir -p "${RELEASE_NAME}/bin" "${RELEASE_NAME}/lib" "${RELEASE_NAME}/web" "${RELEASE_NAME}/web_player"
 
           cp ariami_cli/build/cli-out/bundle/bin/ariami_cli "${RELEASE_NAME}/bin/ariami_cli"
           cp -R ariami_cli/build/cli-out/bundle/lib/. "${RELEASE_NAME}/lib/"
           cp -R ariami_cli/build/web/. "${RELEASE_NAME}/web/"
+          cp -R ariami_web/build/web/. "${RELEASE_NAME}/web_player/"
           cp sonic/target/release/libsonic_transcoder.dylib "${RELEASE_NAME}/lib/libsonic_transcoder.dylib"
           cp ariami_cli/ariami_cli-launcher.sh "${RELEASE_NAME}/ariami_cli"
           cp ariami_cli/SETUP.txt "${RELEASE_NAME}/SETUP.txt"
@@ -384,6 +415,8 @@ jobs:
         run: |
           test -f "${RELEASE_NAME}/bin/ariami_cli"
           test -f "${RELEASE_NAME}/lib/libsonic_transcoder.dylib"
+          test -f "${RELEASE_NAME}/web/index.html"
+          test -f "${RELEASE_NAME}/web_player/index.html"
 
           lipo "${RELEASE_NAME}/bin/ariami_cli" -verify_arch arm64
           for dylib in "${RELEASE_NAME}"/lib/*.dylib; do
@@ -484,6 +517,14 @@ jobs:
         working-directory: ariami_cli
         run: flutter build web -t lib/web/main.dart
 
+      - name: Get web player dependencies
+        working-directory: ariami_web
+        run: flutter pub get
+
+      - name: Build web player
+        working-directory: ariami_web
+        run: flutter build web --release --base-href /play/
+
       - name: Build CLI
         working-directory: ariami_cli
         run: dart build cli -o build/cli-out
@@ -497,11 +538,12 @@ jobs:
         run: |
           $release = $env:RELEASE_NAME
           Remove-Item -Recurse -Force $release, "$release.zip" -ErrorAction SilentlyContinue
-          New-Item -ItemType Directory -Force "$release/bin", "$release/lib", "$release/web" | Out-Null
+          New-Item -ItemType Directory -Force "$release/bin", "$release/lib", "$release/web", "$release/web_player" | Out-Null
 
           Copy-Item 'ariami_cli/build/cli-out/bundle/bin/ariami_cli.exe' "$release/bin/ariami_cli.exe"
           Copy-Item 'ariami_cli/build/cli-out/bundle/lib/*' "$release/lib/" -Recurse
           Copy-Item 'ariami_cli/build/web/*' "$release/web/" -Recurse
+          Copy-Item 'ariami_web/build/web/*' "$release/web_player/" -Recurse
           Copy-Item 'sonic/target/release/sonic_transcoder.dll' "$release/lib/sonic_transcoder.dll"
           Copy-Item 'ariami_cli/ariami_cli-launcher.bat' "$release/ariami_cli.bat"
           Copy-Item 'ariami_cli/SETUP.txt' "$release/SETUP.txt"
@@ -532,6 +574,12 @@ jobs:
           }
 
           $release = $env:RELEASE_NAME
+          if (-not (Test-Path "$release/web/index.html")) {
+            throw "Missing web/index.html in $release"
+          }
+          if (-not (Test-Path "$release/web_player/index.html")) {
+            throw "Missing web_player/index.html in $release"
+          }
           Assert-X64Pe "$release/bin/ariami_cli.exe"
           Assert-X64Pe "$release/lib/sonic_transcoder.dll"
           Assert-X64Pe "$release/lib/sqlite3.dll"
