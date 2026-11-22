@@ -223,7 +223,7 @@ class _DashboardScreenState extends State<DashboardScreen>
       availableUpdate: _availableUpdate,
       onOpenReleasePage: () {
         final update = _availableUpdate;
-        unawaited(UpdateCheckService.openReleasePage(
+        unawaited(UpdateCheckService.openInBrowser(
           update?.releaseUrl ?? UpdateCheckService.releasesPageUrl,
         ));
       },

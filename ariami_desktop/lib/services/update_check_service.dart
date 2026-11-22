@@ -99,9 +99,8 @@ class UpdateCheckService {
         .toList();
   }
 
-  /// Opens [url] in the default browser. Only ever called with the GitHub
-  /// release page URLs above.
-  static Future<void> openReleasePage(String url) async {
+  /// Opens [url] in the default browser.
+  static Future<void> openInBrowser(String url) async {
     if (Platform.isMacOS) {
       await Process.run('open', [url]);
     } else if (Platform.isWindows) {

@@ -62,6 +62,17 @@ class ServerInitializationService {
     await _ensureArtworkService(httpServer);
   }
 
+  /// Mounts the Ariami Web player bundle if packaged or built alongside desktop.
+  static Future<void> _configureWebPlayerAssets(AriamiHttpServer httpServer) async {
+    final resolution = await const WebPlayerAssetsResolver().resolve(
+      scriptPath: Platform.script.toFilePath(),
+    );
+    if (resolution.found) {
+      httpServer.setWebPlayerAssetsPath(resolution.path!);
+      print('[ServerInit] Web player assets ready at: ${resolution.path}');
+    }
+  }
+
   /// Rebuild the transcoding service with the latest slot configuration.
   Future<void> recreateTranscodingService(AriamiHttpServer httpServer) async {
     _transcodingService?.dispose();
@@ -178,6 +189,7 @@ class ServerInitializationService {
     String? tailscaleIp,
     String? lanIp,
   }) async {
+    await _configureWebPlayerAssets(httpServer);
     final savedPort = await stateService.getServerPort();
     final preferredPort = savedPort ?? ServerPortPolicy.defaultPort;
 

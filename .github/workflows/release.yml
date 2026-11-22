@@ -93,6 +93,19 @@ jobs:
           cd ariami_desktop
           flutter build macos --release
 
+      - name: Build web player
+        working-directory: ariami_web
+        run: |
+          flutter pub get
+          flutter build web --release --base-href /play/
+
+      - name: Stage web player into macOS app
+        run: |
+          app='ariami_desktop/build/macos/Build/Products/Release/Ariami-Desktop.app'
+          cp -R ariami_web/build/web "$app/Contents/Resources/web_player"
+          codesign --force --sign - \
+            --entitlements ariami_desktop/macos/Runner/Release.entitlements "$app"
+
       - name: Install create-dmg
         run: brew install create-dmg
 
@@ -157,6 +170,16 @@ jobs:
           cd ariami_desktop
           flutter build windows --release
 
+      - name: Build web player
+        working-directory: ariami_web
+        run: |
+          flutter pub get
+          flutter build web --release --base-href /play/
+
+      - name: Stage web player into Windows bundle
+        shell: pwsh
+        run: Copy-Item ariami_web/build/web ariami_desktop/build/windows/x64/runner/Release/web_player -Recurse
+
       - name: Get version
         id: version
         shell: bash
@@ -215,6 +238,15 @@ jobs:
         run: |
           cd ariami_desktop
           flutter build linux --release
+
+      - name: Build web player
+        working-directory: ariami_web
+        run: |
+          flutter pub get
+          flutter build web --release --base-href /play/
+
+      - name: Stage web player into Linux bundle
+        run: cp -R ariami_web/build/web ariami_desktop/build/linux/x64/release/bundle/web_player
 
       - name: Get version
         id: version

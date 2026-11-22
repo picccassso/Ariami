@@ -57,6 +57,7 @@ class DashboardOverviewTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isRunning = httpServer.isRunning;
+    final serverInfo = httpServer.getServerInfo();
     final musicAvailability = httpServer.libraryManager.musicAvailability;
 
     return DashboardKeepAliveTab(
@@ -165,6 +166,21 @@ class DashboardOverviewTab extends StatelessWidget {
               ),
             ),
           ),
+          if (isRunning && serverInfo['webPlayerEnabled'] == true) ...[
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: () => UpdateCheckService.openInBrowser(
+                    'http://localhost:${serverInfo['port']}/play/'),
+                icon: const Icon(Icons.open_in_new_rounded),
+                label: const Text('Open Web Player'),
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 20),
+                ),
+              ),
+            ),
+          ],
           const SizedBox(height: 24),
           if (!hasOwnerAccount)
             Container(
