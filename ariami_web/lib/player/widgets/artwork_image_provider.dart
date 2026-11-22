@@ -215,7 +215,7 @@ class ArtworkImageProvider extends ImageProvider<ArtworkImageProvider> {
         _inFlight.remove(url);
         _inFlightTokens.remove(url);
       }
-    });
+    }).ignore();
     return future;
   }
 
