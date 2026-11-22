@@ -6,6 +6,132 @@ Thank you for those that actually support and use this project at all! :D
 
 ---
 
+## 5.4.0
+
+Ariami 5.4.0 is the redesign release. Premium Desktop, Mobile, TV and the CLI
+dashboard now share one look built around the record you're playing: Archivo
+type, flat graphite and paper surfaces, and colours printed straight from the
+cover art as a two-ink duotone.
+
+It also brings Ariami Web, a browser player your server hosts at `/play/`.
+Every account can curate its own library, and lyrics are now searchable on
+every client.
+
+### Highlights
+
+- Redesigned Premium Desktop, Mobile, TV and the CLI dashboard around the
+  playing record, with Archivo type, flat surfaces and cover-art colours.
+- Added Ariami Web, a browser player served at `/play/` by the CLI, Docker
+  image and Desktop Server, with an equalizer, visualizer and media controls.
+- Added per-user curated libraries, so each account can keep the whole
+  catalogue or pick its own artists, albums, playlists and songs.
+- Added lyrics search to the server, Premium Desktop, Mobile and Ariami Web.
+- Added a discovery wishlist that feeds Lidarr or a plain text list.
+- Added shareable Listening Stats image cards to Mobile and Premium Desktop.
+- Let the CLI dashboard upload music straight into the library.
+
+### Full changes
+
+#### Design
+
+- Rebuilt Premium Desktop's look around the record: bundled Archivo in three
+  widths, graphite and paper palettes, and flush columns divided by thin rules
+- Printed cover-art themes as a two-ink duotone, with the window blending from
+  the cover's main colour into its second and the transport bar filling with a
+  third
+- Turned the transport bar into the progress bar, with a seek strip along its
+  top edge that shows a handle and the target time on hover
+- Set the full-screen player's title beside the cover on wide windows, with
+  lyrics rising into the column underneath
+- Renamed the queue to "Up next" everywhere, numbered it, and put the playing
+  song at the top
+- Brought Settings, the sidebar, home and detail pages into the redesign, with
+  sentence-case labels in place of tracked capitals
+- Brought Mobile and TV into the same design, including a progress-filled mini
+  player, progress-filled playing rows and sleeve-style album, playlist and
+  artist headers
+- Re-skinned the CLI setup wizard and dashboard with Premium Desktop's dark
+  theme and Archivo type
+- Brought the Moving background back behind the whole app on Premium Desktop
+  and Mobile, with a still glow behind TV menus
+- Added an AMOLED black option to Appearance on Premium Desktop and Ariami Web
+- Added "Most played this month" to Premium Desktop's home
+- Made progress fills glide one device pixel at a time and repaint only when
+  the playhead moves
+- Faded Premium Desktop's full-screen controls and cursor after 90 seconds of
+  idle playback, matching TV
+
+#### Ariami Web
+
+- Added Ariami Web, the browser player at `/play/`, built from Premium
+  Desktop's player screens
+- Added a Web Audio equalizer and level meter that work over plain-HTTP LAN
+  and Tailscale
+- Kept the library and artwork thumbnails in IndexedDB between visits, so a
+  reload shows your library straight away
+- Gzipped the web bundle and served 640px covers for grids, bringing warm
+  reloads over Tailscale to about half a second
+- Built the search index in small slices so the page stays responsive while
+  the library loads
+- Let users sign in without an invite code and connect to `https://` addresses
+- Bundled Ariami Web with the CLI, Docker image, Raspberry Pi build and Desktop
+  Server
+
+#### Libraries and search
+
+- Added per-user curated libraries: keep everything with a few exclusions, or
+  switch to Curated Mode and pick artists, albums, server playlists and songs
+- Let owners curate any user's library from the CLI dashboard, the Desktop
+  Server and Premium Desktop's server dashboard, with artwork thumbnails and
+  four tabs
+- Added My Library and Curate Library editors to Premium Desktop and Mobile,
+  plus "Remove from my library" actions and a full catalogue search toggle
+- Applied each user's curation on TV, refreshing live when it changes
+- Added lyrics search, run off the UI thread so search opens and types
+  without lag
+- Cut lyrics search memory by about two thirds
+- Used filename track numbers when an album's tags give every song the same
+  number
+- Merged duplicate song stats left by moved files or reordered artist credits
+
+#### Discovery and stats
+
+- Reworked music discovery on Premium Desktop and Mobile with better privacy,
+  offline fallbacks, cached results and more balanced mixes
+- Added a discovery wishlist with Lidarr and text feeds, a webhook and
+  automatic pruning
+- Added Listening Stats image cards to Mobile and Premium Desktop, ready to
+  export, share or copy
+
+#### Queue and playback
+
+- Showed an undoable popup for every way you can queue a song on Mobile and
+  Premium Desktop
+- Fetched lyrics for songs you downloaded before the server had them, and added
+  a Refresh lyrics action to Downloads
+- Kept Premium Desktop's own volume across Ariami Connect handoffs
+- Fixed Connect rejecting queues that contain songs with long lyrics
+- Fixed the Chromecast seek bar jumping to zero on connect
+- Fixed the queue drag preview turning into a grey box in Premium Desktop
+- Added a playback debug overlay to Premium Desktop's Developer settings, fed by
+  source bitrate and format from the server
+
+#### Server and setup
+
+- Let the CLI dashboard upload files and folders into any library folder
+- Stopped a malformed MP3 tag from crashing the server
+- Added WebP thumbnails, a batch artwork endpoint and a faster artwork cache
+- Cut server memory and tuned Sonic streaming and transcoding for Raspberry Pi
+- Made browsers pick up new web UI builds without a hard refresh
+- Simplified Premium Desktop's setup: servers on your Wi-Fi appear
+  automatically, you can paste or pick a licence file, and `https://` addresses
+  work
+- Let Premium Desktop recover from corrupted preferences on startup
+- Sped up TV's session check to a single request
+- Fixed TV's rail moving right into narrow Albums and Playlists grids
+
+---
+
 ## 5.3.0
 
 Ariami 5.3.0 adds synced and plain lyrics to the server, Mobile and Premium
