@@ -51,6 +51,10 @@ extension _AudioControllerLocalPlayback on AudioController {
 
     _localPlaybackGuard.disarmCompletion();
     final generation = ++_loadGeneration;
+    _loadInFlight = true;
+    if (_errorRecoveryTrackId != track.id) {
+      _errorRecoveryTrackId = null;
+    }
     _gaplessTailGeneration++;
     _gaplessTailPending = false;
     _autoplayBlocked = false;
@@ -62,6 +66,7 @@ extension _AudioControllerLocalPlayback on AudioController {
 
     final cast = _castService;
     if (cast != null && isCastActive) {
+      if (generation == _loadGeneration) _loadInFlight = false;
       if (_client == null) return;
       try {
         await cast.syncFromPlayback(
@@ -105,6 +110,7 @@ extension _AudioControllerLocalPlayback on AudioController {
         );
       }
       if (generation != _loadGeneration) return;
+      _loadInFlight = false;
       _unplayableSkipStreak = 0;
       // A play pressed mid-fetch starts now that the source is ready.
       final startPlaying = autoplay || _pendingAutoplay;
@@ -114,6 +120,7 @@ extension _AudioControllerLocalPlayback on AudioController {
       }
     } catch (e) {
       if (generation != _loadGeneration) return;
+      _loadInFlight = false;
       // A deferred play dies with the failed load.
       _pendingAutoplay = false;
       // The server no longer has this track (stale playlist/queue id): it can
@@ -127,6 +134,10 @@ extension _AudioControllerLocalPlayback on AudioController {
       if (autoplay) {
         _resumeOrderPosOnReconnect = _orderPos;
       }
+      if (_player.playing) {
+        unawaited(_player.pause());
+      }
+      _isPlaying = false;
       _errorMessage = 'Could not play "${track.title}": $e';
       _isLoading = false;
       notifyListeners();

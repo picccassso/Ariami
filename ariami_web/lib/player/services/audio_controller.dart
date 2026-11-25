@@ -275,6 +275,9 @@ class AudioController extends ChangeNotifier {
   /// Play pressed while the source is still loading; the in-flight load
   /// starts playback when it lands rather than playing into an idle engine.
   bool _pendingAutoplay = false;
+  bool _loadInFlight = false;
+  String? _errorRecoveryTrackId;
+  ProcessingState _lastLocalProcessingState = ProcessingState.idle;
   Duration _position = Duration.zero;
   Duration _bufferedPosition = Duration.zero;
   Duration? _duration;
@@ -291,11 +294,13 @@ class AudioController extends ChangeNotifier {
     _gaplessTailPending = false;
     _resumeOrderPosOnReconnect = null;
     _pendingAutoplay = false;
+    _loadInFlight = false;
   }
 
-  /// True while the source is still being fetched and nothing is loaded yet.
+  /// True while the source is still being fetched or handed to the engine.
   bool get _awaitingSourceLoad =>
-      _isLoading && _player.processingState == ProcessingState.idle;
+      _loadInFlight ||
+      (_isLoading && _player.processingState == ProcessingState.idle);
 
   /// Remembers a play pressed mid-load; [_loadCurrent] starts playback when
   /// the source lands. Does not invalidate the in-flight load.
@@ -1644,6 +1649,8 @@ class AudioController extends ChangeNotifier {
 
   Future<void> clear() async {
     _loadGeneration++;
+    _loadInFlight = false;
+    _errorRecoveryTrackId = null;
     _autoplayBlocked = false;
     if (isCastActive) {
       await _castService?.pause();

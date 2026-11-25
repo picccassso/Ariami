@@ -3,6 +3,7 @@ import 'dart:math' as math;
 
 import 'package:ariami_core/utils/format.dart';
 import 'package:flutter/material.dart';
+import 'package:just_audio/just_audio.dart' show ProcessingState;
 
 import '../models/player_models.dart';
 import '../services/audio_controller.dart';
@@ -124,13 +125,17 @@ class _ProgressFillState extends State<ProgressFill> {
     _advance();
   }
 
+  bool get _canGlide =>
+      _audio.isPlaying &&
+      !_audio.isLoading &&
+      (_audio.isRemoteActive ||
+          _audio.isCastActive ||
+          _audio.localProcessingState == ProcessingState.ready);
+
   /// Where the song is now: the last report carried forward while playing —
   /// unless the source is still loading, where the fill holds at the report.
   double get _estimateMs => math.min(
-        _anchorMs +
-            (_audio.isPlaying && !_audio.isLoading
-                ? _clock.elapsedMilliseconds
-                : 0),
+        _anchorMs + (_canGlide ? _clock.elapsedMilliseconds : 0),
         _totalMs,
       );
 
@@ -153,10 +158,7 @@ class _ProgressFillState extends State<ProgressFill> {
       _shownMs = shown;
     }
 
-    if (!_audio.isPlaying ||
-        _audio.isLoading ||
-        _totalMs <= 0 ||
-        _devicePx <= 0) {
+    if (!_canGlide || _totalMs <= 0 || _devicePx <= 0) {
       return;
     }
     // Wake when the edge reaches the next device pixel.

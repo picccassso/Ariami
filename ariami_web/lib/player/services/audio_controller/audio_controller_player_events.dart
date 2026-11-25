@@ -4,13 +4,27 @@ extension _AudioControllerPlayerEvents on AudioController {
   void _wireStreams() {
     _player.playerStateStream.listen(
       (state) {
+        final previousState = _lastLocalProcessingState;
+        _lastLocalProcessingState = state.processingState;
         _isPlaying = state.playing;
         if (state.playing) _autoplayBlocked = false;
+        if (state.playing && state.processingState == ProcessingState.ready) {
+          _errorRecoveryTrackId = null;
+        }
         _isLoading = state.processingState == ProcessingState.loading ||
             state.processingState == ProcessingState.buffering;
         _observeLocalPlayerState(state.playing, state.processingState);
         notifyListeners();
+        if (state.playing &&
+            state.processingState == ProcessingState.idle &&
+            previousState != ProcessingState.idle) {
+          _recoverOrPauseFromEngineDrop();
+        }
       },
+      onError: (_) {},
+    );
+    _player.errorStream.listen(
+      (error) => _recoverOrPauseFromEngineDrop(errorMessage: error.message),
       onError: (_) {},
     );
     _player.positionStream.listen((p) {
@@ -86,5 +100,36 @@ extension _AudioControllerPlayerEvents on AudioController {
     _errorMessage = null;
     notifyListeners();
     unawaited(_refreshGaplessTail());
+  }
+
+  void _recoverOrPauseFromEngineDrop({String? errorMessage}) {
+    if (_remote != null ||
+        isCastActive ||
+        _localPlaybackGuard.isSuspended ||
+        _loadInFlight ||
+        _settingNativePlaylist ||
+        !_player.playing) {
+      return;
+    }
+    final track = _localCurrentTrack;
+    if (track == null) return;
+
+    if (_errorRecoveryTrackId != track.id) {
+      _errorRecoveryTrackId = track.id;
+      unawaited(_loadCurrent(
+        autoplay: true,
+        initialPosition: _position > Duration.zero ? _position : null,
+      ));
+      return;
+    }
+
+    _errorRecoveryTrackId = null;
+    _isPlaying = false;
+    _isLoading = false;
+    _errorMessage = errorMessage == null || errorMessage.isEmpty
+        ? 'Could not play "${track.title}".'
+        : 'Could not play "${track.title}": $errorMessage';
+    unawaited(_player.pause());
+    notifyListeners();
   }
 }
